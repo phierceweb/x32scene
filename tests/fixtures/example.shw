@@ -1,0 +1,6 @@
+#4.0#
+show "Example Show" 0 0 0 0 0 0 0 0 0 0 "X32-Edit 4.00"
+cue/000 100 "Opener" 0 0 0 0 1 0 0
+cue/001 150 "Encore" 1 -1 0 0 1 0 0
+scene/000 "Example Rig" "" %000000110 1
+snippet/000 "Example EQ" 4 1 0 0 1

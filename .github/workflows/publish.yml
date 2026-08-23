@@ -1,0 +1,64 @@
+# Builds the package on a release tag (v*), runs the suite, and publishes to PyPI via
+# Trusted Publishing (OIDC — no API token in the repo). Tags are the public consumption
+# surface; main carries no stability promise.
+#
+# The publish job REQUIRES a GitHub Trusted Publisher registered on pypi.org matching
+# EXACTLY: project "x32scene", owner phierceweb, repo x32scene, workflow publish.yml,
+# environment pypi. The `pypi` environment carries required reviewers in the repo
+# settings, so an upload waits for approval. If the registration is missing or
+# mismatched the upload step fails; the build step still succeeds and the dist is kept
+# as a CI artifact.
+name: publish
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      # Fail fast when the pushed tag doesn't match pyproject's version — a mismatched
+      # build otherwise reaches PyPI and 400s on filename reuse.
+      - name: verify tag matches package version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::tag v$TAG_VERSION != pyproject version $PKG_VERSION — bump pyproject (and CHANGELOG) before tagging"
+            exit 1
+          fi
+      - run: python -m build
+      - run: twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check src tests
+      - run: python -m pf_core.guards
+      - run: pytest -q
+
+  publish:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1

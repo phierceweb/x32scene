@@ -1,0 +1,32 @@
+{
+  "_comment": "Example stage sidecar for `x32scene preflight --stage` / `ports --stage`, keyed to tests/fixtures/example.scn. It records what the scene file cannot hold: which console output lands on which physical connector, in which box, feeding which device, worn by whom. Every value is an operator's assertion — x32scene checks the scene against it and never verifies a cable. Copy it and replace every label with your own rig's. Entry keys: jack, box, device, wearer (free strings), bus (1-16, cross-checked against the scene), confirmed (a date, or omit it to be shown as unconfirmed), notes.",
+  "outputs": {
+    "main": {
+      "9": {
+        "jack": "Box A out 1",
+        "box": "Stagebox A",
+        "device": "IEM TX 1",
+        "wearer": "Drums",
+        "bus": 3,
+        "confirmed": "2026-09-04"
+      },
+      "10": {
+        "jack": "Box A out 2",
+        "box": "Stagebox A",
+        "device": "IEM TX 1",
+        "wearer": "Drums",
+        "bus": 4,
+        "confirmed": "2026-09-04"
+      }
+    },
+    "aux": {
+      "1": {
+        "jack": "Aux out 1",
+        "device": "Headphone amp",
+        "wearer": "Bass",
+        "bus": 7,
+        "notes": "wired feed — confirm at soundcheck"
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+# Structural gate config — read by default by `python -m pf_core.guards`
+# (bin/run lint + CI); flat library limits for a src layout.
+#
+# Both roots are declared here rather than passed as --root, so the gate reads the
+# same policy everywhere it runs. Tests are gated too: a test file is as easy to let
+# sprawl as a source one.
+#
+# No [tool.pf_guards.baseline] table: every file is under the soft limit. If one ever
+# isn't, split the file — do not grandfather it.
+[tool.pf_guards]
+root = ["src/x32scene", "tests"]

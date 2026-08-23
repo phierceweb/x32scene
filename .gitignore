@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# Tool caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Local run output
+logs/
+*.jsonl
+
+# Scene files are console data — only the test fixtures belong in the repo.
+*.scn
+*.chn
+!tests/fixtures/*.scn
+!tests/fixtures/*.chn
+
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
+*.bak
+*.orig
+*.rej
+
+# AI / agent workspace
+.ai/
+.claude/
+.cursor/
+.superpowers/
+CLAUDE.md
+
+# pf-core docs symlink (bin/run setup recreates it)
+docs/pf-core

@@ -1,0 +1,20 @@
+{
+  "title": "Example Rig - 2026-09-05",
+  "channels": {
+    "1":  {"name": "Kick", "gain_db": 27.0, "phantom": false,
+           "lowcut": {"on": true, "freq": 40},
+           "eq": {"2": {"type": "PEQ", "freq": 100, "gain": 3.0, "q": 1.5}},
+           "comp": {"thr": -18, "ratio": "3", "attack": 10, "release": 80},
+           "gate": {"thr": -45, "range": 40}},
+    "5":  {"name": "Rack 1", "source": "aes50-a 3", "pan": -30},
+    "20": {"name": "Gtr 2", "fader": "-oo", "mute": true}
+  },
+  "dca":       {"3": [19, 20, 21, 22]},
+  "iem_copy":  [{"src": 1, "dst": 5}],
+  "iem_sends": [{"strip": 23, "bus": 5, "level": -14.0}],
+  "outputs":   {"9": 1, "10": 2},
+  "fx":        {"4": {"type": "HALL", "source": "MIX15,MIX16", "params": {"Decay": 2.1}}},
+  "routing":   {"switch": "REC", "IN": {"1-8": "A1-8"}},
+  "output_patch": {"main": {"11": {"src": "bus 12", "pos": "PRE+M"}},
+                   "p16":  {"1": {"src": "direct out ch 5"}}}
+}

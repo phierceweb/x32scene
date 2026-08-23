@@ -1,0 +1,5 @@
+#4.0# 1 "Example Routing" 2 %0000000000000000 1                                                                                
+/config/routing/IN UIN1-8 UIN9-16 UIN17-24 UIN25-32 AUX1-4
+/config/routing/AES50A UOUT1-8 OUT9-16 UOUT17-24 UOUT25-32 UOUT33-40 UOUT41-48
+/config/routing/AES50B UOUT1-8 UOUT9-16 OUT1-8 UOUT41-48 UOUT41-48 UOUT41-48
+/config/routing/CARD UOUT1-8 UOUT9-16 UOUT17-24 UOUT25-32

@@ -1,0 +1,725 @@
+{
+  "_comment": "Example expected-rig config for `x32scene preflight`, generated from tests/fixtures/example.scn. Copy it, point it at your own console's scene, and edit to match your rig. Every section is optional. Gain is checked with a tolerance (WARN); everything else is exact (FAIL). Line shapes are checked with no config at all.",
+  "gain_tolerance_db": 3.0,
+  "channels": {
+    "1": {
+      "name": "Kick",
+      "source": "Local input 1",
+      "in_main": true,
+      "gain": 27.0,
+      "phantom": false
+    },
+    "2": {
+      "name": "Kick Sub",
+      "source": "Local input 2",
+      "in_main": true,
+      "gain": 26.0,
+      "phantom": false
+    },
+    "3": {
+      "name": "Snare Top",
+      "source": "Local input 3",
+      "in_main": true,
+      "gain": 18.5,
+      "phantom": false
+    },
+    "4": {
+      "name": "Snare Bot",
+      "source": "Local input 4",
+      "in_main": true,
+      "gain": 19.0,
+      "phantom": false
+    },
+    "5": {
+      "name": "Rack 1",
+      "source": "Local input 5",
+      "in_main": false,
+      "gain": 13.0,
+      "phantom": false
+    },
+    "6": {
+      "name": "Rack 2",
+      "source": "Local input 6",
+      "in_main": true,
+      "gain": 23.0,
+      "phantom": false
+    },
+    "7": {
+      "name": "Rack 3",
+      "source": "Local input 7",
+      "in_main": false,
+      "gain": 14.0,
+      "phantom": false
+    },
+    "8": {
+      "name": "Rack 4",
+      "source": "Local input 8",
+      "in_main": false,
+      "gain": 14.0,
+      "phantom": false
+    },
+    "9": {
+      "name": "Floor 1",
+      "source": "Local input 9",
+      "in_main": true,
+      "gain": 19.5,
+      "phantom": false
+    },
+    "10": {
+      "name": "Floor 2",
+      "source": "Local input 10",
+      "in_main": true,
+      "gain": 14.0,
+      "phantom": false
+    },
+    "11": {
+      "name": "OH L",
+      "source": "Local input 11",
+      "in_main": true,
+      "gain": 16.0,
+      "phantom": true
+    },
+    "12": {
+      "name": "OH R",
+      "source": "Local input 12",
+      "in_main": true,
+      "gain": 16.0,
+      "phantom": true
+    },
+    "13": {
+      "name": "Hat",
+      "source": "Local input 13",
+      "in_main": true,
+      "gain": 25.0,
+      "phantom": true
+    },
+    "14": {
+      "name": "Ride",
+      "source": "Local input 14",
+      "in_main": true,
+      "gain": 26.0,
+      "phantom": true
+    },
+    "15": {
+      "name": "ROOM L",
+      "source": "Local input 15",
+      "in_main": false,
+      "gain": 23.5,
+      "phantom": true
+    },
+    "16": {
+      "name": "ROOM R",
+      "source": "Local input 16",
+      "in_main": false,
+      "gain": 23.5,
+      "phantom": true
+    },
+    "17": {
+      "name": "Bass DI",
+      "source": "AES50-A input 1",
+      "in_main": true,
+      "gain": 39.5,
+      "phantom": false
+    },
+    "18": {
+      "name": "Bass Amp",
+      "source": "AES50-A input 2",
+      "in_main": true,
+      "gain": 11.0,
+      "phantom": false
+    },
+    "19": {
+      "name": "Gtr 1 DI",
+      "source": "AES50-A input 3",
+      "in_main": false,
+      "gain": 10.0,
+      "phantom": false
+    },
+    "20": {
+      "name": "Gtr 1",
+      "source": "AES50-A input 4",
+      "in_main": true,
+      "gain": 0.5,
+      "phantom": false
+    },
+    "21": {
+      "name": "Gtr 2 DI",
+      "source": "AES50-A input 5",
+      "in_main": false,
+      "gain": 42.5,
+      "phantom": false
+    },
+    "22": {
+      "name": "Gtr 2",
+      "source": "AES50-A input 6",
+      "in_main": true,
+      "gain": 2.5,
+      "phantom": false
+    },
+    "23": {
+      "name": "Vox 1",
+      "source": "AES50-A input 7",
+      "in_main": true,
+      "gain": 42.5,
+      "phantom": false
+    },
+    "24": {
+      "name": "Vox 2",
+      "source": "AES50-A input 8",
+      "in_main": true,
+      "gain": 42.5,
+      "phantom": false
+    },
+    "25": {
+      "name": "Vox 3",
+      "source": "AES50-A input 9",
+      "in_main": false,
+      "gain": 42.5,
+      "phantom": false
+    },
+    "26": {
+      "name": "Vox 4",
+      "source": "AES50-A input 10",
+      "in_main": false,
+      "gain": 34.0,
+      "phantom": false
+    },
+    "27": {
+      "name": "Trigger L",
+      "source": "AES50-A input 11",
+      "in_main": false,
+      "gain": 5.0,
+      "phantom": false
+    },
+    "28": {
+      "name": "Trigger R",
+      "source": "AES50-A input 12",
+      "in_main": false,
+      "gain": 5.0,
+      "phantom": false
+    },
+    "30": {
+      "name": "Click",
+      "source": "USB Card (DAW) 30",
+      "in_main": false
+    },
+    "31": {
+      "name": "DAW L",
+      "source": "USB Card (DAW) 1",
+      "in_main": true
+    },
+    "32": {
+      "name": "DAW R",
+      "source": "USB Card (DAW) 2",
+      "in_main": true
+    }
+  },
+  "record": {
+    "_comment": "The 32 USB record tracks the DAW receives (routing/CARD + userrout/out), in order.",
+    "1": "Local input 1",
+    "2": "Local input 2",
+    "3": "Local input 3",
+    "4": "Local input 4",
+    "5": "Local input 5",
+    "6": "Local input 6",
+    "7": "Local input 7",
+    "8": "Local input 8",
+    "9": "Local input 9",
+    "10": "Local input 10",
+    "11": "Local input 11",
+    "12": "Local input 12",
+    "13": "Local input 13",
+    "14": "Local input 14",
+    "15": "Local input 15",
+    "16": "Local input 16",
+    "17": "AES50-A input 1",
+    "18": "AES50-A input 2",
+    "19": "AES50-A input 3",
+    "20": "AES50-A input 4",
+    "21": "AES50-A input 5",
+    "22": "AES50-A input 6",
+    "23": "AES50-A input 7",
+    "24": "AES50-A input 8",
+    "25": "AES50-A input 9",
+    "26": "AES50-A input 10",
+    "27": "AES50-A input 11",
+    "28": "AES50-A input 12",
+    "29": "AES50-A input 13",
+    "30": "AES50-A input 14",
+    "31": "AES50-A input 15",
+    "32": "AES50-A input 16"
+  },
+  "fx": {
+    "1": "PLAT",
+    "2": "VRM",
+    "3": "D/CR",
+    "4": "CR/R"
+  },
+  "monitor": {
+    "_comment": "physical_outputs: how many /outputs/main have a rear jack on THIS console (8 = X32 Rack, 16 = full-size X32); the file cannot say. stereo_pairs: banks where an odd output carrying an odd bus must be followed by its partner. require_reachable: every virtual output with a source must leave the console via an AES50/card block or a user-out slot. require_live_senders: every bus that feeds an output must have a sender ON above -oo.",
+    "physical_outputs": 8,
+    "stereo_pairs": [
+      "main",
+      "aux"
+    ],
+    "require_reachable": true,
+    "require_live_senders": true
+  },
+  "outputs": {
+    "_comment": "Every output of every bank: src (raw output-source number) or bus (1-16), pos (tap point) and invert. A rec line has no invert field.",
+    "main": {
+      "1": {
+        "bus": 1,
+        "pos": "POST",
+        "invert": false
+      },
+      "2": {
+        "bus": 2,
+        "pos": "POST",
+        "invert": false
+      },
+      "3": {
+        "bus": 3,
+        "pos": "POST",
+        "invert": false
+      },
+      "4": {
+        "bus": 4,
+        "pos": "POST",
+        "invert": false
+      },
+      "5": {
+        "bus": 11,
+        "pos": "POST",
+        "invert": false
+      },
+      "6": {
+        "bus": 12,
+        "pos": "POST",
+        "invert": false
+      },
+      "7": {
+        "src": 1,
+        "pos": "POST",
+        "invert": false
+      },
+      "8": {
+        "src": 2,
+        "pos": "POST",
+        "invert": false
+      },
+      "9": {
+        "bus": 3,
+        "pos": "POST",
+        "invert": false
+      },
+      "10": {
+        "bus": 4,
+        "pos": "POST",
+        "invert": false
+      },
+      "11": {
+        "bus": 7,
+        "pos": "POST",
+        "invert": false
+      },
+      "12": {
+        "bus": 8,
+        "pos": "POST",
+        "invert": false
+      },
+      "13": {
+        "bus": 5,
+        "pos": "POST",
+        "invert": false
+      },
+      "14": {
+        "bus": 6,
+        "pos": "POST",
+        "invert": false
+      },
+      "15": {
+        "bus": 1,
+        "pos": "POST",
+        "invert": false
+      },
+      "16": {
+        "bus": 2,
+        "pos": "POST",
+        "invert": false
+      }
+    },
+    "aux": {
+      "1": {
+        "bus": 7,
+        "pos": "POST",
+        "invert": false
+      },
+      "2": {
+        "bus": 8,
+        "pos": "POST",
+        "invert": false
+      },
+      "3": {
+        "bus": 5,
+        "pos": "POST",
+        "invert": false
+      },
+      "4": {
+        "bus": 6,
+        "pos": "POST",
+        "invert": false
+      },
+      "5": {
+        "bus": 9,
+        "pos": "POST",
+        "invert": false
+      },
+      "6": {
+        "bus": 10,
+        "pos": "POST",
+        "invert": false
+      }
+    },
+    "p16": {
+      "1": {
+        "src": 26,
+        "pos": "PRE",
+        "invert": false
+      },
+      "2": {
+        "src": 28,
+        "pos": "PRE",
+        "invert": false
+      },
+      "3": {
+        "src": 30,
+        "pos": "PRE",
+        "invert": false
+      },
+      "4": {
+        "src": 31,
+        "pos": "PRE",
+        "invert": false
+      },
+      "5": {
+        "src": 32,
+        "pos": "PRE",
+        "invert": false
+      },
+      "6": {
+        "src": 34,
+        "pos": "PRE",
+        "invert": false
+      },
+      "7": {
+        "src": 35,
+        "pos": "PRE",
+        "invert": false
+      },
+      "8": {
+        "src": 36,
+        "pos": "PRE",
+        "invert": false
+      },
+      "9": {
+        "src": 37,
+        "pos": "PRE",
+        "invert": false
+      },
+      "10": {
+        "src": 42,
+        "pos": "PRE",
+        "invert": false
+      },
+      "11": {
+        "src": 45,
+        "pos": "PRE",
+        "invert": false
+      },
+      "12": {
+        "src": 47,
+        "pos": "PRE",
+        "invert": false
+      },
+      "13": {
+        "src": 48,
+        "pos": "PRE",
+        "invert": false
+      },
+      "14": {
+        "src": 49,
+        "pos": "PRE",
+        "invert": false
+      },
+      "15": {
+        "src": 50,
+        "pos": "PRE",
+        "invert": false
+      },
+      "16": {
+        "src": 51,
+        "pos": "PRE",
+        "invert": false
+      }
+    },
+    "aes": {
+      "1": {
+        "src": 1,
+        "pos": "POST",
+        "invert": false
+      },
+      "2": {
+        "src": 2,
+        "pos": "POST",
+        "invert": false
+      }
+    },
+    "rec": {
+      "1": {
+        "src": 1,
+        "pos": "<-EQ"
+      },
+      "2": {
+        "src": 2,
+        "pos": "<-EQ"
+      }
+    }
+  },
+  "routing": {
+    "_comment": "mode: REC or PLAY. blocks: pin a routing block by 1-based index \u2014 only the load-bearing ones, so placeholder filler on an unused port is not enforced. userrout: pin a user-routing slot by 1-based number, raw value.",
+    "mode": "REC",
+    "blocks": {
+      "IN": {
+        "1": "UIN1-8",
+        "5": "AUX1-4"
+      },
+      "AES50A": {
+        "2": "OUT9-16"
+      },
+      "AES50B": {
+        "3": "OUT1-8"
+      },
+      "CARD": {
+        "1": "UOUT1-8"
+      },
+      "OUT": {
+        "1": "OUT1-4"
+      },
+      "PLAY": {
+        "1": "CARD1-8"
+      }
+    },
+    "userrout": {
+      "out": {
+        "1": 1,
+        "16": 16,
+        "17": 33,
+        "32": 48
+      },
+      "in": {
+        "29": 157,
+        "32": 130
+      }
+    }
+  },
+  "links": {
+    "_comment": "Stereo pairing per family, keyed by the ODD strip of each pair; linkcfg is what a link mirrors. require_send_symmetry: both sides of every linked bus pair carry the same on/level for every sender \u2014 the console reverts a one-sided write on recall.",
+    "ch": {
+      "1": false,
+      "3": false,
+      "5": false,
+      "7": false,
+      "9": false,
+      "11": true,
+      "13": false,
+      "15": true,
+      "17": false,
+      "19": false,
+      "21": false,
+      "23": false,
+      "25": false,
+      "27": true,
+      "29": false,
+      "31": true
+    },
+    "bus": {
+      "1": true,
+      "3": true,
+      "5": true,
+      "7": true,
+      "9": true,
+      "11": true,
+      "13": false,
+      "15": false
+    },
+    "auxin": {
+      "1": false,
+      "3": false,
+      "5": true,
+      "7": true
+    },
+    "fxrtn": {
+      "1": true,
+      "3": true,
+      "5": true,
+      "7": true
+    },
+    "mtx": {
+      "1": false,
+      "3": false,
+      "5": false
+    },
+    "linkcfg": {
+      "hadly": true,
+      "eq": true,
+      "dyn": true,
+      "fdrmute": true
+    },
+    "require_send_symmetry": true
+  },
+  "sends": {
+    "_comment": "Keyed by bus. tap: the send tap point every sender uses, with except overriding a strip family (/ch, /auxin, /fxrtn) or one strip \u2014 tap lives on the odd bus of a pair and governs both. present / absent: strips that must be audible (ON, above -oo) or silent in this bus; legal on either bus of a pair.",
+    "1": {
+      "tap": "PRE"
+    },
+    "9": {
+      "tap": "PRE",
+      "except": {
+        "/fxrtn": "POST",
+        "/ch/11": "POST",
+        "/ch/12": "POST"
+      },
+      "present": [
+        "/ch/23"
+      ],
+      "absent": [
+        "/ch/05"
+      ]
+    }
+  },
+  "groups": {
+    "_comment": "DCA and mute-group membership, compared as sets in both directions; members are channel numbers or strip paths (buses, matrices and the mains carry /grp too). mute_engaged: groups deliberately saved engaged \u2014 any other engaged group is a FAIL, since it silences its members on recall.",
+    "dca": {
+      "1": {
+        "name": "Drums",
+        "members": [
+          "/ch/01",
+          "/ch/02",
+          "/ch/03",
+          "/ch/04",
+          "/ch/05",
+          "/ch/06",
+          "/ch/07",
+          "/ch/08",
+          "/ch/09",
+          "/ch/10",
+          "/ch/11",
+          "/ch/12",
+          "/ch/13",
+          "/ch/14",
+          "/ch/15",
+          "/ch/16"
+        ]
+      },
+      "2": {
+        "name": "Bass",
+        "members": [
+          "/ch/17",
+          "/ch/18"
+        ]
+      },
+      "3": {
+        "name": "Guitar",
+        "members": [
+          "/ch/19",
+          "/ch/20",
+          "/ch/21",
+          "/ch/22"
+        ]
+      },
+      "4": {
+        "name": "Vocals",
+        "members": [
+          "/ch/08",
+          "/ch/23",
+          "/ch/24",
+          "/ch/25",
+          "/ch/26"
+        ]
+      },
+      "5": {
+        "name": "DCA 5",
+        "members": [
+          "/ch/31",
+          "/ch/32"
+        ]
+      }
+    },
+    "mute": {
+      "1": {
+        "members": [
+          "/ch/01",
+          "/ch/02",
+          "/ch/03",
+          "/ch/04",
+          "/ch/05",
+          "/ch/06",
+          "/ch/07",
+          "/ch/08",
+          "/ch/09",
+          "/ch/10",
+          "/ch/11",
+          "/ch/12",
+          "/ch/13",
+          "/ch/14",
+          "/ch/15",
+          "/ch/16"
+        ]
+      },
+      "2": {
+        "members": [
+          "/ch/17",
+          "/ch/18"
+        ]
+      },
+      "3": {
+        "members": [
+          "/ch/19",
+          "/ch/20",
+          "/ch/21",
+          "/ch/22"
+        ]
+      },
+      "4": {
+        "members": [
+          "/ch/23",
+          "/ch/24",
+          "/ch/25",
+          "/ch/26"
+        ]
+      },
+      "5": {
+        "members": [
+          "/ch/31",
+          "/ch/32",
+          "/auxin/05",
+          "/auxin/06"
+        ]
+      },
+      "6": {
+        "members": [
+          "/fxrtn/01",
+          "/fxrtn/02",
+          "/fxrtn/03",
+          "/fxrtn/04",
+          "/fxrtn/05",
+          "/fxrtn/06",
+          "/fxrtn/07",
+          "/fxrtn/08"
+        ]
+      }
+    },
+    "mute_engaged": []
+  }
+}
