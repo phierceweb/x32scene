@@ -132,3 +132,70 @@ class VerifyExactnessTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class PlanTopLevelShapeTest(unittest.TestCase):
+    """A plan file that parses as JSON but is not an object. load_plan assigns into it,
+    so without a shape check these raise TypeError rather than a named plan error."""
+
+    def _load(self, text):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "plan.json")
+            with open(path, "w") as fh:
+                fh.write(text)
+            from x32scene.orchestrators.band_swap import load_plan
+            return load_plan(path)
+
+    def test_non_object_plans_raise_value_error(self):
+        for text in ("[1,2,3]", '"a string"', "42", "null", "true"):
+            with self.subTest(plan=text):
+                with self.assertRaises(ValueError) as cm:
+                    self._load(text)
+                self.assertIn("must be a JSON object", str(cm.exception))
+
+    def test_the_cli_reports_a_plan_error_and_writes_nothing(self):
+        import contextlib
+        import io
+
+        from x32scene.cli import main
+        with tempfile.TemporaryDirectory() as d:
+            plan, out = os.path.join(d, "p.json"), os.path.join(d, "o.scn")
+            with open(plan, "w") as fh:
+                fh.write("[1,2,3]")
+            scene = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                rc = main(["band-setup", scene, plan, "-o", out])
+            self.assertEqual(rc, 2)                      # the documented plan-error code
+            self.assertIn("nothing written", err.getvalue())
+            self.assertFalse(os.path.exists(out))
+
+
+class SilentNoOpTest(unittest.TestCase):
+    """A plan that names something the console does not have must say so, not validate
+    clean and then apply nothing at exit 0."""
+
+    def _bad(self, plan, fragment):
+        from x32scene.orchestrators._schema import validate_plan
+        with self.assertRaises(ValueError) as cm:
+            validate_plan(plan)
+        self.assertIn(fragment, str(cm.exception))
+
+    def test_a_routing_bank_must_be_one_the_console_has(self):
+        for bank in ("Card", "CARDD", "card"):
+            with self.subTest(bank=bank):
+                self._bad({"routing": {"preset": "x.rou", "banks": [bank]}},
+                          "banks must be from")
+
+    def test_two_keys_naming_one_fx_slot_collide(self):
+        self._bad({"fx": {"1": {"type": "HALL"}, "01": {"type": "PLAT"}}}, "both name 1")
+
+    def test_two_keys_naming_one_output_collide(self):
+        self._bad({"output_patch": {"main": {"9": {"pos": "PRE"}, "09": {"pos": "POST"}}}},
+                  "both name 9")
+
+    def test_a_zero_padded_slot_names_the_same_path_apply_writes(self):
+        """The whitelist has to name the path apply writes, or a zero-padded key reads
+        as an out-of-plan change."""
+        from x32scene.orchestrators._sections import allowed_sections
+        self.assertIn("/fx/8", allowed_sections({"fx": {"08": {"type": "GEQ2"}}}))

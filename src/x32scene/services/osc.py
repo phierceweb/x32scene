@@ -23,6 +23,16 @@ class OscError(RuntimeError):
     """Malformed OSC datagram."""
 
 
+def desk_address(ip: str) -> str:
+    """The numeric address a reply has to come from. Accepts a hostname.
+
+    An unconnected UDP socket hears whatever the network hands it, and a reply here
+    becomes console state. Address only, not port: the reply port is a firmware detail
+    not pinned down across models, and rejecting a real desk would be worse.
+    """
+    return socket.gethostbyname(ip)
+
+
 def _pad(b: bytes) -> bytes:
     return b + b"\x00" * (4 - len(b) % 4)
 
@@ -89,8 +99,11 @@ def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
     than desynchronizing the capture. ``fail_fast=N`` raises once N paths have gone
     unanswered with nothing received, instead of timing out over every remaining path.
     """
+    if not paths:
+        return [], []
     got: dict[str, str] = {}  # "/path" -> scene-format line
     wanted = ["/" + p for p in paths]
+    peer = desk_address(ip)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         for n_tried, (path, want) in enumerate(zip(paths, wanted, strict=True), start=1):
             for _ in range(retries + 1):
@@ -104,9 +117,11 @@ def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
                         break
                     sock.settimeout(remaining)
                     try:
-                        data, _addr = sock.recvfrom(_RECV_BUF)
+                        data, sender = sock.recvfrom(_RECV_BUF)
                     except socket.timeout:
                         break
+                    if sender[0] != peer:
+                        continue      # someone else on the network, not the desk
                     try:
                         addr, args = decode_message(data)
                     except OscError:

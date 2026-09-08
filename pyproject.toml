@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "x32scene"
-version = "0.1.0"
+version = "0.2.0"
 description = "Read, diff, edit and verify Behringer X32 / M32 console files (scenes, snippets, presets, shows) and read the live desk over OSC"
 readme = "README.md"
 requires-python = ">=3.12"

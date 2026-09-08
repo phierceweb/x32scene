@@ -11,7 +11,8 @@ import glob
 import os
 import re
 
-from ..model import HEADER_RE, Scene
+from ..model import Scene
+from . import validate
 
 
 def _datekey(path: str) -> tuple[str, str]:
@@ -35,24 +36,15 @@ def load_library(scenes_dir: str) -> tuple[list[tuple[str, Scene]], list[str]]:
 def check_invariants(lib: list[tuple[str, Scene]]) -> list[str]:
     """Return a list of assumption violations (empty == all assumptions hold).
 
-    Line count is checked for *agreement across the library*, not against a fixed
-    number: it varies with console model and firmware, so an outlier is the signal.
+    The per-file half is ``validate.findings`` — the same shape check the single-file
+    commands warn with, so a library audit and reading one scene cannot disagree. What
+    stays here is the part that only a library can answer: line count is checked for
+    *agreement across the library*, not against a fixed number, since it varies with
+    console model and firmware and an outlier is the signal.
     """
     viol: list[str] = []
     for name, sc in lib:
-        if not sc.lines:
-            viol.append(f"{name}: empty scene file")
-            continue
-        h = sc.lines[0]
-        if not HEADER_RE.match(h.path):
-            viol.append(f"{name}: no firmware header")
-        if len(h.raw) != 127:
-            viol.append(f"{name}: header width {len(h.raw)} != 127")
-        nch = sum(1 for ln in sc.find("/ch/") if ln.path.endswith("/config"))
-        nha = len(sc.find("/headamp/"))
-        nbus = sum(1 for ln in sc.find("/bus/") if ln.path.endswith("/config"))
-        if (nch, nha, nbus) != (32, 128, 16):
-            viol.append(f"{name}: ch/ha/bus={nch}/{nha}/{nbus} != 32/128/16")
+        viol += [f"{name}: {f.message}" for f in validate.findings(sc, "scn")]
     counts: dict[int, list[str]] = {}
     for name, sc in lib:
         counts.setdefault(len(sc.lines), []).append(name)

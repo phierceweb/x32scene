@@ -13,7 +13,7 @@ import time
 from dataclasses import dataclass
 
 from ..model import Scene
-from .osc import X32_PORT, OscError, decode_message, encode_message
+from .osc import X32_PORT, OscError, decode_message, desk_address, encode_message
 
 # meter id -> the slots its blob carries, in order (protocol document, Meter requests)
 METER_SLOTS: dict[int, list[str]] = {
@@ -56,9 +56,16 @@ def parse_blob(blob: bytes) -> list[float]:
     if len(blob) < 4:
         raise OscError("meter blob too short")
     n = struct.unpack_from("<i", blob, 0)[0]
+    if n < 0:   # signed on the wire: a negative count makes the length check below vacuous
+        raise OscError(f"meter blob claims {n} floats")
     if len(blob) < 4 + 4 * n:
         raise OscError(f"meter blob claims {n} floats in {len(blob)} bytes")
-    return list(struct.unpack_from(f"<{n}f", blob, 4))
+    values = list(struct.unpack_from(f"<{n}f", blob, 4))
+    if not all(math.isfinite(v) for v in values):
+        # inf/nan reach int() through to_db and raise OverflowError, which is an
+        # ArithmeticError and so escapes the CLI boundary; --json would emit bare Infinity.
+        raise OscError("meter blob carries a non-finite level")
+    return values
 
 
 def read_meters(ip: str, meter: int, *, seconds: float = 1.0, port: int = X32_PORT,
@@ -69,22 +76,28 @@ def read_meters(ip: str, meter: int, *, seconds: float = 1.0, port: int = X32_PO
         raise ValueError(f"meter id must be one of {sorted(METER_SLOTS)}, got {meter}")
     peak = dict.fromkeys(slots, 0.0)
     frames = 0
+    peer = desk_address(ip)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.settimeout(timeout)
         sock.sendto(encode_message("/meters", [f"/meters/{meter}", 0]), (ip, port))
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
             try:
-                data, _ = sock.recvfrom(4096)
+                data, sender = sock.recvfrom(4096)
             except socket.timeout:
                 break
+            if sender[0] != peer:
+                continue      # someone else on the network, not the desk
             try:
                 addr, args = decode_message(data)
             except OscError:
                 continue
             if not addr.endswith(f"/meters/{meter}") or not args or not isinstance(args[0], bytes):
                 continue
-            values = parse_blob(args[0])
+            try:
+                values = parse_blob(args[0])
+            except OscError:
+                continue   # one bad frame, not the end of the window
             frames += 1
             for slot, v in zip(slots, values, strict=False):
                 if v > peak[slot]:

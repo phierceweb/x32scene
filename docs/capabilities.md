@@ -2,8 +2,10 @@
 
 The whole toolkit on one page, organized by the job in front of you. Every command is
 `x32scene <name>`; most take `--json` for machine output. Edit commands **always write a
-new file** and refuse to overwrite an input, so your saved scenes are never touched — the
-way to change a real scene is to write a copy, load-test it, and adopt it.
+new file**, refuse to overwrite an input, and refuse an output that already exists unless
+you pass `--force`, so your saved scenes are never touched — the way to change a real scene
+is to write a copy, load-test it, and adopt it. Reading a file whose shape does not match
+its kind warns on stderr without refusing the file.
 
 The file kinds it handles, all byte-faithful (`Scene.parse(text).dump() == text`):
 

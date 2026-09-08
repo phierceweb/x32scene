@@ -8,10 +8,11 @@ import io
 import os
 import shlex
 import sys
-from pathlib import Path
 
 from pf_core.exceptions import InvalidInputError
 from pf_core.utils.io import atomic_write_bytes
+
+from ._cli_files import clean, load_checked, read_checked, refuse_overwrite
 
 from . import _views
 from .model import Scene
@@ -32,30 +33,9 @@ EDIT_COMMANDS = frozenset({"set-comp", "set-gate", "set-lowcut", "set-eq", "set-
                            "apply-routing", "show-build", "transplant"})
 
 
-def clean(e: Exception) -> str:
-    """KeyError stringifies to its repr, which shows the message in stray quotes."""
-    return e.args[0] if isinstance(e, KeyError) and e.args else str(e)
-
-
 def _mirrored(paths: list[str]) -> str:
     """Name the partner strip a stereo link added, so a 2-line edit never reads as 1."""
     return f" (mirrored to {paths[1]})" if len(paths) > 1 else ""
-
-
-def refuse_overwrite(out: str, *inputs: str) -> None:
-    """Edit commands never overwrite in place — reject -o pointing at an input file.
-
-    samefile catches aliases Path.resolve() misses (case variants on macOS/Windows,
-    hardlinks); the resolve comparison covers a not-yet-existing out path.
-    """
-    for p in inputs:
-        try:
-            same = os.path.exists(out) and os.path.samefile(out, p)
-        except OSError:
-            same = False
-        if same or Path(out).resolve() == Path(p).resolve():
-            raise InvalidInputError(
-                f"-o {out} would overwrite the input {p}; write a new file instead")
 
 
 def cmd_port_iem(src: Scene, dst: Scene, out: str) -> None:
@@ -107,8 +87,7 @@ def apply_edit(sc: Scene, args) -> str:
     elif args.cmd == "rename":
         edited = T.rename_strip(sc, args.strip, args.name)
     elif args.cmd == "apply-preset":
-        with open(args.preset, encoding="utf-8", newline="") as fh:
-            n = _presets.apply_preset(sc, args.ch, fh.read(), args.scope)
+        n = _presets.apply_preset(sc, args.ch, read_checked(args.preset), args.scope)
         return f"applied {n} line(s) to ch{args.ch:02d}"
     elif args.cmd == "set-fx":
         did = []
@@ -129,8 +108,7 @@ def apply_edit(sc: Scene, args) -> str:
             did.append(", ".join(f"{k}={v}" for k, v in values.items()))
         return f"FX{args.slot}: " + "; ".join(did)
     elif args.cmd == "apply-fx":
-        with open(args.preset, encoding="utf-8", newline="") as fh:
-            code = _fx.apply_fx(sc, args.slot, fh.read(), source=args.source)
+        code = _fx.apply_fx(sc, args.slot, read_checked(args.preset), source=args.source)
         return f"loaded {code} preset into FX{args.slot}"
     elif args.cmd == "set-routing":
         if args.key == "switch":
@@ -151,8 +129,7 @@ def apply_edit(sc: Scene, args) -> str:
         words = _rt.set_output(sc, args.bank, args.n, src=args.src, pos=args.pos, invert=inv)
         return f"{args.bank} {args.n:02d}: {words}"
     elif args.cmd == "apply-routing":
-        with open(args.preset, encoding="utf-8", newline="") as fh:
-            keys = _rt.apply_routing(sc, fh.read(), args.bank)
+        keys = _rt.apply_routing(sc, read_checked(args.preset), args.bank)
         return f"applied routing banks {', '.join(keys)}"
     else:
         raise InvalidInputError(f"{args.cmd} does not edit a scene in place")
@@ -180,10 +157,10 @@ def parse_edit(text: str, scene: str):
 def run_edit(args) -> int:
     """Run one of EDIT_COMMANDS; the exit code is the command's."""
     if args.cmd == "transplant":
-        refuse_overwrite(args.out, args.src, args.dst)
+        refuse_overwrite(args.out, args.src, args.dst, force=args.force)
         if not (args.bus or args.path or args.ch):
             raise InvalidInputError("nothing to carry: pass --bus, --path or --ch")
-        src, dst = Scene.load(args.src), Scene.load(args.dst)
+        src, dst = load_checked(args.src), load_checked(args.dst)
         changed = _transplant.transplant(src, dst, buses=args.bus, globs=args.path,
                                          channels=args.ch, scopes=args.scope)
         dst.save(args.out)
@@ -196,73 +173,80 @@ def run_edit(args) -> int:
         return 0
     if args.cmd == "show-build":
         def read(p):
-            with open(p, encoding="utf-8", newline="") as fh:
-                return p, fh.read()
+            return p, read_checked(p)
         cues = [_show.parse_cue(c) for c in args.cue]
         files = _show.build_show(args.name, [read(p) for p in args.scene],
                                  [read(p) for p in args.snippet], cues)
-        os.makedirs(args.dir, exist_ok=True)
+        # a show is written into the layout it reads from, so an input can be one of
+        # the names about to be written
         for fname in files:
-            if os.path.exists(os.path.join(args.dir, fname)):
-                raise InvalidInputError(f"{os.path.join(args.dir, fname)} exists; "
-                                        "write a new directory or name")
+            refuse_overwrite(os.path.join(args.dir, fname), *args.scene, *args.snippet,
+                             force=args.force)
+        os.makedirs(args.dir, exist_ok=True)
         for fname, text in files.items():
             atomic_write_bytes(os.path.join(args.dir, fname), text.encode("utf-8"))
         print(f"wrote {args.name}.shw with {len(cues)} cue(s), {len(args.scene)} scene(s), "
               f"{len(args.snippet)} snippet(s) -> {args.dir}")
         return 0
     if args.cmd == "extract-routing":
-        refuse_overwrite(args.out, args.scene)
+        refuse_overwrite(args.out, args.scene, force=args.force)
         name = args.name or os.path.splitext(os.path.basename(args.out))[0]
-        rou = _rt.extract_routing(Scene.load(args.scene), name)
+        rou = _rt.extract_routing(load_checked(args.scene), name)
         atomic_write_bytes(args.out, rou.encode("utf-8"))
         print(f"wrote routing preset -> {args.out}")
         return 0
     if args.cmd == "extract-fx":
-        refuse_overwrite(args.out, args.scene)
+        refuse_overwrite(args.out, args.scene, force=args.force)
         name = args.name or os.path.splitext(os.path.basename(args.out))[0]
-        efx = _fx.extract_fx(Scene.load(args.scene), args.slot, name)
+        efx = _fx.extract_fx(load_checked(args.scene), args.slot, name)
         atomic_write_bytes(args.out, efx.encode("utf-8"))
         print(f"wrote FX{args.slot} preset -> {args.out}")
         return 0
     if args.cmd in IN_PLACE:
         inputs = ([args.scene, args.preset]
                   if args.cmd in ("apply-preset", "apply-fx", "apply-routing") else [args.scene])
-        refuse_overwrite(args.out, *inputs)
-        sc = Scene.load(args.scene)
+        refuse_overwrite(args.out, *inputs, force=args.force)
+        sc = load_checked(args.scene)
         msg = apply_edit(sc, args)
         sc.save(args.out)
         print(f"{msg}; wrote {args.out}\nLOAD-TEST on the console before a gig.")
         return 0
     if args.cmd == "extract-preset":
-        refuse_overwrite(args.out, args.scene)
-        chn = _presets.extract_preset(Scene.load(args.scene), args.ch, args.scope,
+        refuse_overwrite(args.out, args.scene, force=args.force)
+        chn = _presets.extract_preset(load_checked(args.scene), args.ch, args.scope,
                                       header=args.header)
         atomic_write_bytes(args.out, chn.encode("utf-8"))   # LF-only, as Scene.save
         print(f"wrote preset for ch{args.ch:02d} -> {args.out}")
         return 0
     if args.cmd == "band-setup":
-        refuse_overwrite(args.out, args.template, args.plan)
-        if args.snippet:
-            refuse_overwrite(args.snippet, args.template, args.plan, args.out)
         # every plan-level problem is one class of user error: exit 2, write nothing
         try:
             plan = _band_swap.load_plan(args.plan)
+        except (KeyError, TypeError, ValueError, OSError) as e:
+            print(f"plan failed, nothing written: {clean(e)}", file=sys.stderr)
+            return 2
+        # the plan names presets it reads: inputs the arguments alone do not reveal
+        inputs = [args.template, args.plan, *_band_swap.plan_inputs(plan)]
+        refuse_overwrite(args.out, *inputs, force=args.force)
+        if args.snippet:
+            refuse_overwrite(args.snippet, *inputs, args.out, force=args.force)
+        try:
+            load_checked(args.template)   # run() reloads it; this is the shape check
             rep = _band_swap.run(args.template, plan, args.out)
-        except (KeyError, ValueError, OSError) as e:
+        except (KeyError, TypeError, ValueError, OSError) as e:
             print(f"plan failed, nothing written: {clean(e)}", file=sys.stderr)
             return 2
         print(f"applied plan: {rep['lines_changed']} line(s) over "
               f"{len(rep['changed'])} path(s); wrote {args.out}")
         if args.snippet:
             name = os.path.splitext(os.path.basename(args.snippet))[0]
-            snip = _snippets.make_snippet(Scene.load(args.template), Scene.load(args.out), name)
+            snip = _snippets.make_snippet(load_checked(args.template), Scene.load(args.out), name)
             snip.scene.save(args.snippet)
             _views.cmd_snippet(snip, args.snippet)
         print("LOAD-TEST on the console before a gig.")
         return 0
     if args.cmd == "port-iem":
-        refuse_overwrite(args.out, args.src, args.dst)
-        cmd_port_iem(Scene.load(args.src), Scene.load(args.dst), args.out)
+        refuse_overwrite(args.out, args.src, args.dst, force=args.force)
+        cmd_port_iem(load_checked(args.src), load_checked(args.dst), args.out)
         return 0
     raise InvalidInputError(f"not an edit command: {args.cmd}")

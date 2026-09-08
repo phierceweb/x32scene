@@ -253,3 +253,32 @@ class CliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TimeoutBoundsTest(unittest.TestCase):
+    """settimeout() raises OverflowError — an ArithmeticError the CLI boundary does not
+    catch — for inf or a huge float, from the flag or from X32SCENE_TIMEOUT."""
+
+    def _timeout(self, argv, env=None):
+        from x32scene._parsers import _build_parser
+        with mock.patch.dict(os.environ):
+            os.environ.pop("X32SCENE_TIMEOUT", None)
+            if env is not None:
+                os.environ["X32SCENE_TIMEOUT"] = env
+            with contextlib.redirect_stderr(io.StringIO()):
+                return _build_parser(None).parse_args(argv).timeout
+
+    def test_the_flag_is_bounded(self):
+        for bad in ("inf", "nan", "-1", "0", "1e20"):
+            with self.subTest(value=bad):
+                with self.assertRaises(SystemExit):
+                    self._timeout(["desk", "--ip", "10.0.0.1", "--timeout", bad])
+
+    def test_the_environment_default_is_bounded_too(self):
+        for bad in ("1e20", "-1", "0"):
+            with self.subTest(value=bad):
+                self.assertEqual(self._timeout(["desk", "--ip", "10.0.0.1"], env=bad), 0.5)
+
+    def test_a_sane_value_survives_both_paths(self):
+        self.assertEqual(self._timeout(["desk", "--ip", "10.0.0.1", "--timeout", "2.5"]), 2.5)
+        self.assertEqual(self._timeout(["desk", "--ip", "10.0.0.1"], env="1.25"), 1.25)

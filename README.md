@@ -45,14 +45,15 @@ every monitor mix, effects, routing. The console and its editor edit that state 
 control at a time. x32scene works on the files instead. It parses every kind the console
 reads and writes, keeps each file byte for byte (`Scene.parse(text).dump() == text`), and
 applies edits so that the result differs from its source by exactly the intended lines —
-which `x32scene diff` shows. Edit commands never overwrite the file they read; the
-changed file is loaded on the console by you.
+which `x32scene diff` shows. Edit commands never overwrite the file they read, and will not
+land on a file that already exists unless you pass `--force`; the changed file is loaded on
+the console by you.
 
 The live layer is read-only: `pull` captures the running desk as a scene file so every
 command works on the live console, `desk` reports its identity, status and memory slots,
 `meters` reports levels. Pushing changes to the desk over the network is not a feature.
 
-Every command has a `--json` form, the vocabularies the console accepts are listed by
+Most read commands have a `--json` form, the vocabularies the console accepts are listed by
 commands, and the reference docs state which facts were observed on hardware and which
 were read from a manual, so the tool can be driven by an AI agent as well as by hand.
 

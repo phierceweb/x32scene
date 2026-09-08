@@ -18,7 +18,8 @@ from . import _views
 from . import _views_ports as _ports
 from . import _views_desk as _vdesk
 from . import _views_report as _report
-from ._cli_edits import EDIT_COMMANDS, apply_edit, clean, parse_edit, refuse_overwrite, run_edit
+from ._cli_edits import EDIT_COMMANDS, apply_edit, parse_edit, run_edit
+from ._cli_files import clean, load_checked, read_checked, refuse_overwrite, reset_warnings
 from ._parsers import _build_parser
 from .model import Scene
 from .services import audit as _audit
@@ -77,7 +78,7 @@ def _run(argv: list[str] | None = None) -> int:
             raise InvalidInputError("preflight needs --config or X32SCENE_CONFIG")
         expected = _preflight.load_expected(args.config)
         stage = _stage.load_stage(args.stage) if args.stage else None
-        findings = _preflight.preflight(Scene.load(args.scene), expected, stage=stage)
+        findings = _preflight.preflight(load_checked(args.scene), expected, stage=stage)
         checked = _preflight.coverage(expected, stage)
         if args.json:
             _json.dump(_json.preflight_doc(findings, checked))
@@ -90,7 +91,7 @@ def _run(argv: list[str] | None = None) -> int:
         except _osc.OscError as e:
             print(f"meters failed: {e}", file=sys.stderr)
             return 2
-        sc = Scene.load(args.scene) if args.scene else None
+        sc = load_checked(args.scene) if args.scene else None
         if args.json:
             _json.dump(_json.meters_doc(peaks, sc))
         else:
@@ -109,8 +110,8 @@ def _run(argv: list[str] | None = None) -> int:
         return 0
     if args.cmd in ("pull", "live-diff"):
         if args.cmd == "pull":
-            refuse_overwrite(args.out, args.reference)
-        ref = Scene.load(args.reference if args.cmd == "pull" else args.scene)
+            refuse_overwrite(args.out, args.reference, force=args.force)
+        ref = load_checked(args.reference if args.cmd == "pull" else args.scene)
         try:
             live, unanswered = _osc.pull_scene_like(ref, args.ip, timeout=args.timeout)
         except _osc.OscError as e:
@@ -126,7 +127,7 @@ def _run(argv: list[str] | None = None) -> int:
             _views.cmd_diff(ref, live)
         return 0
     if args.cmd == "ports":
-        sc = Scene.load(args.scene)
+        sc = load_checked(args.scene)
         physical = (_preflight.physical_outputs(_preflight.load_expected(args.config))
                     if args.config else None)
         stage = _stage.load_stage(args.stage) if args.stage else None
@@ -136,14 +137,14 @@ def _run(argv: list[str] | None = None) -> int:
             _ports.cmd_ports(sc, physical, bank=args.bank, stage=stage)
         return 0
     if args.cmd == "iem":
-        sc = Scene.load(args.scene)
+        sc = load_checked(args.scene)
         if args.json:
             _json.dump(_json.iem_doc(sc, args.bus))
         else:
             _views.cmd_iem(sc, args.bus)
         return 0
     if args.cmd == "diff":
-        a, b = Scene.load(args.a), Scene.load(args.b)
+        a, b = load_checked(args.a), load_checked(args.b)
         if args.json:
             _json.dump(_json.diff_doc(_diff(a, b), b))
         elif args.by_strip:
@@ -155,12 +156,12 @@ def _run(argv: list[str] | None = None) -> int:
         physical = (_preflight.physical_outputs(_preflight.load_expected(args.config))
                     if args.config else None)
         stage = _stage.load_stage(args.stage) if args.stage else None
-        _report.cmd_report(Scene.load(args.scene), physical, stage)
+        _report.cmd_report(load_checked(args.scene), physical, stage)
         return 0
     if args.cmd == "iem-matrix":
-        sc = Scene.load(args.scene)
+        sc = load_checked(args.scene)
         if args.compare:
-            m = _matrix.compare(sc, Scene.load(args.compare), args.buses)
+            m = _matrix.compare(sc, load_checked(args.compare), args.buses)
         else:
             m = _matrix.iem_matrix(sc, args.buses, all_rows=args.all)
         if args.json:
@@ -186,17 +187,21 @@ def _run(argv: list[str] | None = None) -> int:
         if len(args.scenes) != (1 if args.edit or absolute else 2):
             raise InvalidInputError("snippet takes two scenes (a delta), one scene with --edit, "
                                     "or one scene with --bus/--only (those lines as they are)")
-        refuse_overwrite(args.out, *args.scenes)
+        # an --edit can name a preset to load: an input the arguments do not reveal, so
+        # every edit is parsed before the guard runs
+        edits = [parse_edit(text, args.scenes[0]) for text in args.edit]
+        presets = [e.preset for e in edits if getattr(e, "preset", None)]
+        refuse_overwrite(args.out, *args.scenes, *presets, force=args.force)
         name = args.name or os.path.splitext(os.path.basename(args.out))[0]
-        base = Scene.load(args.scenes[0])
+        base = load_checked(args.scenes[0])
         if absolute:
             base = Scene([base.lines[0]], True)   # every selected line, not just what moved
         if args.edit:
-            edited = Scene.load(args.scenes[0])
-            for text in args.edit:
-                print(apply_edit(edited, parse_edit(text, args.scenes[0])))
+            edited = Scene.load(args.scenes[0])   # same file as base, already checked
+            for parsed in edits:
+                print(apply_edit(edited, parsed))
         else:
-            edited = Scene.load(args.scenes[-1])
+            edited = load_checked(args.scenes[-1])
         only = None
         if args.bus or args.only:
             keep = set()
@@ -223,9 +228,7 @@ def _run(argv: list[str] | None = None) -> int:
             _vdesk.cmd_fx_types(args.code)
         return 0
     if args.cmd == "header":
-        with open(args.file, encoding="utf-8", newline="") as fh:
-            text = fh.read()
-        doc = _headers.decode_header(text)
+        doc = _headers.decode_header(read_checked(args.file))
         if doc is None:
             raise InvalidInputError(f"{args.file}: no header line")
         if args.json:
@@ -234,21 +237,20 @@ def _run(argv: list[str] | None = None) -> int:
             _views.cmd_header(doc)
         return 0
     if args.cmd == "show":
-        with open(args.file, encoding="utf-8", newline="") as fh:
-            show = _show.read_show(fh.read())
+        show = _show.read_show(read_checked(args.file))
         if args.json:
             _json.dump(_json.show_doc(show))
         else:
             _views.cmd_show(show)
         return 0
     if args.cmd in _JSON_DOCS:
-        sc = Scene.load(args.scene)
+        sc = load_checked(args.scene)
         if args.json:
             _json.dump(_JSON_DOCS[args.cmd](sc))
         else:
             _VIEWS[args.cmd](sc)
         return 0
-    _VIEWS[args.cmd](Scene.load(args.scene))
+    _VIEWS[args.cmd](load_checked(args.scene))
     return 0
 
 
@@ -256,6 +258,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point: pf-core logging + exception boundary. Console stays quiet
     (runs log at debug); set ``LOG_FILE=path`` for a JSON-lines audit trail."""
     setup_logging(app_logger_name="x32scene")
+    reset_warnings()
     log = get_logger("x32scene")
     argv = list(sys.argv[1:] if argv is None else argv)
     log.debug("invoke", argv=argv)

@@ -22,11 +22,13 @@ venv/
 logs/
 *.jsonl
 
-# Scene files are console data — only the test fixtures belong in the repo.
+# Scene files are console data — only the test fixtures belong in the repo. Recursive
+# because malformed fixtures live in tests/fixtures/broken/, out of reach of the audit
+# tests, which glob tests/fixtures/*.scn as a known-good library.
 *.scn
 *.chn
-!tests/fixtures/*.scn
-!tests/fixtures/*.chn
+!tests/fixtures/**/*.scn
+!tests/fixtures/**/*.chn
 
 # OS / editor cruft
 .DS_Store

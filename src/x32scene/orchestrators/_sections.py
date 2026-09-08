@@ -4,6 +4,7 @@ and the verify step; this module keeps those two files under the size guard."""
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from ..model import Scene
@@ -22,6 +23,21 @@ _LOWCUT_KEYS = {"on", "freq"}
 FX_KEYS = {"type", "source", "params", "preset"}
 ROUTING_KEYS = {"switch", "preset", "banks", *ROUTING_BLOCKS}
 OUTPUT_KEYS = {"src", "pos", "invert"}
+
+
+def _numbered_key(section: str, key: object, lo: int, hi: int, seen: dict) -> int:
+    """A plan key naming a numbered thing. Canonicalized, so "9" and "09" collide loudly
+    rather than silently collapsing to one arbitrary last-wins write."""
+    try:
+        n = int(key)
+    except (TypeError, ValueError):
+        raise ValueError(f"{section}: {key!r} is not a number {lo}-{hi}") from None
+    if not lo <= n <= hi:
+        raise ValueError(f"{section}: {n} out of range {lo}-{hi}")
+    if n in seen:
+        raise ValueError(f"{section}: keys {seen[n]!r} and {key!r} both name {n}")
+    seen[n] = key
+    return n
 
 
 def _num(v: object) -> bool:
@@ -85,11 +101,21 @@ def validate_channel_proc(ch: int, spec: dict) -> None:
             raise ValueError(f"{w}: source: {e}") from None
 
 
+def _check_params(w: str, params: dict) -> None:
+    """An FX parameter value. format_like() takes a bool as a number (false -> 0.00) and
+    passes any other non-numeric string through verbatim into the scene line."""
+    for name, v in params.items():
+        if isinstance(v, bool) or not (_num(v) or isinstance(v, str)):
+            raise ValueError(f"{w}: {name!r} must be a number or an enum token, got {v!r}")
+        if _num(v) and not math.isfinite(v):
+            raise ValueError(f"{w}: {name!r} must be finite, got {v!r}")
+
+
 def validate_fx(plan: dict) -> None:
+    seen: dict = {}
     for slot_s, spec in _obj("fx", plan.get("fx", {})).items():
-        if not str(slot_s).isdigit() or not 1 <= int(slot_s) <= 8:
-            raise ValueError(f"fx: slot must be 1-8, got {slot_s!r}")
-        slot, w = int(slot_s), f"fx {slot_s}"
+        slot = _numbered_key("fx", slot_s, 1, 8, seen)
+        w = f"fx {slot_s}"
         _only(w, _obj(w, spec), FX_KEYS)
         if not spec:
             raise ValueError(f"{w}: needs type, source, params or preset, or it does nothing")
@@ -104,6 +130,9 @@ def validate_fx(plan: dict) -> None:
                     raise ValueError(f"{w}: {name!r} is not a {spec['type']} parameter")
         else:
             _obj(f"{w}: params", spec.get("params", {}))
+        _check_params(w, spec.get("params", {}))
+        if "preset" in spec and not isinstance(spec["preset"], str):
+            raise ValueError(f"{w}: preset must be a path string, got {spec['preset']!r}")
         if "source" in spec:
             toks = _source_tokens(spec["source"])
             for t in toks:
@@ -121,13 +150,24 @@ def _source_tokens(v: object) -> list[str]:
     raise ValueError(f"fx source must be \"MIX13\" or \"MIX15,MIX16\", got {v!r}")
 
 
+def _check_preset_path(w: str, spec: dict) -> None:
+    if "preset" in spec and not isinstance(spec["preset"], str):
+        raise ValueError(f"{w}: preset must be a path string, got {spec['preset']!r}")
+
+
 def validate_routing(plan: dict) -> None:
     spec = _obj("routing", plan.get("routing", {}))
     _only("routing", spec, ROUTING_KEYS)
     if "switch" in spec and spec["switch"] not in ("REC", "PLAY"):
         raise ValueError(f"routing: switch must be REC or PLAY, got {spec['switch']!r}")
+    _check_preset_path("routing", spec)
     if "banks" in spec and ("preset" not in spec or not isinstance(spec["banks"], list)):
         raise ValueError("routing: banks is a list of banks to take from preset")
+    for bank in spec.get("banks") or []:
+        # unchecked, a typo'd or wrong-cased bank applies nothing and still exits 0
+        if bank not in _rt.ROUTING_PRESET_KEYS:
+            raise ValueError(f"routing: banks must be from "
+                             f"{', '.join(_rt.ROUTING_PRESET_KEYS)}, got {bank!r}")
     for key in ROUTING_BLOCKS:
         for label, value in _obj(f"routing {key}", spec.get(key, {})).items():
             if label not in routing_block_names(key):
@@ -144,9 +184,9 @@ def validate_output_patch(plan: dict) -> None:
             raise ValueError(f"output_patch: bank must be one of {', '.join(OUTPUT_BANKS)}, "
                              f"got {bank!r}")
         size, nfields = OUTPUT_BANKS[bank]
+        seen: dict = {}
         for n_s, spec in _obj(f"output_patch {bank}", outs).items():
-            if not str(n_s).isdigit() or not 1 <= int(n_s) <= size:
-                raise ValueError(f"output_patch {bank}: outputs run 1-{size}, got {n_s!r}")
+            _numbered_key(f"output_patch {bank}", n_s, 1, size, seen)
             w = f"output_patch {bank} {n_s}"
             _only(w, _obj(w, spec), OUTPUT_KEYS)
             if not spec:
@@ -237,10 +277,11 @@ def allowed_channel_proc(ch: int, spec: dict) -> set[str]:
 def allowed_sections(plan: dict) -> set[str]:
     out: set[str] = set()
     for slot_s, spec in plan.get("fx", {}).items():
+        slot = int(slot_s)          # "08" and "8" name one slot; apply writes /fx/8
         if "preset" in spec or "type" in spec or spec.get("params"):
-            out.update({f"/fx/{slot_s}", f"/fx/{slot_s}/par"})
+            out.update({f"/fx/{slot}", f"/fx/{slot}/par"})
         if "source" in spec:
-            out.add(f"/fx/{slot_s}/source")
+            out.add(f"/fx/{slot}/source")
     spec = plan.get("routing", {})
     if "switch" in spec:
         out.add("/config/routing")

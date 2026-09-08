@@ -49,6 +49,8 @@ def set_routswitch(scene: Scene, mode: str) -> None:
 def encode_input_source(text: str | int) -> int:
     """An input source number from ``"AES50-A 3"``, ``"local 5"``, ``"card 7"``, ``"aux 2"``,
     ``"off"`` or a bare number (0-168)."""
+    if isinstance(text, bool):   # bool passes isinstance(int): false would read as "no input"
+        raise ValueError(f"input source must be a name or a number, got {text!r}")
     if isinstance(text, int) or str(text).strip().isdigit():
         n = int(text)
         if not 0 <= n <= 168:
@@ -87,6 +89,8 @@ _TAP_BY_NAME = {decode_tap(i).lower(): i for i in range(77)}
 def encode_tap(text: str | int) -> int:
     """An output source number from its name (``"Bus 9"``, ``"Main L"``, ``"Matrix 2"``,
     ``"Direct Out Ch 5"``, ``"off"``) or a bare number (0-76)."""
+    if isinstance(text, bool):   # bool passes isinstance(int): false would unpatch the output
+        raise ValueError(f"output source must be a name or a number, got {text!r}")
     if isinstance(text, int) or str(text).strip().isdigit():
         n = int(text)
         if not 0 <= n <= 76:

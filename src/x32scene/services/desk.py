@@ -4,11 +4,13 @@ memory holds (scenes, snippets, cues, presets). Every query is a read; nothing h
 from __future__ import annotations
 
 import socket
+import time
 from dataclasses import dataclass, field
 
 from ..model import Line
 from ..tables_fx import FX_DISPLAY_TYPE, decode_fx
-from .osc import X32_PORT, OscError, decode_message, encode_message, pull_lines
+from .osc import (X32_PORT, OscError, decode_message, desk_address, encode_message,
+                  pull_lines)
 
 _STAT = ["selidx", "chfaderbank", "grpfaderbank", "sendsonfader", "solo", "usbmounted",
          "remote", "xcardtype", "xcardsync", "screen/screen", "tape/state", "tape/file",
@@ -38,13 +40,24 @@ class DeskInfo:
 
 def xinfo(ip: str, *, port: int = X32_PORT, timeout: float = 1.0) -> tuple[str, str, str, str]:
     """``/xinfo`` -> (address, name, model, firmware)."""
+    peer = desk_address(ip)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.settimeout(timeout)
         sock.sendto(encode_message("/xinfo"), (ip, port))
-        try:
-            data, _ = sock.recvfrom(4096)
-        except socket.timeout:
-            raise OscError(f"no /xinfo reply from {ip}:{port}") from None
+        # Wait out anyone else on the network, but only to the deadline: steady foreign
+        # traffic keeps recvfrom succeeding, so the socket timeout alone never fires.
+        deadline = time.monotonic() + timeout
+        data = None
+        while data is None and time.monotonic() < deadline:
+            try:
+                sock.settimeout(max(deadline - time.monotonic(), 0.001))
+                packet, sender = sock.recvfrom(4096)
+            except socket.timeout:
+                break
+            if sender[0] == peer:
+                data = packet
+        if data is None:
+            raise OscError(f"no /xinfo reply from {ip}:{port}")
     addr, args = decode_message(data)
     if addr != "/xinfo" and addr != "xinfo" or len(args) < 4:
         raise OscError(f"unexpected /xinfo reply {addr!r} {args!r}")
@@ -52,6 +65,7 @@ def xinfo(ip: str, *, port: int = X32_PORT, timeout: float = 1.0) -> tuple[str, 
 
 
 def _node_values(ip: str, paths: list[str], **kw) -> dict[str, str]:
+    kw.setdefault("fail_fast", 3)
     lines, _ = pull_lines(ip, paths, **kw)
     out = {}
     for ln in lines:
@@ -102,7 +116,8 @@ def read_desk(ip: str, *, port: int = X32_PORT, timeout: float = 0.6,
              + [f"-show/showfile/snippet/{n:03d}" for n in range(100)]
              + [f"-show/showfile/cue/{n:03d}" for n in range(100)]
              + [f"-libs/{k}/{n:03d}" for k in LIB_KINDS for n in range(1, 101)])
-    lines, _ = pull_lines(ip, paths, port=port, timeout=timeout)
+    # without this a desk that answers /xinfo but no /node is queried for every slot
+    lines, _ = pull_lines(ip, paths, port=port, timeout=timeout, fail_fast=3)
     for ln in lines:
         parsed = Line.parse(ln)
         path, args = parsed.path, parsed.args

@@ -3,12 +3,13 @@
 import contextlib
 import io
 import json
+import time
 import unittest
 from unittest import mock
 
 from x32scene.cli import main
 from x32scene.services import desk as D
-from x32scene.services.osc import encode_message
+from x32scene.services.osc import decode_message, encode_message
 
 STAT = {"-stat/selidx": "3", "-stat/solo": "OFF", "-stat/usbmounted": "ON",
         "-stat/xcardtype": "10", "-stat/tape/state": "4", "-stat/tape/file": '"/R_1.wav"'}
@@ -82,6 +83,25 @@ class XinfoTest(unittest.TestCase):
         with mock.patch.object(D.socket, "socket", return_value=fake):
             self.assertEqual(D.xinfo("10.0.0.2"), ("10.0.0.2", "X32-TEST", "X32RACK", "4.06"))
 
+    def test_a_reply_from_another_host_is_waited_out(self):
+        """An impostor's /xinfo must not become the desk's identity."""
+        evil = encode_message("/xinfo", ["10.0.0.99", "IMPOSTOR", "X32", "0.00"])
+        good = encode_message("/xinfo", ["10.0.0.2", "X32-TEST", "X32RACK", "4.06"])
+        fake = mock.MagicMock()
+        fake.__enter__.return_value = fake
+        fake.recvfrom.side_effect = [(evil, ("10.0.0.99", 10023)), (good, ("10.0.0.2", 10023))]
+        with mock.patch.object(D.socket, "socket", return_value=fake):
+            self.assertEqual(D.xinfo("10.0.0.2"), ("10.0.0.2", "X32-TEST", "X32RACK", "4.06"))
+
+    def test_only_an_impostor_answering_times_out(self):
+        evil = encode_message("/xinfo", ["10.0.0.99", "IMPOSTOR", "X32", "0.00"])
+        fake = mock.MagicMock()
+        fake.__enter__.return_value = fake
+        fake.recvfrom.side_effect = [(evil, ("10.0.0.99", 10023)), TimeoutError()]
+        with mock.patch.object(D.socket, "socket", return_value=fake):
+            with self.assertRaises(D.OscError):
+                D.xinfo("10.0.0.2", timeout=0.2)
+
 
 class DeskCliTest(unittest.TestCase):
     def test_desk_command_text_and_json(self):
@@ -110,3 +130,54 @@ class DeskCliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class XinfoTimeoutTest(unittest.TestCase):
+    def test_the_sender_filter_cannot_outlive_the_timeout(self):
+        """Steady traffic from another host keeps recvfrom succeeding, so the loop has
+        to consult the deadline rather than rely on the socket timeout."""
+        evil = encode_message("/xinfo", ["10.0.0.99", "IMPOSTOR", "X32", "0.00"])
+        fake = mock.MagicMock()
+        fake.__enter__.return_value = fake
+        fake.recvfrom.return_value = (evil, ("10.0.0.99", 10023))   # never stops arriving
+        started = time.monotonic()
+        with mock.patch.object(D.socket, "socket", return_value=fake):
+            with self.assertRaises(D.OscError):
+                D.xinfo("10.0.0.2", timeout=0.05)
+        # a wall-clock bound, so losing the deadline fails the test instead of wedging it
+        self.assertLess(time.monotonic() - started, 5.0)
+
+
+class HalfResponsiveDeskTest(unittest.TestCase):
+    """A console that answers /xinfo but no /node must not cost a full walk of every slot
+    query at the timeout before saying anything."""
+
+    def test_read_desk_gives_up_early(self):
+        import socket as _socket
+        import threading
+        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+        halt = threading.Event()
+
+        def answer_xinfo_only():
+            reply = encode_message("/xinfo", ["127.0.0.1", "X32-TEST", "X32RACK", "4.06"])
+            sock.settimeout(0.2)
+            while not halt.is_set():
+                try:
+                    data, addr = sock.recvfrom(65536)
+                except (_socket.timeout, OSError):
+                    continue                     # closed under us at teardown
+                if decode_message(data)[0] in ("/xinfo", "xinfo"):
+                    sock.sendto(reply, addr)     # every /node goes unanswered
+
+        threading.Thread(target=answer_xinfo_only, daemon=True).start()
+        try:
+            started = time.monotonic()
+            with self.assertRaises(D.OscError):
+                D.read_desk("127.0.0.1", port=port, timeout=0.05)
+            self.assertLess(time.monotonic() - started, 10.0)
+        finally:
+            halt.set()
+            time.sleep(0.25)     # let the responder leave recvfrom before the close
+            sock.close()

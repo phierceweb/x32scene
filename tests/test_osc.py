@@ -2,8 +2,10 @@
 import socket
 import threading
 import unittest
+from unittest import mock
 
 from x32scene.model import Scene
+from x32scene.services import osc as O
 from x32scene.services.osc import (
     decode_message, encode_message, pull_lines, pull_scene_like,
 )
@@ -136,6 +138,32 @@ class DelayedConsoleTest(unittest.TestCase):
             self.assertIn("/" + paths[0], present)
         finally:
             console.stop()
+
+
+class SenderTest(unittest.TestCase):
+    """A reply becomes scene state, so the desk's address gates what is believed."""
+
+    def test_a_reply_from_another_address_is_not_captured(self):
+        console = FakeConsole()
+        console.start()
+        try:
+            # the console really does answer on loopback; claim the desk lives elsewhere
+            with mock.patch.object(O, "desk_address", return_value="10.0.0.99"):
+                lines, missing = pull_lines("127.0.0.1", ["ch/01/config"],
+                                            port=console.port, timeout=0.3, retries=0)
+            self.assertEqual(lines, [])
+            self.assertEqual(missing, ["ch/01/config"])
+            # positive control: the same query, believed, does capture the line
+            lines, missing = pull_lines("127.0.0.1", ["ch/01/config"],
+                                        port=console.port, timeout=0.3, retries=0)
+            self.assertEqual(lines, [CANNED["ch/01/config"]])
+            self.assertEqual(missing, [])
+        finally:
+            console.stop()
+
+    def test_a_hostname_resolves_before_it_is_compared(self):
+        self.assertEqual(O.desk_address("localhost"), "127.0.0.1")
+        self.assertEqual(O.desk_address("10.0.0.2"), "10.0.0.2")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from ..services import transforms as T
 from ..services.scopes import SCOPES
 from ..tables import SEND_STRIPS, strip_path
 from . import _sections
+from ._sections import _numbered_key
 
 
 PLAN_KEYS = {"title", "channels", "dca", "iem_copy", "iem_sends", "outputs", "fx", "routing",
@@ -48,21 +49,6 @@ def _records(plan: dict, key: str) -> list:
     return section
 
 
-def _numbered_key(section: str, key: object, lo: int, hi: int, seen: dict) -> int:
-    """A plan key naming a numbered thing. Canonicalized, so "9" and "09" collide loudly
-    rather than silently collapsing to one arbitrary last-wins write."""
-    try:
-        n = int(key)
-    except (TypeError, ValueError):
-        raise ValueError(f"{section}: {key!r} is not a number {lo}-{hi}") from None
-    if not lo <= n <= hi:
-        raise ValueError(f"{section}: {n} out of range {lo}-{hi}")
-    if n in seen:
-        raise ValueError(f"{section}: keys {seen[n]!r} and {key!r} both name {n}")
-    seen[n] = key
-    return n
-
-
 def _valid_fader(v: object) -> bool:
     return v in ("-oo", "oo") or (_is_number(v) and T.LEVEL_MIN_DB <= v <= T.LEVEL_MAX_DB)
 
@@ -90,6 +76,9 @@ def validate_plan(plan: dict) -> None:
     unknown = [k for k in plan if k not in PLAN_KEYS and not k.startswith("_")]
     if unknown:
         raise ValueError(f"unknown plan key(s): {', '.join(sorted(unknown))}")
+    if "title" in plan and not isinstance(plan["title"], str):
+        # unchecked, a list reaches the scene header through repr()
+        raise ValueError(f"title must be a string, got {plan['title']!r}")
     _validate_channels(plan)
     _validate_dca(plan)
     _validate_copies(plan)
@@ -109,6 +98,9 @@ def _validate_channels(plan: dict) -> None:
         bad = [k for k in spec if k not in CHANNEL_KEYS]
         if bad:
             raise ValueError(f"channel {ch}: unknown key(s): {', '.join(sorted(bad))}")
+        for key in ("name", "preset"):
+            if key in spec and not isinstance(spec[key], str):
+                raise ValueError(f"channel {ch}: {key} must be a string, got {spec[key]!r}")
         if "scopes" in spec and not isinstance(spec["scopes"], list):
             raise ValueError(f"channel {ch}: scopes must be a list, "
                              f"got {type(spec['scopes']).__name__}")

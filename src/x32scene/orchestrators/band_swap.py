@@ -74,8 +74,27 @@ from ..tables import SEND_STRIPS
 def load_plan(path: str | Path) -> dict:
     p = Path(path)
     plan = json.loads(p.read_text(encoding="utf-8"))
+    if not isinstance(plan, dict):
+        raise ValueError(f"{p}: plan must be a JSON object, got {type(plan).__name__}")
     plan["_dir"] = p.parent
     return plan
+
+
+def plan_inputs(plan: dict) -> list[str]:
+    """Every file the plan reads besides itself: presets named by a channel, an FX slot
+    or the routing section."""
+    base = Path(plan.get("_dir", "."))
+    specs = [s for key in ("channels", "fx") if isinstance(plan.get(key), dict)
+             for s in plan[key].values() if isinstance(s, dict)]
+    if isinstance(plan.get("routing"), dict):
+        specs.append(plan["routing"])
+    out = []
+    for spec in specs:
+        name = spec.get("preset")
+        if isinstance(name, str):
+            q = Path(name)
+            out.append(str(q if q.is_absolute() else base / q))
+    return out
 
 
 def _send_targets(scene: Scene, plan: dict) -> dict[tuple[str, int], tuple[dict, tuple]]:

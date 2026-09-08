@@ -3,6 +3,48 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.2.0] — 2026-09-07
+
+### Added
+- Every file named on the command line is checked for the shape of its kind, and a
+  mismatch — a truncated scene, an empty file, text that is not a scene, a header-only
+  snippet — warns on stderr. A warning, never a refusal: the exit code is unchanged and
+  `--json` stays a clean pipe. `audit` reports the same finding as an exit-1 violation.
+  Each kind is judged by its own shape, so a headerless `.chn`, an unpadded `.shw` header
+  and a partial `.snp` all pass. Presets a `band-setup` plan names, and the library sweeps
+  `audit` and `history`, keep their own reporting.
+- `--force` on every command that writes.
+
+### Changed
+- An `-o` that already exists is refused without `--force`. An input is refused outright
+  and `--force` does not unlock it — including files an argument does not name: presets a
+  `band-setup` plan reads, a preset named inside `snippet --edit`, and the scenes and
+  snippets `show-build` writes alongside in `-o DIR`.
+- `pull`, `live-diff`, `desk` and `meters` accept a reply only from the desk's own
+  address; a hostname is resolved before the comparison.
+- `desk` gives up after three unanswered queries rather than sweeping every slot.
+- All 47 subcommands appear in `x32scene --help`.
+
+**Breaking:** an invocation whose output already existed used to succeed and now exits 1.
+`--f` no longer abbreviates `--freq` on `set-eq` and `set-lowcut`, since `--force` now
+shares the prefix.
+
+### Fixed
+- A plan that is not a JSON object is a plan error — exit 2, nothing written.
+- A JSON boolean in a plan is refused rather than read as a number, for a channel
+  `source`, an output `src` and an FX `params` value.
+- A plan's `title`, a channel `name` and every `preset` path must be strings; a wrong type
+  is a named plan error.
+- A `routing.banks` entry must be one of the console's bank names.
+- Two plan keys naming one FX slot or one output — `"9"` beside `"09"` — collide instead
+  of applying in JSON key order, and a zero-padded key names the path the plan writes.
+- A meter blob with a negative float count, or a non-finite level, is rejected; one
+  unusable frame no longer discards the window.
+- `--timeout` and `meters --seconds` are bounded, from the flag and from
+  `X32SCENE_TIMEOUT`.
+- `desk` keeps `--timeout` as an upper bound while filtering replies by sender.
+- `pull` with a reference carrying no queryable paths returns empty.
+
 ## [0.1.0] — 2026-09-07
 
 First release.

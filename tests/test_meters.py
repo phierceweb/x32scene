@@ -111,3 +111,67 @@ class MetersCliTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HostileBlobTest(unittest.TestCase):
+    def test_a_negative_float_count_is_rejected(self):
+        """The count is signed on the wire, so a negative one makes the length check
+        below it vacuous and reaches struct with an invalid format."""
+        for n in (-1, -2, -1000):
+            with self.subTest(n=n):
+                with self.assertRaises(M.OscError):
+                    M.parse_blob(struct.pack("<i", n))
+
+    def test_a_hostile_frame_does_not_crash_the_command(self):
+        body = struct.pack("<i", -1)
+        frame = (b"/meters/0\x00\x00\x00" + b",b\x00\x00"
+                 + struct.pack(">i", len(body)) + body)
+        fake = mock.MagicMock()
+        fake.__enter__.return_value = fake
+        fake.recvfrom.side_effect = [(frame, ("10.0.0.2", 10023)), TimeoutError()]
+        with mock.patch.object(M.socket, "socket", return_value=fake):
+            with self.assertRaises(M.OscError):
+                M.read_meters("10.0.0.2", 0, seconds=5)
+
+
+class MeterSenderTest(unittest.TestCase):
+    def test_frames_from_another_host_are_ignored(self):
+        good = blob_message(0, [0.9] + [0.0] * 61)
+        evil = blob_message(0, [1.0] * 62)
+        fake = mock.MagicMock()
+        fake.__enter__.return_value = fake
+        fake.recvfrom.side_effect = [(evil, ("10.0.0.99", 10023)),
+                                     (good, ("10.0.0.2", 10023)), TimeoutError()]
+        with mock.patch.object(M.socket, "socket", return_value=fake):
+            peaks = M.read_meters("10.0.0.2", 0, seconds=5)
+        self.assertEqual(peaks.frames, 1)                 # the impostor's frame not counted
+        self.assertAlmostEqual(peaks.peak["ch 1"], 0.9, places=5)
+
+
+class NonFiniteLevelTest(unittest.TestCase):
+    def test_an_infinite_level_is_rejected(self):
+        """inf reaches int() through to_db as an OverflowError, which is an
+        ArithmeticError and so outside the CLI's boundary; --json would emit bare
+        Infinity."""
+        for bad in (float("inf"), float("-inf"), float("nan")):
+            with self.subTest(value=bad):
+                blob = struct.pack("<i", 2) + struct.pack("<2f", bad, 0.5)
+                with self.assertRaises(M.OscError):
+                    M.parse_blob(blob)
+
+
+class WindowSurvivesABadFrameTest(unittest.TestCase):
+    def test_one_unusable_frame_does_not_discard_the_others(self):
+        """parse_blob's OscError sat outside the loop's except, so a single bad frame
+        threw away every peak already collected."""
+        good = blob_message(0, [0.8] + [0.0] * 61)
+        bad = blob_message(0, [])[:-4] + struct.pack("<i", -1)   # negative float count
+        fake = mock.MagicMock()
+        fake.__enter__.return_value = fake
+        fake.recvfrom.side_effect = [(good, ("10.0.0.2", 10023)),
+                                     (bad, ("10.0.0.2", 10023)),
+                                     (good, ("10.0.0.2", 10023)), TimeoutError()]
+        with mock.patch.object(M.socket, "socket", return_value=fake):
+            peaks = M.read_meters("10.0.0.2", 0, seconds=5)
+        self.assertEqual(peaks.frames, 2)
+        self.assertAlmostEqual(peaks.peak["ch 1"], 0.8, places=5)

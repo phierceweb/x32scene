@@ -8,6 +8,7 @@ from pf_core.utils.env import resolve_str
 
 from . import __version__
 from .services.scopes import SCOPES
+from ._parsers_edit import _add_edits
 from ._parsers_live import _add_live
 from .tables import OUTPUT_BANKS
 
@@ -15,6 +16,25 @@ from .tables import OUTPUT_BANKS
 def _strip_arg(s: str):
     """A strip target on the CLI: a bare number (channel) or a path like /bus/01, /main/st."""
     return int(s) if s.isdigit() else s
+
+
+# the views registered in a loop; every other command carries help= at its add_parser
+_VIEW_HELP = {
+    "info": "the scene at a glance: title, line count, channel and bus names",
+    "buses": "the 16 mix buses: stereo pairs, names, FX assignment, send tap",
+    "explain": "a whole scene read out in words, for troubleshooting",
+    "inputs": "each channel resolved to the physical jack feeding it",
+    "record-map": "the USB card tracks a DAW receives, and the channels fed back from it",
+    "fx": "the eight FX slots: type, source and parameters",
+    "dca": "DCA and mute-group membership",
+}
+
+
+def _out(s, **kw) -> None:
+    """The output path an edit command writes, and the flag that lets it land on a file
+    that is already there. Every writer takes both, so the guard is impossible to omit."""
+    s.add_argument("-o", "--out", required=True, **kw)
+    s.add_argument("--force", action="store_true", help="overwrite OUT if it already exists")
 
 
 def _bus_list(s: str) -> list[int]:
@@ -35,7 +55,7 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     stage_default = resolve_str(None, "X32SCENE_STAGE", default=None)
     stage_help = "stage sidecar JSON, or set X32SCENE_STAGE (start from config/example-stage.json)"
     for name in ("info", "buses", "explain"):
-        sub.add_parser(name).add_argument("scene")
+        sub.add_parser(name, help=_VIEW_HELP[name]).add_argument("scene")
     s = sub.add_parser("ports", help="outputs -> source per bank; a sidecar adds jack/wearer")
     s.add_argument("scene")
     s.add_argument("--bank", choices=(*OUTPUT_BANKS, "all"), default="main")
@@ -49,10 +69,10 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s.add_argument("scene")
     s.add_argument("--json", action="store_true")
     for name in ("inputs", "record-map", "fx", "dca"):
-        s = sub.add_parser(name)
+        s = sub.add_parser(name, help=_VIEW_HELP[name])
         s.add_argument("scene")
         s.add_argument("--json", action="store_true")
-    s = sub.add_parser("iem")
+    s = sub.add_parser("iem", help="one monitor bus: the sends feeding it, loud to quiet")
     s.add_argument("scene")
     s.add_argument("bus", type=int, choices=range(1, 17), metavar="BUS",
                    help="mix bus 1-16")
@@ -70,7 +90,7 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s.add_argument("--all", action="store_true", help="every send strip, silent ones too")
     s.add_argument("--compare", metavar="OTHER", help="show before>after against another scene")
     s.add_argument("--json", action="store_true")
-    s = sub.add_parser("diff")
+    s = sub.add_parser("diff", help="what changed between two files, path by path")
     s.add_argument("a")
     s.add_argument("b")
     s.add_argument("--by-strip", action="store_true",
@@ -86,7 +106,7 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s.add_argument("scenes", nargs="+", metavar="SCENE",
                    help="A B for a delta; one scene with --edit, or with --bus/--only to take "
                         "those lines as they are")
-    s.add_argument("-o", "--out", required=True, metavar="OUT.snp")
+    _out(s, metavar="OUT.snp")
     s.add_argument("--edit", action="append", default=[], metavar='"set-eq 5 2 --gain 3"',
                    help="an edit command without its scene and -o, applied in memory "
                         "(repeatable; set-*, rename, apply-preset)")
@@ -104,7 +124,7 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
                                       "defaults), source, parameters by name")
     s.add_argument("scene")
     s.add_argument("slot", type=int, choices=range(1, 9), metavar="SLOT")
-    s.add_argument("-o", "--out", required=True)
+    _out(s)
     s.add_argument("--type", metavar="CODE")
     s.add_argument("--source", metavar="L[,R]", help="INS, MIX1..MIX16 or M/C (slots 1-4)")
     s.add_argument("--set", action="append", default=[], metavar="NAME=VALUE",
@@ -113,13 +133,13 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s = sub.add_parser("extract-fx", help="one FX slot as an effect preset (.efx)")
     s.add_argument("scene")
     s.add_argument("slot", type=int, choices=range(1, 9), metavar="SLOT")
-    s.add_argument("-o", "--out", required=True, metavar="OUT.efx")
+    _out(s, metavar="OUT.efx")
     s.add_argument("--name", help="preset name (default: the output file's stem)")
     s = sub.add_parser("apply-fx", help="load an effect preset (.efx) into an FX slot")
     s.add_argument("scene")
     s.add_argument("slot", type=int, choices=range(1, 9), metavar="SLOT")
     s.add_argument("preset")
-    s.add_argument("-o", "--out", required=True)
+    _out(s)
     s.add_argument("--source", action="store_true", help="also take the preset's source")
     s = sub.add_parser("vocab", help="the words the console accepts: routing bank tokens, "
                                      "output sources (taps), input sources")
@@ -132,36 +152,36 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
                    help="a bank, or `switch` with REC|PLAY")
     s.add_argument("blocks", nargs="+", metavar="BLOCK=TOKEN",
                    help="e.g. 1-8=A1-8 AUX=AUX1-4 (for switch: REC or PLAY)")
-    s.add_argument("-o", "--out", required=True)
+    _out(s)
     s = sub.add_parser("set-input", help="point a channel at an input source")
     s.add_argument("scene")
     s.add_argument("ch", type=int)
     s.add_argument("source", help='"local 5", "aes50-a 3", "card 7", "aux 2", off, or 0-168')
-    s.add_argument("-o", "--out", required=True)
+    _out(s)
     s = sub.add_parser("set-output", help="an output's source, tap point and polarity")
     s.add_argument("scene")
     s.add_argument("bank", choices=tuple(OUTPUT_BANKS))
     s.add_argument("n", type=int, metavar="N")
-    s.add_argument("-o", "--out", required=True)
+    _out(s)
     s.add_argument("--src", help='"bus 9", "main l", "matrix 2", "direct out ch 5", off, 0-76')
     s.add_argument("--pos", help="tap point: IN/LC, <-EQ, EQ->, PRE, POST, each also with +M")
     s.add_argument("--invert", choices=("on", "off"))
     s.set_defaults(knobs={"--src": "src", "--pos": "pos", "--invert": "invert"})
     s = sub.add_parser("extract-routing", help="the input routing banks as a routing preset (.rou)")
     s.add_argument("scene")
-    s.add_argument("-o", "--out", required=True, metavar="OUT.rou")
+    _out(s, metavar="OUT.rou")
     s.add_argument("--name", help="preset name (default: the output file's stem)")
     s = sub.add_parser("apply-routing", help="load a routing preset (.rou) into a scene")
     s.add_argument("scene")
     s.add_argument("preset")
-    s.add_argument("-o", "--out", required=True)
+    _out(s)
     s.add_argument("--bank", action="append", choices=("IN", "AES50A", "AES50B", "CARD"),
                    help="only these banks (repeatable); default: all the preset carries")
     s = sub.add_parser("transplant", help="carry lines from SRC into DST and touch nothing "
                                           "else: a monitor bus, path patterns, channel sections")
     s.add_argument("src")
     s.add_argument("dst")
-    s.add_argument("-o", "--out", required=True)
+    _out(s)
     s.add_argument("--bus", type=int, action="append", default=[], metavar="N",
                    help="bus N's whole monitor mix (strip + every send), pair-aware (repeatable)")
     s.add_argument("--path", action="append", default=[], metavar="GLOB",
@@ -180,6 +200,8 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s = sub.add_parser("show-build", help="write a show (.shw plus companions) from scenes, "
                                           "snippets and cues, the way X32-Edit imports one")
     s.add_argument("-o", "--dir", required=True, metavar="DIR", help="directory to write into")
+    s.add_argument("--force", action="store_true",
+                   help="overwrite show files that already exist in DIR")
     s.add_argument("--name", required=True, help="show name; files are NAME.shw, NAME.NNN.scn …")
     s.add_argument("--scene", action="append", default=[], metavar="FILE.scn",
                    help="scene slot in order given (repeatable)")
@@ -187,11 +209,12 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
                    help="snippet slot in order given (repeatable)")
     s.add_argument("--cue", action="append", default=[], metavar='"1 Opener scene=0 snippet=1"',
                    help="a cue: number, name words, scene=N, snippet=N, skip (repeatable)")
-    s = sub.add_parser("port-iem")
+    s = sub.add_parser("port-iem",
+                       help="copy SRC's main and aux output patch onto DST")
     s.add_argument("src")
     s.add_argument("dst")
-    s.add_argument("-o", "--out", required=True)
-    s = sub.add_parser("audit")
+    _out(s)
+    s = sub.add_parser("audit", help="check a scene library's invariants and surface rig drift over time")
     s.add_argument("dir", nargs="?", default=resolve_str(None, "X32SCENE_CORPUS", default=None),
                    help="directory of .scn files (or set X32SCENE_CORPUS)")
     s = sub.add_parser("preflight",
@@ -206,92 +229,9 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
                        help="re-skin a template scene for another band from a JSON plan")
     s.add_argument("template")
     s.add_argument("plan")
-    s.add_argument("-o", "--out", required=True)
+    _out(s)
     s.add_argument("--snippet", metavar="OUT.snp",
                    help="also write the plan's delta against the template as a snippet")
-    s = sub.add_parser("extract-preset")
-    s.add_argument("scene")
-    s.add_argument("ch", type=int)
-    s.add_argument("-o", "--out", required=True)
-    s.add_argument("--scope", action="append", choices=SCOPES,
-                   help="limit to these scopes (repeatable); default = all")
-    s.add_argument("--header", action="store_true",
-                   help="write a #4.0# header naming the preset after the channel "
-                        "(opt-in: the flag bit order is inferred, LOAD-TEST it)")
-    s = sub.add_parser("apply-preset")
-    s.add_argument("scene")
-    s.add_argument("ch", type=int)
-    s.add_argument("preset")
-    s.add_argument("-o", "--out", required=True)
-    s.add_argument("--scope", action="append", choices=SCOPES)
-    nolink_help = "edit only this strip, even on a stereo-linked pair"
-    s = sub.add_parser("set-eq")
-    s.add_argument("scene")
-    s.add_argument("strip", type=_strip_arg)
-    s.add_argument("band", type=int)
-    s.add_argument("-o", "--out", required=True)
-    s.add_argument("--type")
-    s.add_argument("--freq", type=float)
-    s.add_argument("--gain", type=float)
-    s.add_argument("--q", type=float)
-    s.add_argument("--no-link", action="store_true", help=nolink_help)
-    # knobs: the flags _require_a_knob demands at least one of (flag -> args dest)
-    s.set_defaults(knobs={"--type": "type", "--freq": "freq", "--gain": "gain", "--q": "q"})
-    s = sub.add_parser("set-comp")
-    s.add_argument("scene")
-    s.add_argument("strip", type=_strip_arg)
-    s.add_argument("-o", "--out", required=True)
-    s.add_argument("--thr", type=float)
-    s.add_argument("--ratio")
-    s.add_argument("--makeup", type=float)
-    s.add_argument("--attack", type=float)
-    s.add_argument("--release", type=float)
-    s.add_argument("--no-link", action="store_true", help=nolink_help)
-    s.set_defaults(knobs={"--thr": "thr", "--ratio": "ratio", "--makeup": "makeup",
-                          "--attack": "attack", "--release": "release"})
-    s = sub.add_parser("set-gate")
-    s.add_argument("scene")
-    s.add_argument("strip", type=_strip_arg)
-    s.add_argument("-o", "--out", required=True)
-    s.add_argument("--thr", type=float)
-    s.add_argument("--range", type=float, dest="rng")
-    s.add_argument("--attack", type=float)
-    s.add_argument("--release", type=float)
-    s.add_argument("--no-link", action="store_true", help=nolink_help)
-    s.set_defaults(knobs={"--thr": "thr", "--range": "rng", "--attack": "attack",
-                          "--release": "release"})
-    s = sub.add_parser("set-lowcut")
-    s.add_argument("scene")
-    s.add_argument("strip", type=_strip_arg)
-    s.add_argument("-o", "--out", required=True)
-    onoff = s.add_mutually_exclusive_group()
-    onoff.add_argument("--on", action="store_true")
-    onoff.add_argument("--off", action="store_true")
-    s.add_argument("--freq", type=float)
-    s.add_argument("--no-link", action="store_true", help=nolink_help)
-    s.set_defaults(knobs={"--on": "on", "--off": "off", "--freq": "freq"})
-    s = sub.add_parser("set-fader",
-                       help="set a strip's fader level (dB, or oo for -infinity)")
-    s.add_argument("scene")
-    s.add_argument("strip", type=_strip_arg)
-    s.add_argument("level", help="dB, or oo (also -oo) for -infinity")
-    s.add_argument("-o", "--out", required=True)
-    s.add_argument("--no-link", action="store_true", help=nolink_help)
-    s = sub.add_parser("set-mute", help="mute/unmute a strip")
-    s.add_argument("scene")
-    s.add_argument("strip", type=_strip_arg)
-    s.add_argument("state", choices=["on", "off"], help="on = muted")
-    s.add_argument("-o", "--out", required=True)
-    s.add_argument("--no-link", action="store_true", help=nolink_help)
-    s = sub.add_parser("set-pan", help="set a strip's pan/balance (-100..+100)")
-    s.add_argument("scene")
-    s.add_argument("strip", type=_strip_arg)
-    s.add_argument("pan", type=int, help="-100 (L) .. +100 (R)")
-    s.add_argument("-o", "--out", required=True)
-    s = sub.add_parser("rename", help="rename a strip (channel, bus, DCA, etc.)")
-    s.add_argument("scene")
-    s.add_argument("strip", type=_strip_arg)
-    s.add_argument("name")
-    s.add_argument("-o", "--out", required=True)
+    _add_edits(sub, _out, _strip_arg)
     _add_live(sub)
     return p
