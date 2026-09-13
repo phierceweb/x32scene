@@ -19,16 +19,29 @@ def _bounded(v: float, default: float = 0.5) -> float:
     return default
 
 
-def _timeout(s: str) -> float:
-    """settimeout() raises OverflowError for inf or a huge float — an ArithmeticError the
-    CLI boundary does not catch, so the value is bounded here instead."""
+def _seconds(s: str, what: str, limit: float) -> float:
     try:
         v = float(s)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"timeout must be a number, got {s!r}") from None
-    if not math.isfinite(v) or not 0 < v <= 3600:
-        raise argparse.ArgumentTypeError(f"timeout must be between 0 and 3600 seconds, got {s}")
+        raise argparse.ArgumentTypeError(f"{what} must be a number, got {s!r}") from None
+    if not math.isfinite(v) or not 0 < v <= limit:
+        raise argparse.ArgumentTypeError(
+            f"{what} must be greater than 0 and at most {limit:g} seconds, got {s}")
     return v
+
+
+def _timeout(s: str) -> float:
+    """settimeout() raises OverflowError for inf or a huge float — an ArithmeticError the
+    CLI boundary does not catch, so the value is bounded here instead."""
+    return _seconds(s, "timeout", 3600)
+
+
+def _meter_seconds(s: str) -> float:
+    return _seconds(s, "seconds", 3600)
+
+
+def _watch_seconds(s: str) -> float:
+    return _seconds(s, "seconds", 43200)
 
 
 def _add_live(sub) -> None:
@@ -54,10 +67,23 @@ def _add_live(sub) -> None:
     s.add_argument("what", nargs="?", default="inputs",
                    choices=("inputs", "buses", "outputs", "sends", "fx", "monitor", "recorder"))
     s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None))
-    s.add_argument("--seconds", type=_timeout, default=1.0, help="window to watch (default 1.0)")
+    s.add_argument("--seconds", type=_meter_seconds, default=1.0,
+                   help="window to watch (default 1.0)")
     s.add_argument("--scene", help="a scene to name the strips from")
     s.add_argument("--all", action="store_true", help="show silent slots too")
     s.add_argument("--json", action="store_true")
+    s = sub.add_parser("watch", help="log every change made on the running desk as it happens, "
+                                     "and what is different at the end (read-only)")
+    s.add_argument("reference", help="scene whose paths define what to watch")
+    s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None),
+                   help="console IP (or set X32SCENE_IP)")
+    s.add_argument("--timeout", type=_timeout, default=timeout_default, help=timeout_help)
+    s.add_argument("--seconds", type=_watch_seconds, default=None,
+                   help="stop after this long, up to 43200 (default: until Ctrl-C)")
+    s.add_argument("--snippet", metavar="OUT.snp",
+                   help="write the net change as a snippet when the watch ends")
+    s.add_argument("--force", action="store_true", help="overwrite OUT.snp if it already exists")
+    s.add_argument("--json", action="store_true", help="JSON lines: one per change, then a summary")
     s = sub.add_parser("live-diff",
                        help="diff the running desk against a saved scene (what got twiddled)")
     s.add_argument("scene")

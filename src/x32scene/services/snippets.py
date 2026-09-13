@@ -31,7 +31,7 @@ _MASK_LABELS = {"channels": [("ch", 1, 32)],
 _SPLIT_MIX = {"ch": ["fader", "pan", "on", "st", "mono", "mlevel"], "auxin": None,
               "fxrtn": None, "bus": None, "mtx": ["fader", "on"]}
 _SPLIT_MIX["auxin"] = _SPLIT_MIX["fxrtn"] = _SPLIT_MIX["bus"] = _SPLIT_MIX["ch"]
-_MIX_FIELD = {"on": 0, "fader": 1, "st": 2, "pan": 3, "mono": 4, "mlevel": 5}
+MIX_FIELD = {"on": 0, "fader": 1, "st": 2, "pan": 3, "mono": 4, "mlevel": 5}
 _SPLIT_MAIN = {"st": ["fader", "pan", "on"], "m": ["fader", "on"]}
 _SPLIT_ROUTING = {"IN": ["1-8", "9-16", "17-24", "25-32", "AUX"],
                   "AES50A": ["1-8", "9-16", "17-24", "25-32", "33-40", "41-48"],
@@ -163,8 +163,8 @@ def snippet_lines(ln: Line) -> list[str]:
     if fam in _SPLIT_MIX and len(parts) == 3 and parts[2] == "mix":
         subs = _SPLIT_MIX[fam]
         fields = _padded_fields(ln)
-        return [f"{ln.path}/{s} {fields[_MIX_FIELD[s]]}" for s in subs
-                if _MIX_FIELD[s] < len(fields)]
+        return [f"{ln.path}/{s} {fields[MIX_FIELD[s]]}" for s in subs
+                if MIX_FIELD[s] < len(fields)]
     if fam == "main" and len(parts) == 3 and parts[2] == "mix" and parts[1] in _SPLIT_MAIN:
         subs = _SPLIT_MAIN[parts[1]]
     elif fam == "dca" and len(parts) == 2:

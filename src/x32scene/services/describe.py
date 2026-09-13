@@ -30,14 +30,15 @@ class Described:
     note: str = ""    # 'added', 'removed', '2 -> 5 field(s)'
 
 
-def _strip_what(bare: str) -> str:
+def _strip_what(strip: str, bare: str) -> str:
     if bare == "":
         return "level"
     if bare == "/config":
         return "config"
     m = re.match(r"^/mix/(\d\d)$", bare)
     if m:
-        return f"send -> bus {m.group(1)}"
+        dest = "matrix" if strip.startswith(("/bus/", "/main/")) else "bus"
+        return f"send -> {dest} {m.group(1)}"
     m = re.match(r"^/eq/(\d)$", bare)
     if m:
         return f"eq {m.group(1)}"
@@ -66,7 +67,7 @@ def _place(scene: Scene, path: str, owners: dict[int, int]) -> tuple[str, str]:
     """(group, what) for a path."""
     m = _STRIP.match(path)
     if m:
-        return m.group(1), _strip_what(m.group(2) or "")
+        return m.group(1), _strip_what(m.group(1), m.group(2) or "")
     if HEADER_RE.match(path):
         return "scene", "header"
     m = re.match(r"^/headamp/(\d+)$", path)

@@ -23,8 +23,7 @@ you don't need to attach the scene itself.
 ## Setup
 
 ```bash
-python3 -m venv .venv
-bin/run pip install -e ".[dev]"
+bin/run setup          # venv (needs python3.12 on PATH), editable install, pf-core docs link
 bin/run pytest
 bin/run lint
 ```
@@ -37,7 +36,8 @@ bin/run lint
 - **One concern per file.** `bin/run lint` runs pf-core's structural gate; the limits are
   pf-core's `GuardsConfig` defaults. If a file is over, split it rather than grandfathering it.
 - Single-domain operations go in `services/`; multi-step workflows in `orchestrators/`;
-  presentation in `_views.py`. The library layer stays free of logging and CLI concerns.
+  presentation in the `_views*` modules. The library layer stays free of logging and CLI
+  concerns.
 - `X | None` types, src-layout, no `sys.path` manipulation.
 - Edit commands must never overwrite in place — write a new file.
 
@@ -50,3 +50,8 @@ library is opt-in behind `X32SCENE_CORPUS` and must skip cleanly without it.
 ## Reporting security issues
 
 Email **oss@phierceweb.com** rather than opening a public issue.
+
+## License
+
+Contributions are accepted under the Apache License 2.0. Opening a pull request
+licenses your work to the project under those terms.

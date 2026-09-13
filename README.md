@@ -16,10 +16,11 @@ onto the desk.
 
 Some of the things it does that are hard to do any other way:
 
-- **Move a whole set of inputs to a second stage box.** Each channel's source is re-pointed
-  through the routing banks and its head-amp gain and phantom travel with it, because
-  the X32 stores gain by physical input, not by channel; the move is all-or-nothing, with
-  every target input range-checked first.
+- **Move a whole set of inputs to a second stage box.** `move-inputs` re-points each
+  channel's source through the routing banks and its head-amp gain and phantom travel with
+  it, because the X32 stores gain by physical input, not by channel. The move is
+  all-or-nothing: every move is checked first, and one that would also re-source or re-gain
+  a channel it did not name is refused.
 - **Carry one player's in-ear mix into the next band's scene.** A monitor mix is a bus
   strip plus every sender's send into it, both sides of a stereo pair; `transplant` moves
   exactly those lines and nothing else, and `snippet --bus` writes the same mix as a
@@ -51,7 +52,8 @@ the console by you.
 
 The live layer is read-only: `pull` captures the running desk as a scene file so every
 command works on the live console, `desk` reports its identity, status and memory slots,
-`meters` reports levels. Pushing changes to the desk over the network is not a feature.
+`meters` reports levels, `watch` logs every change made on the desk as it happens. Pushing
+changes to the desk over the network is not a feature.
 
 Most read commands have a `--json` form, the vocabularies the console accepts are listed by
 commands, and the reference docs state which facts were observed on hardware and which
@@ -81,12 +83,16 @@ buttons) in words, and a markdown report of the whole scene.
 
 **Comparing.** `diff` between two files, by path or grouped by strip with the moved
 fields named; `history` of one parameter across a dated library; `audit` of a library's
-structural invariants; `live-diff` of the desk against a file.
+structural invariants; `presets-diff` of a channel-preset folder against a scene;
+`live-diff` of the desk against a file.
 
 **Editing.** Strip settings (name, fader, mute, pan, EQ, low cut, compressor, gate), FX
-slots by parameter name, a channel's input source, an output's feed, the routing banks.
-Values are written in the console's own token formats, checked against its vocabularies,
-and mirrored to a stereo-linked partner unless told not to.
+slots by parameter name, a channel's input source, a set of channels moved to stage-box
+inputs with their head amps, an output's feed, the routing banks.
+Values are written in the console's own token formats and checked against its vocabularies.
+Fader, mute, EQ, low cut, compressor and gate edits are mirrored to a stereo-linked partner
+unless told not to; a name and a pan stay per side, and the FX, input, stage-box, output
+and routing edits never mirror.
 
 **Carrying between scenes.** `transplant` copies chosen lines from one scene into another
 and touches nothing else: a whole monitor mix (the bus strip and every send into it), any
@@ -105,7 +111,9 @@ writes a show index with cues and its companion files in the shape X32-Edit impo
 
 **Checks.** `preflight` compares a scene against a documented rig — outputs, monitor
 skeleton, routing, stereo links, send taps, groups — and a stage sidecar recording which
-jack and which person each output feeds. Exit 1 on a failure.
+jack and which person each output feeds. Exit 1 on a failure. There is no rig to check
+against until you describe yours: `preflight GOOD.scn --regenerate rig.json` writes it from a
+scene you trust, and `preflight tonight.scn --config rig.json` checks later scenes against it.
 
 ## What the desk does with a file
 
@@ -151,22 +159,27 @@ Releases are tagged; `main` is the development line. Release notes:
 
 ```bash
 x32scene info | inputs | ports | buses | iem | iem-matrix | record-map | fx | dca | console | report   scene.scn
-x32scene header FILE                       # any file's header decoded
+x32scene header FILE                       # a file's header decoded
 x32scene show show.shw                     # a show index
+x32scene vocab routing|taps|sources [KEY]  # the tokens the console accepts
+x32scene fx-types [CODE]                   # every effect type and its parameters
 x32scene diff a.scn b.scn [--by-strip]     # what changed
 x32scene history PATH… --dir DIR           # one parameter across a library
 x32scene set-eq | set-comp | set-gate | set-lowcut | set-fader | set-mute | set-pan | rename   scene.scn STRIP … -o out.scn
 x32scene set-fx | set-input | set-output | set-routing   scene.scn … -o out.scn
+x32scene move-inputs scene.scn 1:1 2:2 --to B -o out.scn   # channels onto stage-box inputs
+x32scene set-bus-link scene.scn 13 on -o out.scn           # link a bus pair as the desk does
 x32scene transplant src.scn dst.scn -o out.scn --bus 1 --path /headamp/000 --ch 3 --scope eq
 x32scene snippet a.scn b.scn -o delta.snp | a.scn -o mix.snp --bus 9 | a.scn -o eq.snp --edit "set-eq 5 2 --gain 3"
 x32scene band-setup template.scn plan.json -o out.scn [--snippet out.snp]
 x32scene show-build -o DIR --name Night --scene a.scn --snippet x.snp --cue "1 Opener scene=0"
-x32scene preflight scene.scn --config rig.json [--stage stage.json]
+x32scene preflight scene.scn --config rig.json [--stage stage.json] | --regenerate rig.json
 x32scene pull reference.scn -o live.scn | live-diff scene.scn | desk | meters   # --ip or X32SCENE_IP
+x32scene watch reference.scn [--seconds N] [--snippet rehearsal.snp]         # a timestamped change log
 ```
 
-Every command, flag and environment variable:
-[docs/cli.md](https://github.com/phierceweb/x32scene/blob/main/docs/cli.md). Example
+The block above is a summary; all 51 commands, every flag and every environment variable
+are in [docs/cli.md](https://github.com/phierceweb/x32scene/blob/main/docs/cli.md). Example
 inputs: [`config/example-preflight.json`](https://github.com/phierceweb/x32scene/blob/main/config/example-preflight.json),
 [`config/example-plan.json`](https://github.com/phierceweb/x32scene/blob/main/config/example-plan.json),
 [`config/example-stage.json`](https://github.com/phierceweb/x32scene/blob/main/config/example-stage.json).
@@ -194,6 +207,9 @@ from x32scene.orchestrators.band_swap import load_plan, run
 report = run("template.scn", load_plan("plan.json"), "out.scn")
 ```
 
+The library map is [docs/python-api.md](https://github.com/phierceweb/x32scene/blob/main/docs/python-api.md); the plan's own format is
+[docs/band-plan.md](https://github.com/phierceweb/x32scene/blob/main/docs/band-plan.md).
+
 ## Working from a checkout
 
 ```bash
@@ -214,9 +230,12 @@ index, maintained beside the docs.
 
 - [capabilities.md](https://github.com/phierceweb/x32scene/blob/main/docs/capabilities.md) — everything x32scene does, by job, and what it deliberately does not do
 - [cli.md](https://github.com/phierceweb/x32scene/blob/main/docs/cli.md) — every command, flag and environment variable
+- [python-api.md](https://github.com/phierceweb/x32scene/blob/main/docs/python-api.md) — driving the library from a script: the layers, `Scene` and `Line`, what each service owns
 - [format.md](https://github.com/phierceweb/x32scene/blob/main/docs/format.md) — every file kind and every line, field by field; the enumerations; what is verified against hardware and what is inferred
 - [console-behavior.md](https://github.com/phierceweb/x32scene/blob/main/docs/console-behavior.md) — what the desk does when it loads a file, and how a file reaches the desk
 - [routing.md](https://github.com/phierceweb/x32scene/blob/main/docs/routing.md) — the two-layer routing model, resolving a channel to its jack, the record map
+- [band-plan.md](https://github.com/phierceweb/x32scene/blob/main/docs/band-plan.md) — the JSON plan `band-setup` applies: every section, the stage order, and what a plan may not do
+- [preflight-config.md](https://github.com/phierceweb/x32scene/blob/main/docs/preflight-config.md) — the JSON expected-config `preflight` checks against: every section and what each catches
 - [stage-sidecar.md](https://github.com/phierceweb/x32scene/blob/main/docs/stage-sidecar.md) — recording which jack and which person each output feeds, and what `preflight` checks against it
 
 ## Built on pf-core
@@ -243,7 +262,7 @@ the desk.
 
 ## License
 
-MIT — see [LICENSE](https://github.com/phierceweb/x32scene/blob/main/LICENSE).
+Apache-2.0 — see [LICENSE](https://github.com/phierceweb/x32scene/blob/main/LICENSE).
 
 Not affiliated with, endorsed by, or sponsored by Music Tribe. BEHRINGER, X32, and M32 are
 trademarks of Music Tribe Global Brands Ltd. See

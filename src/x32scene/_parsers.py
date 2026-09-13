@@ -45,10 +45,18 @@ def _bus_list(s: str) -> list[int]:
         raise argparse.ArgumentTypeError(f"buses must be numbers like 1,3,9 — got {s!r}") from None
 
 
+class _Subcommands(argparse._SubParsersAction):
+    """Every subcommand's ``--help`` opens with its one-line ``help=`` text."""
+
+    def add_parser(self, name, **kwargs):
+        kwargs.setdefault("description", kwargs.get("help"))
+        return super().add_parser(name, **kwargs)
+
+
 def _build_parser(description: str | None) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="x32scene", description=description)
     p.add_argument("--version", action="version", version=f"x32scene {__version__}")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd", required=True, action=_Subcommands)
 
     # resolved once: every subparser reading them shares it, and a malformed value warns once
     config_default = resolve_str(None, "X32SCENE_CONFIG", default=None)
@@ -109,7 +117,8 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     _out(s, metavar="OUT.snp")
     s.add_argument("--edit", action="append", default=[], metavar='"set-eq 5 2 --gain 3"',
                    help="an edit command without its scene and -o, applied in memory "
-                        "(repeatable; set-*, rename, apply-preset)")
+                        "(repeatable; any set-* but set-bus-link, rename, apply-preset, "
+                        "apply-fx, apply-routing)")
     s.add_argument("--name", help="snippet name (default: the output file's stem)")
     s.add_argument("--bus", type=int, action="append", default=[], metavar="N",
                    help="keep only bus N's monitor mix: its strip and every send to it, "
@@ -164,7 +173,8 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s.add_argument("n", type=int, metavar="N")
     _out(s)
     s.add_argument("--src", help='"bus 9", "main l", "matrix 2", "direct out ch 5", off, 0-76')
-    s.add_argument("--pos", help="tap point: IN/LC, <-EQ, EQ->, PRE, POST, each also with +M")
+    s.add_argument("--pos", help="tap point: IN/LC, <-EQ, EQ->, PRE, POST; the first four "
+                                 "also as +M")
     s.add_argument("--invert", choices=("on", "off"))
     s.set_defaults(knobs={"--src": "src", "--pos": "pos", "--invert": "invert"})
     s = sub.add_parser("extract-routing", help="the input routing banks as a routing preset (.rou)")
@@ -218,13 +228,19 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s.add_argument("dir", nargs="?", default=resolve_str(None, "X32SCENE_CORPUS", default=None),
                    help="directory of .scn files (or set X32SCENE_CORPUS)")
     s = sub.add_parser("preflight",
-                       help="check a scene against the documented rig (FAIL/WARN report)")
+                       help="check a scene against the documented rig (FAIL/WARN report), "
+                            "or write that config from the scene")
     s.add_argument("scene")
-    s.add_argument("--config", default=config_default,
-                   help="expected-config JSON, or set X32SCENE_CONFIG "
-                        "(start from config/example-preflight.json)")
-    s.add_argument("--stage", default=stage_default, help=stage_help)
+    # env defaults live apart so --regenerate can refuse only flags actually typed
+    s.set_defaults(config_env=config_default, stage_env=stage_default)
+    s.add_argument("--config", help="expected-config JSON, or set X32SCENE_CONFIG "
+                                    "(start from config/example-preflight.json)")
+    s.add_argument("--stage", help=stage_help)
     s.add_argument("--json", action="store_true")
+    s.add_argument("--regenerate", metavar="OUT.json",
+                   help="write the expected-config this scene satisfies instead of checking")
+    s.add_argument("--force", action="store_true",
+                   help="with --regenerate: overwrite OUT.json if it already exists")
     s = sub.add_parser("band-setup",
                        help="re-skin a template scene for another band from a JSON plan")
     s.add_argument("template")

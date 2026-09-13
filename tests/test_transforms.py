@@ -162,9 +162,9 @@ class TransformTest(unittest.TestCase):
         inb = self.work.get("/config/routing/IN")
         inb.args[0], inb.args[1] = "UIN9-16", "UIN1-8"
         inb.rebuild()
-        T.move_input_to_stagebox(self.work, 1, 5, port="A")
+        T.move_input_to_stagebox(self.work, 1, 21, port="A")
         uin = self.work.get("/config/userrout/in")
-        self.assertEqual(uin.args[8], "37")                       # 32 + 5
+        self.assertEqual(uin.args[8], "53")                       # 32 + 21
         self.assertEqual(uin.args[0], self.base.get("/config/userrout/in").args[0])
 
     def test_move_input_rejects_out_of_range_aes_input(self):

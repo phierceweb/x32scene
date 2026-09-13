@@ -79,6 +79,13 @@ class CatchesBrokenFilesTest(unittest.TestCase):
         f = V.findings(Scene.parse("#4.0# \"Empty\"".ljust(127) + "\n"), "snp")
         self.assertEqual([x.area for x in f], ["body"])
 
+    def test_a_chn_without_channel_preset_lines(self):
+        for label, name in (("snippet", "example.snp"), ("scene", "example.scn")):
+            with self.subTest(label):
+                self.assertEqual([x.area for x in V.findings(load(name), "chn")], ["body"])
+        f = V.findings(Scene.parse("hello world\n"), "chn")
+        self.assertEqual([x.area for x in f], ["body"])
+
     def test_an_unpadded_header_on_a_kind_that_pads(self):
         f = V.findings(Scene.parse('#4.0# "Short"\n/ch/01/eq ON\n'), "snp")
         self.assertEqual([x.area for x in f], ["header"])

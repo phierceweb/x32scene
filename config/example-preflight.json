@@ -1,5 +1,5 @@
 {
-  "_comment": "Example expected-rig config for `x32scene preflight`, generated from tests/fixtures/example.scn. Copy it, point it at your own console's scene, and edit to match your rig. Every section is optional. Gain is checked with a tolerance (WARN); everything else is exact (FAIL). Line shapes are checked with no config at all.",
+  "_comment": "Example expected-rig config for `x32scene preflight`, generated from tests/fixtures/example.scn and pruned by hand. `x32scene preflight SCENE --regenerate rig.json` writes a complete one from your own scene, without monitor.physical_outputs and require_reachable: a scene does not record how many jacks the console has. Every section is optional. Gain is checked with a tolerance (WARN); everything else is exact (FAIL). Line shapes are checked with no config at all.",
   "gain_tolerance_db": 3.0,
   "channels": {
     "1": {

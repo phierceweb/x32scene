@@ -11,17 +11,17 @@ False = silenced any way (muted, LR unassigned, or fader at −∞).
 
 from __future__ import annotations
 
-import json
-
 from ..model import Scene
 from . import (preflight_groups, preflight_links, preflight_monitor, preflight_outputs,
                preflight_routing, preflight_sends, preflight_stage)
+from .jsonfile import read_json
 from .preflight_config import (Finding, fail_unknown, mapping, numbered_items, spec,
                                want_bool, want_number, want_str)
 from .routing import channel_headamp_index, record_map, resolve_in_slot
 from .stage import stage_entries
 
-__all__ = ["Finding", "coverage", "load_expected", "physical_outputs", "preflight", "report"]
+__all__ = ["GAIN_TOLERANCE_DB", "Finding", "coverage", "load_expected", "physical_outputs",
+           "preflight", "report"]
 
 # section -> range of its numbered keys, for the families checked in this module
 _SECTIONS: dict[str, tuple[int, int]] = {"channels": (1, 32), "record": (1, 32), "fx": (1, 8)}
@@ -33,11 +33,11 @@ _ALL_SECTIONS = (*_SECTIONS, *(s for m in _MODULES for s in sorted(m.SECTIONS)))
 _TOP_KEYS = frozenset({"gain_tolerance_db", *_ALL_SECTIONS})
 _CH_KEYS = frozenset({"name", "source", "in_main", "phantom", "gain"})
 _AREA_WIDTH = 14
+GAIN_TOLERANCE_DB = 3.0
 
 
 def load_expected(path: str) -> dict:
-    with open(path, encoding="utf-8") as fh:
-        doc = json.load(fh)
+    doc = read_json(path)
     if not isinstance(doc, dict):
         raise ValueError(f"{path}: expected-config must be a JSON object, "
                          f"got {type(doc).__name__}")
@@ -115,7 +115,7 @@ def preflight(scene: Scene, expected: dict, *, stage: dict | None = None) -> lis
     out: list[Finding] = []
     fail_unknown(expected, _TOP_KEYS, "config", out)
     tol = want_number(expected, "gain_tolerance_db", "config", out)
-    tol = 3.0 if tol is None else tol
+    tol = GAIN_TOLERANCE_DB if tol is None else tol
     lo, hi = _SECTIONS["channels"]
     for ch, exp in numbered_items(mapping(expected, "channels", "config", out),
                                   "channels", out, lo=lo, hi=hi):

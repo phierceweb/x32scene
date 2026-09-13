@@ -65,6 +65,18 @@ class ViewTest(unittest.TestCase):
         self.assertIn("Plate Reverb", out)
         self.assertIn("sends[PRE:", out)
 
+    def test_buses_tallies_an_unlinked_even_bus_with_the_odd_line_tap(self):
+        """An even send line carries only on/level; its tap is on the sender's odd line."""
+        text = self.sc.dump()
+        for old, new in (("/ch/03/mix/14 ON -19.5", "/ch/03/mix/14 OFF -19.5"),
+                         ("/ch/02/mix/13 ON   -oo +0 PRE 0", "/ch/02/mix/13 ON   -oo +0 POST 0")):
+            self.assertEqual(text.count(old + "\n"), 1)
+            text = text.replace(old + "\n", new + "\n")
+        rows = {ln.split()[0]: ln for ln in render(_views.cmd_buses, Scene.parse(text)).splitlines()}
+        self.assertTrue(rows["bus13"].endswith("sends[PRE:29 POST:19]"), rows["bus13"])
+        self.assertTrue(rows["bus14"].endswith("sends[PRE:28 POST:19]"), rows["bus14"])
+        self.assertTrue(rows["bus02"].endswith("sends[]"), rows["bus02"])   # linked: on bus01
+
     def test_record_map_lists_tracks_and_loopback(self):
         out = render(_views.cmd_record_map, self.sc)
         self.assertIn("track  1 <- Local input 1", out)

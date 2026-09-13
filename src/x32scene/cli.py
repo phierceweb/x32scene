@@ -20,9 +20,13 @@ from . import _views_desk as _vdesk
 from . import _views_report as _report
 from ._cli_edits import EDIT_COMMANDS, apply_edit, parse_edit, run_edit
 from ._cli_files import clean, load_checked, read_checked, refuse_overwrite, reset_warnings
+from ._cli_live import run_watch
+from ._cli_preflight import run_preflight
+from ._cli_presets import run_presets_diff
 from ._parsers import _build_parser
 from .model import Scene
 from .services import audit as _audit
+from .services import buslink as _buslink
 from .services import desk as _desk
 from .services import headers as _headers
 from .services import matrix as _matrix
@@ -62,10 +66,12 @@ def _run(argv: list[str] | None = None) -> int:
     args = _build_parser(__doc__).parse_args(argv)
     if args.cmd == "audit" and not args.dir:
         raise InvalidInputError("no scene directory: pass DIR or set X32SCENE_CORPUS")
-    if args.cmd in ("pull", "live-diff", "desk", "meters") and not args.ip:
+    if args.cmd in ("pull", "live-diff", "desk", "meters", "watch") and not args.ip:
         raise InvalidInputError("no console IP: pass --ip or set X32SCENE_IP")
     if args.cmd in EDIT_COMMANDS:
         return run_edit(args)
+    if args.cmd == "watch":
+        return run_watch(args)
 
     if args.cmd == "audit":
         lib, errors = _audit.load_library(args.dir)
@@ -73,18 +79,10 @@ def _run(argv: list[str] | None = None) -> int:
             raise InvalidInputError(f"no .scn files found in {args.dir}")
         print(_audit.report(lib, args.dir, errors))
         return 1 if errors or _audit.check_invariants(lib) else 0
+    if args.cmd == "presets-diff":
+        return run_presets_diff(args)
     if args.cmd == "preflight":
-        if not args.config:
-            raise InvalidInputError("preflight needs --config or X32SCENE_CONFIG")
-        expected = _preflight.load_expected(args.config)
-        stage = _stage.load_stage(args.stage) if args.stage else None
-        findings = _preflight.preflight(load_checked(args.scene), expected, stage=stage)
-        checked = _preflight.coverage(expected, stage)
-        if args.json:
-            _json.dump(_json.preflight_doc(findings, checked))
-        else:
-            print(_preflight.report(findings, checked))
-        return 1 if any(f.severity == "FAIL" for f in findings) else 0
+        return run_preflight(args)
     if args.cmd == "meters":
         try:
             peaks = _meters.read_meters(args.ip, _meters.WHAT[args.what], seconds=args.seconds)
@@ -214,6 +212,8 @@ def _run(argv: list[str] | None = None) -> int:
             raise InvalidInputError("no changes to write")
         snip.scene.save(args.out)
         _views.cmd_snippet(snip, args.out)
+        _views.warn_relinked(
+            _buslink.relinked_pairs(base, edited, [ln.path for ln in snip.scene.lines]))
         return 0
     if args.cmd == "vocab":
         if args.json:

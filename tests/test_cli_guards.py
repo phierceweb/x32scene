@@ -74,6 +74,39 @@ class OverwriteGuardTest(unittest.TestCase):
                     self.assertIn("--force", opts)
 
 
+class SymlinkLoopTest(unittest.TestCase):
+    """A path that is a symlink loop is one error line, whether it names an input or the
+    output: Path.resolve() raises RuntimeError for one, which the CLI boundary misses."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir)
+        self.loop = os.path.join(self.dir, "loop1")
+        os.symlink("loop2", self.loop)
+        os.symlink("loop1", os.path.join(self.dir, "loop2"))
+        self.out = os.path.join(self.dir, "out.scn")
+        self.plan = os.path.join(os.path.dirname(__file__), "..", "config", "example-plan.json")
+
+    def test_every_writer_refuses_it_cleanly(self):
+        cases = {   # a template band-setup cannot read is a plan failure: exit 2
+            "-o": (["set-fader", SCENE, "/ch/01", "-3.0", "-o", self.loop], 1),
+            "input": (["set-fader", self.loop, "/ch/01", "-3.0", "-o", self.out], 1),
+            "snippet -o": (["snippet", SCENE, SCENE, "--bus", "1", "-o", self.loop], 1),
+            "band-setup -o": (["band-setup", SCENE, self.plan, "-o", self.loop], 1),
+            "band-setup template": (["band-setup", self.loop, self.plan, "-o", self.out], 2),
+            "show-build -o DIR": (["show-build", "-o", self.loop, "--name", "Gig",
+                                   "--scene", SCENE], 1),
+        }
+        for case, (argv, code) in cases.items():
+            with self.subTest(case=case):
+                err = io.StringIO()
+                with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                    rc = main(argv)
+                self.assertEqual(rc, code)
+                self.assertEqual(len(err.getvalue().strip().splitlines()), 1, err.getvalue())
+                self.assertFalse(os.path.exists(self.out))
+                self.assertTrue(os.path.islink(self.loop))
+
 class HelpCoverageTest(unittest.TestCase):
     def test_every_subcommand_is_listed_in_help(self):
         """argparse omits a subparser that carries no help=, leaving the command
@@ -82,6 +115,16 @@ class HelpCoverageTest(unittest.TestCase):
         sub = next(a for a in _build_parser(None)._actions if hasattr(a, "_name_parser_map"))
         listed = {a.dest for a in sub._choices_actions}
         self.assertEqual(sorted(set(sub.choices) - listed), [])
+
+    def test_every_subcommand_help_carries_its_description(self):
+        from x32scene._parsers import _build_parser
+        sub = next(a for a in _build_parser(None)._actions if hasattr(a, "_name_parser_map"))
+        for action in sub._choices_actions:
+            with self.subTest(cmd=action.dest):
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+                    main([action.dest, "--help"])
+                self.assertIn(" ".join(action.help.split()), " ".join(out.getvalue().split()))
 
 
 class InputsTheGuardCannotSeeTest(unittest.TestCase):

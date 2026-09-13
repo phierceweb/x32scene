@@ -12,6 +12,21 @@ disagreement is recorded.
 A worked example ships with the repo: [`tests/fixtures/example.scn`](../tests/fixtures/example.scn),
 a full 32-channel console scene.
 
+---
+
+## Table of contents
+
+- [The shape of a file](#the-shape-of-a-file)
+- [The number-one trap: gain and phantom are not on the channel](#the-number-one-trap-gain-and-phantom-are-not-on-the-channel)
+- [Strip lines, field by field](#strip-lines-field-by-field)
+- [Console configuration lines](#console-configuration-lines)
+- [Output lines](#output-lines)
+- [Enumerations](#enumerations)
+- [Channel presets (`.chn`)](#channel-presets-chn)
+- [FX](#fx)
+- [Verified vs inferred](#verified-vs-inferred)
+- [Related save types](#related-save-types)
+
 ## The shape of a file
 
 Plain text, **one OSC parameter per line**:
@@ -222,6 +237,10 @@ with a group engaged silences its members the moment it loads.
 One token per odd/even pair, left to right. A missing link line must be read as *unknown*,
 never as "all pairs mono" — every write would then go out one-sided.
 
+Flipping a `buslink` token is not all the desk does when a pair is linked or unlinked: it
+also copies the odd bus onto the even one and moves pans. See
+[console-behavior.md](console-behavior.md#linking-or-unlinking-a-pair).
+
 ## Console configuration lines
 
 The `/config` family holds the desk-wide settings. Every enumeration below was read back
@@ -362,6 +381,12 @@ target strip untouched on load:
 `insert` and `automix` have no checkbox of their own. x32scene gives them scopes anyway,
 because without one they vanish silently from a full preset.
 
+A preset the desk writes differs from the scene lines it came from in two ways: `/config`
+carries the name, icon and colour but **not the input-source field**, and the main mix is
+**split one sub-path per field** (`/mix/fader`, `/mix/st`, `/mix/pan`, `/mix/mono`,
+`/mix/mlevel`, with no mute) where a scene has one `/mix` line. Its columns are padded as
+the desk pads them, so compare a preset with a scene by tokens, never by text.
+
 The head-amp index inside a `.chn` is fixed at save time (`/headamp/000`). Applying that
 preset to a channel on a different physical input means **remapping the index** —
 `apply_preset` does this for you.
@@ -371,7 +396,7 @@ The same checkboxes apply to "Save as scene", so a `.scn` can legitimately be pa
 ## FX
 
 - `/fx/N <TYPE>` — the slot's effect short-code (`PLAT` plate, `VRM` vintage room, `D/CR`,
-  `CR/R`, `EXC` exciter, `LIM` limiter, `GEQ`/`GEQ2` graphic EQ; the console offers ~70).
+  `CR/R`, `EXC` exciter, `LIM` limiter, `GEQ`/`GEQ2` graphic EQ; 61 in all).
 - `/fx/N/source MIXmm` — which bus feeds the slot.
 - `/fx/N/par …` — **positional and specific to the effect type.**
 

@@ -1,7 +1,9 @@
 """OSC /node live-pull: wire encoding + a fake console on loopback UDP."""
 import socket
 import threading
+import time
 import unittest
+from itertools import pairwise
 from unittest import mock
 
 from x32scene.model import Scene
@@ -104,6 +106,22 @@ class FakeConsoleTest(unittest.TestCase):
             pull_lines("127.0.0.1", ["ch/99/a", "ch/99/b", "ch/99/c", "ch/01/config"],
                        port=self.console.port, timeout=0.2, retries=0, fail_fast=3)
 
+    def test_between_is_called_for_every_query(self):
+        calls = []
+        lines, missing = pull_lines("127.0.0.1", ["ch/01/config", "ch/99/nope", "ch/01/eq/1"],
+                                    port=self.console.port, timeout=0.2, retries=1,
+                                    between=lambda: calls.append(len(calls)))
+        self.assertEqual((len(lines), missing), (2, ["ch/99/nope"]))
+        self.assertGreaterEqual(len(calls), 4)   # four queries: the unanswered path is retried
+
+    def test_between_runs_through_a_long_wait_for_one_path(self):
+        calls = []
+        started = time.monotonic()
+        pull_lines("127.0.0.1", ["ch/01/config", "ch/99/none"], port=self.console.port,
+                   timeout=1.5, retries=0, between=lambda: calls.append(time.monotonic()))
+        marks = [started, *calls, time.monotonic()]
+        self.assertLess(max(b - a for a, b in pairwise(marks)), 0.75, marks)
+
     def test_pull_scene_like_reference(self):
         ref = Scene.parse('#4.0# "REF" "" %000000000 1\n'
                           + "\n".join(CANNED.values()) + "\n")
@@ -158,6 +176,20 @@ class SenderTest(unittest.TestCase):
                                         port=console.port, timeout=0.3, retries=0)
             self.assertEqual(lines, [CANNED["ch/01/config"]])
             self.assertEqual(missing, [])
+        finally:
+            console.stop()
+
+    def test_a_reply_carrying_a_second_line_is_not_captured(self):
+        console = FakeConsole()
+        console.start()
+        try:
+            for sep in ("\n", "\r", "\r\n"):
+                injected = CANNED["ch/01/eq/1"] + sep + "/config/routing/IN 1 2 3 4"
+                with self.subTest(sep=sep), mock.patch.dict(CANNED, {"ch/01/eq/1": injected}):
+                    lines, missing = pull_lines("127.0.0.1", ["ch/01/config", "ch/01/eq/1"],
+                                                port=console.port, timeout=0.2, retries=0)
+                    self.assertEqual(lines, [CANNED["ch/01/config"]])
+                    self.assertEqual(missing, ["ch/01/eq/1"])
         finally:
             console.stop()
 

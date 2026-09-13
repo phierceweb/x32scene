@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import os
 
-from ..model import HEADER_RE, HEADER_WIDTH, Scene
+from ..model import HEADER_RE, HEADER_WIDTH, Line, Scene
 from .preflight_config import Finding
+from .scopes import scope_of
 
 # A whole console: 32 channels, 128 head amps (local + both AES50 links), 16 mix buses.
 FULL_DESK = (32, 128, 16)
@@ -71,5 +72,18 @@ def findings(scene: Scene, kind: str | None) -> list[Finding]:
         body = scene.lines[1:] if has_header else scene.lines
         if not any(ln.raw.strip() for ln in body):
             out.append(Finding("FAIL", "body", "header only — no parameter lines"))
+        elif kind == "chn":
+            out += _chn_body(body)
 
     return out
+
+
+def _chn_body(body: list[Line]) -> list[Finding]:
+    """A channel preset holds bare channel paths (``/eq/1``) and at most one head amp."""
+    heads = sum(ln.path.startswith("/headamp") for ln in body)
+    if not any(scope_of(ln.path) for ln in body):
+        return [Finding("FAIL", "body", "no channel preset lines (a bare path like /eq/1)")]
+    if heads > 1:
+        return [Finding("FAIL", "body", f"{heads} head-amp lines — a channel preset holds "
+                                        "at most one")]
+    return []

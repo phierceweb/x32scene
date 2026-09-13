@@ -30,6 +30,7 @@ def set_routing(scene: Scene, key: str, blocks: dict[str, str]) -> list[str]:
         vocab = routing_vocab(key, label)
         if value not in vocab:
             raise ValueError(f"{key}/{label} takes one of {', '.join(vocab)}, not {value!r}")
+        ln.require(names.index(label) + 1)
         ln.args[names.index(label)] = value
     ln.rebuild()
     return list(blocks)
@@ -75,8 +76,9 @@ def encode_input_source(text: str | int) -> int:
 def set_input(scene: Scene, ch: int, source: str | int) -> str:
     """Point a channel at an input source; returns the decoded name."""
     cfg = scene.get(f"/ch/{ch:02d}/config")
-    if cfg is None or len(cfg.args) < 4:
+    if cfg is None:
         raise KeyError(f"no /ch/{ch:02d}/config")
+    cfg.require(4)
     num = encode_input_source(source)
     cfg.args[-1] = str(num)
     cfg.rebuild()
@@ -112,8 +114,9 @@ def set_output(scene: Scene, bank: str, n: int, *, src: str | int | None = None,
     if not 1 <= n <= size:
         raise ValueError(f"{bank} outputs run 1-{size}, got {n}")
     ln = scene.get(f"/outputs/{bank}/{n:02d}")
-    if ln is None or len(ln.args) < nfields:
+    if ln is None:
         raise KeyError(f"no /outputs/{bank}/{n:02d}")
+    ln.require(nfields)
     if src is not None:
         ln.args[0] = str(encode_tap(src))
     if pos is not None:

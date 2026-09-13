@@ -3,6 +3,93 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.3.0] — 2026-09-12
+
+### Added
+- `preflight SCENE --regenerate OUT.json`: writes the expected-config SCENE satisfies instead
+  of checking it — every section the scene holds, keys sorted, byte-identical for the same
+  scene and date. A value the scene cannot verify is left out; `monitor.physical_outputs` and
+  `require_reachable` are never written. Refuses an OUT that is a directory or sits in no
+  writable directory, an existing OUT without `--force`, the scene itself, an OUT named as a
+  scene, snippet, preset or show file even with `--force`, a snippet, preset or show file as
+  SCENE, and `--config`, `--stage` or `--json` alongside.
+  `--force` without `--regenerate` exits 1.
+  Library: `services.preflight_regen.regenerate`, `dumps`.
+- `move-inputs SCENE CH:IN… --to A|B`: channels onto AES50 stage-box inputs (port in either
+  case), head-amp gain and phantom travelling with each (`--no-gain` leaves them).
+  All-or-nothing; refuses a channel listed twice, two channels onto one input, a user-in
+  slot another channel or aux-in also reads, and a gain move onto an input a channel or
+  aux-in outside the batch still reads.
+  Library: `services.stagebox.move_to_stagebox`, returning each move.
+- `set-bus-link SCENE BUS on|off`: links or unlinks a stereo mix-bus pair with the changes
+  the desk makes — on link, the even bus takes the odd bus's send on/level from every
+  sender, its colour, key filter and matrix sends, and — as the scene's link preferences
+  allow — its EQ, dynamics and insert, groups and mix; matrix-send pans spread and centred
+  main pans spread. On unlink, matrix-send pans centre and fully spread main pans centre.
+  Prints the outputs either bus feeds. Refuses a pair already in that state and a scene
+  missing a line it writes. `on|off` in either case. Refused in `snippet --edit`: a snippet
+  cannot carry the link.
+  Library: `services.buslink.set_bus_link`, `relinked_pairs`,
+  `services.routing.outputs_from_buses`.
+- `presets-diff DIR SCENE`: each `.chn` in a folder against the channel it names — MATCH,
+  DRIFT with each differing path, NO CHANNEL, AMBIGUOUS or UNREADABLE, and a count per
+  verdict. Compares tokens over the paths the preset carries (`--scope` narrows), the head
+  amp by value at the channel's current input, and a desk-written preset's `/config` and
+  split main-mix lines field by field. Exit 1 when a preset drifts or is UNREADABLE; `--json`.
+- `extract-preset SCENE --all -o DIR`: one `<scribble name>.chn` per named channel. Channels
+  sharing a file name are all skipped and named. The rest are written in full to a staging
+  folder before any target is replaced; refuses a directory in a target's place, every file name the filesystem refuses, a DIR that is not
+  a directory or cannot be written and, without `--force`, any existing target.
+  Library: `services.preset_library.check_library`, `extract_library`.
+- `watch REFERENCE`: a timestamped log of every change made on the running desk, one line
+  per changed path, dated when the desk reported it, with the moved fields named, ending
+  on Ctrl-C or `--seconds` with the net change, the count of paths that changed and came
+  back, ignored addresses, and the paths whose last read-back never answered, left out of the
+  net change. A network failure mid-watch still prints the summary and writes the snippet,
+  then exits 1. Subscribes before the
+  start pull, so a change to a path already pulled is logged. `--snippet OUT.snp` writes the
+  net change as a snippet, its destination checked before the watch starts; `--json` writes
+  JSON lines.
+  Sends only `/xremote` and `/node`.
+  Library: `services.watch.Watch`, `subscribe`, `Subscription`; `services.osc.node_line`,
+  and `between=` on `pull_lines` and `pull_scene_like`.
+
+### Changed
+- Licensed under Apache-2.0 (was MIT), with a `NOTICE` file.
+- `snippet A B` and `watch --snippet` warn when the snippet carries a line of a bus pair whose
+  link changed: a snippet cannot carry the link.
+- A `.chn` read with no bare channel path, or with more than one head-amp line, prints a
+  shape warning on stderr.
+
+### Fixed
+- `pull`, `live-diff`: a `/node` reply holding more than one line is reported unanswered,
+  never written into the scene.
+- `diff --by-strip` names a bus's or the main's send to a matrix `send -> matrix N`, not
+  `send -> bus N`.
+- `apply-preset` takes a desk-saved preset: its three-field `/config` (the source slot
+  stays the channel's) and its per-field `/mix/fader`, `/mix/st`… lines. A preset with EQ
+  bands 5-6 — a bus, matrix or main strip — is refused, in a `band-setup` plan too.
+- `transforms.move_inputs_to_stagebox`: chained and swapped moves in one batch carry each
+  channel's own head amp.
+- A line with no values that an edit writes, or an `iem_copy` reads, is a one-line error
+  naming it: exit 2 with nothing written for `band-setup`, 1 elsewhere.
+- A plan, preflight config or stage sidecar nested too deeply to parse is a one-line error
+  naming the file (exit 2 for `band-setup`, 1 elsewhere).
+- A symlink loop as an input or `-o` path is a one-line error, not a traceback.
+- `x32scene <command> --help` opens with the command's description.
+- `buses` tallies an unlinked even bus's sends, taking each sender's tap from its odd-bus line.
+
+### Docs
+- `docs/band-plan.md` and `docs/preflight-config.md`: the two JSON documents that check or
+  write a scene — every section, every key, and the rules that decide whether one is
+  accepted.
+- `docs/python-api.md`: the library map for a script — the layers, `Scene` and `Line`,
+  what each service owns, and what the library leaves to the caller.
+- A table of contents in every doc, and `tests/test_docs.py`, which fails the build on a
+  command missing from `docs/cli.md`, a flag that appears nowhere in it, a flag a command's
+  row names that the command does not take, a doc missing from the index, a
+  table-of-contents entry with no heading, or a relative link to a missing file.
+
 ## [0.2.0] — 2026-09-07
 
 ### Added

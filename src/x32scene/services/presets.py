@@ -7,9 +7,15 @@ channel block at ``/headamp/<source-index>``, so applying remaps it onto the tar
 
 from __future__ import annotations
 
+import re
+
 from ..model import HEADER_RE, HEADER_WIDTH, Line, Scene, check_token
 from .routing import channel_headamp_index
 from .scopes import SCOPES, scope_of
+from .snippets import MIX_FIELD
+
+
+_STRIP_EQ_BANDS = re.compile(r"^/eq/[56](?: |$)", re.MULTILINE)
 
 
 def _checked(args: list[str], path: str) -> list[str]:
@@ -113,7 +119,12 @@ def apply_preset(scene: Scene, ch: int, chn_text: str,
 
     Only paths whose scope is selected AND present in the preset are written. The preset's
     head-amp is remapped from its stored index onto the target channel's head-amp index.
+    A preset with EQ bands 5-6 (a bus, matrix or main strip) raises ValueError.
     """
+    if _STRIP_EQ_BANDS.search(chn_text):
+        raise ValueError("preset has EQ bands 5-6, so it is a bus, matrix or main preset: "
+                         "applying it to a channel would put its matrix sends on the "
+                         "channel's bus sends")
     sel = _selected(scopes)
     prefix = f"/ch/{ch:02d}"
     changed = 0
@@ -137,11 +148,19 @@ def apply_preset(scene: Scene, ch: int, chn_text: str,
         bare = src.path
         if scope_of(bare) not in sel:
             continue
-        target = scene.get(prefix + bare)
+        field = MIX_FIELD.get(bare[len("/mix/"):]) if bare.startswith("/mix/") else None
+        target = scene.get(prefix + ("/mix" if field is not None else bare))
         if target is None:
             continue
         new_args = _checked(list(src.args), src.path)
+        if field is not None:   # the desk saves the main mix one field per line
+            if len(new_args) != 1 or field >= len(target.args):
+                raise ValueError(f"preset {bare} does not fit {prefix}/mix")
+            new_args = [*target.args[:field], new_args[0], *target.args[field + 1:]]
         if bare == "/config" and new_args and target.args:
+            # the desk saves name/icon/colour only; a scene line adds the source slot
+            if len(new_args) == len(target.args) - 1:
+                new_args.append(target.args[-1])
             if len(new_args) != len(target.args):
                 raise ValueError(
                     f"preset /config has {len(new_args)} fields, target has "

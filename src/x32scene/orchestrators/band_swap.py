@@ -53,7 +53,6 @@ Preset paths are resolved relative to the plan file's directory (absolute paths 
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from ..model import Line, Scene
@@ -61,6 +60,7 @@ from ..services import iem as I
 from ..services import transforms as T
 from ..services.diff import diff
 from ..services.groups import set_dca
+from ..services.jsonfile import read_json
 from ..services.presets import apply_preset
 from . import _sections
 from ._schema import _send_strip, validate_plan
@@ -73,7 +73,7 @@ from ..tables import SEND_STRIPS
 
 def load_plan(path: str | Path) -> dict:
     p = Path(path)
-    plan = json.loads(p.read_text(encoding="utf-8"))
+    plan = read_json(p)
     if not isinstance(plan, dict):
         raise ValueError(f"{p}: plan must be a JSON object, got {type(plan).__name__}")
     plan["_dir"] = p.parent
@@ -174,6 +174,7 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
         line = scene.get(f"{path}/mix/{bus:02d}")
         if line is None:
             raise KeyError(f"no send {path}->bus{bus}")
+        line.require(1)
         # only the send the plan NAMED has to be on: a mirror may sit OFF on its own
         if (path, bus) == named and kw["on"] is None and line.args[0] == "OFF":
             raise ValueError(f"iem_sends: {path} -> bus {bus}: send is OFF, so a level "

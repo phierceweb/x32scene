@@ -70,6 +70,7 @@ def _set_group(scene: Scene, strip: int | str, arg: int, group: int, on: bool) -
     ln = scene.get(f"{_strip(strip)}/grp")
     if not ln:
         raise KeyError(f"no {_strip(strip)}/grp")
+    ln.require(arg + 1)
     ln.set_arg(arg, _set_bit(ln.args[arg], group, on))
 
 

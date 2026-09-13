@@ -11,12 +11,13 @@ from __future__ import annotations
 import socket
 import struct
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from ..model import HEADER_RE, Scene
 
 X32_PORT = 10023
 _RECV_BUF = 65536
+_BETWEEN_EVERY = 0.5
 
 
 class OscError(RuntimeError):
@@ -90,14 +91,23 @@ def decode_message(data: bytes) -> tuple[str, list]:
     return addr, args
 
 
+def node_line(args: list) -> str | None:
+    """The scene-format line a ``/node`` reply carries, or None when it is not one line."""
+    if not args:
+        return None
+    line = str(args[0]).removesuffix("\n")
+    return None if "\n" in line or "\r" in line else line
+
+
 def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
-               timeout: float = 0.5, retries: int = 1,
-               fail_fast: int | None = None) -> tuple[list[str], list[str]]:
+               timeout: float = 0.5, retries: int = 1, fail_fast: int | None = None,
+               between: Callable[[], object] | None = None) -> tuple[list[str], list[str]]:
     """Query each path via /node. Returns (scene-format lines, unanswered paths).
 
     A reply line starts with its own path, so late replies land in the right slot rather
     than desynchronizing the capture. ``fail_fast=N`` raises once N paths have gone
     unanswered with nothing received, instead of timing out over every remaining path.
+    ``between`` is called at least every half second while a reply is awaited.
     """
     if not paths:
         return [], []
@@ -112,24 +122,25 @@ def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
                 sock.sendto(encode_message("/node", [path]), (ip, port))
                 deadline = time.monotonic() + timeout
                 while want not in got:
+                    if between is not None:
+                        between()
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
                         break
-                    sock.settimeout(remaining)
+                    sock.settimeout(min(remaining, _BETWEEN_EVERY))
                     try:
                         data, sender = sock.recvfrom(_RECV_BUF)
                     except socket.timeout:
-                        break
+                        continue
                     if sender[0] != peer:
                         continue      # someone else on the network, not the desk
                     try:
                         addr, args = decode_message(data)
                     except OscError:
                         continue  # one malformed datagram must not abort the pull
-                    if addr != "node" or not args:
-                        continue
-                    line = str(args[0]).rstrip("\n")
-                    got[line.split(" ", 1)[0]] = line
+                    line = node_line(args) if addr == "node" else None
+                    if line is not None:
+                        got[line.split(" ", 1)[0]] = line
             if want not in got:
                 if fail_fast is not None and not got and n_tried >= fail_fast:
                     raise OscError(f"no reply from {ip}:{port} after {n_tried} queries "
@@ -140,8 +151,8 @@ def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
 
 
 def pull_scene_like(reference: Scene, ip: str, *, port: int = X32_PORT,
-                    timeout: float = 0.5, retries: int = 1,
-                    fail_fast: int | None = 3) -> tuple[Scene, list[str]]:
+                    timeout: float = 0.5, retries: int = 1, fail_fast: int | None = 3,
+                    between: Callable[[], object] | None = None) -> tuple[Scene, list[str]]:
     """Pull the running desk's state for every path the reference scene has.
 
     The reference's header line is carried over verbatim (the desk has no
@@ -149,7 +160,7 @@ def pull_scene_like(reference: Scene, ip: str, *, port: int = X32_PORT,
     """
     paths = [ln.path.lstrip("/") for ln in reference.lines if ln.path.startswith("/")]
     lines, missing = pull_lines(ip, paths, port=port, timeout=timeout,
-                                retries=retries, fail_fast=fail_fast)
+                                retries=retries, fail_fast=fail_fast, between=between)
     header = [reference.lines[0].raw] if (
         reference.lines and HEADER_RE.match(reference.lines[0].path)) else []
     return Scene.parse("\n".join(header + lines) + "\n"), missing

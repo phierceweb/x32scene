@@ -3,13 +3,20 @@ the running desk, the vocabularies and the effect types. Presentation only."""
 
 from __future__ import annotations
 
+import time
+
 from pf_core.exceptions import InvalidInputError
 
+from ._views import _fields_text, print_by_strip
 from .model import Scene
 from .services import fx as _fx
 from .services.console import console_sections
+from .services.describe import describe
 from .services.desk import LIB_KINDS, DeskInfo, state_words
+from .services.diff import Change
 from .services.meters import Peaks, fmt_db, slot_names, to_db
+from .services.snippets import Snippet
+from .services.watch import Changed, Summary
 from .tables import ROUTING_BLOCKS, SOURCE_DOMAINS, decode_tap, routing_block_names, routing_vocab
 from .tables_fx import FX_SIDE_RACK_TYPES, FX_TYPES, decode_fx
 
@@ -94,3 +101,45 @@ def cmd_meters(peaks: Peaks, scene: Scene | None, *, show_all: bool = False) -> 
         print(f"  {slot:<12} {name:<12} {fmt_db(v):>6}  {bar}")
     if not any(v > 0 for v in peaks.peak.values()):
         print("  (silence on every slot)")
+
+
+def clock_text(at: float) -> str:
+    """Local wall-clock time as HH:MM:SS.mmm."""
+    return time.strftime("%H:%M:%S", time.localtime(at)) + f".{int(at * 1000) % 1000:03d}"
+
+
+def cmd_watch_change(ev: Changed, scene: Scene) -> None:
+    """One logged change: when, which node, the fields that moved. Flushed, so a pipe sees it live."""
+    d = describe(scene, Change(ev.path, ev.before, ev.after))
+    print(f"{clock_text(ev.at)}  {ev.path}  {d.label}  {_fields_text(d)}", flush=True)
+
+
+def cmd_watch_summary(summary: Summary, end: Scene) -> None:
+    print(f"summary: {summary.logged} change(s) logged; {summary.transient} path(s) changed and "
+          f"came back; {summary.ignored} message(s) ignored (no watched path)")
+    unknown = summary.unanswered
+    if summary.net:
+        print(f"net: {len(summary.net)} changed path(s):")
+        print_by_strip(end, summary.net)
+    elif unknown:
+        print("net: nothing differs from the start among the paths that answered")
+    else:
+        print("net: nothing differs from the start")
+    if unknown:
+        head = ", ".join(unknown[:8]) + (" …" if len(unknown) > 8 else "")
+        print(f"{len(unknown)} path(s) did not answer; their net change is unknown: {head}")
+
+
+def cmd_watch_incomplete_snippet(summary: Summary) -> None:
+    print(f"the snippet may be incomplete: {len(summary.unanswered)} path(s) did not answer")
+
+
+def cmd_watch_no_snippet(snip: Snippet | None, out: str, summary: Summary) -> None:
+    """Why --snippet wrote nothing: no net change, or none a snippet can carry."""
+    if snip is None and summary.unanswered:
+        print(f"no net change among the paths that answered; nothing written to {out}")
+    elif snip is None:
+        print(f"no net change; nothing written to {out}")
+    else:
+        print(f"the net change has nothing a snippet can carry "
+              f"({', '.join(snip.skipped)}); nothing written to {out}")

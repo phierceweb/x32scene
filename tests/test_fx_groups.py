@@ -224,7 +224,7 @@ class StageboxTest(unittest.TestCase):
         self.assertEqual(self.sc.get("/headamp/051").args, old_ha)
 
     def test_batch_move_and_roundtrip(self):
-        n = T.move_inputs_to_stagebox(self.sc, {1: 1, 2: 2, 3: 3}, port="A")
+        n = T.move_inputs_to_stagebox(self.sc, {1: 13, 2: 14, 3: 15}, port="A")
         self.assertEqual(n, 3)
         self.assertEqual(Scene.parse(self.sc.dump()).dump(), self.sc.dump())
 

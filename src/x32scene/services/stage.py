@@ -10,9 +10,8 @@ band-swap plan; a malformed document raises before anything is checked.
 
 from __future__ import annotations
 
-import json
-
 from ..tables import OUTPUT_BANKS
+from .jsonfile import read_json
 
 STAGE_KEYS = frozenset({"outputs"})
 ENTRY_KEYS = frozenset({"jack", "box", "device", "wearer", "bus", "confirmed", "notes"})
@@ -20,8 +19,7 @@ _STRINGS = ENTRY_KEYS - {"bus"}
 
 
 def load_stage(path: str) -> dict:
-    with open(path, encoding="utf-8") as fh:
-        doc = json.load(fh)
+    doc = read_json(path)
     validate_stage(doc)
     return doc
 

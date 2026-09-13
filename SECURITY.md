@@ -24,8 +24,8 @@ classes of issue include:
 - A malformed OSC datagram or meter blob that causes the live layer to misattribute or
   corrupt captured console state.
 
-The live layer is read-only: it queries the desk's state, memory index and meters and
-never sets a parameter. The tool sends nothing off the local network and stores no
-credentials. Scene files may
+The live layer is read-only: it queries the desk's state, memory index and meters, and
+`watch` subscribes to the desk's change reports with `/xremote`; it never sets a parameter.
+The tool sends nothing off the local network and stores no credentials. Scene files may
 contain venue and personnel names — treat them as private data when attaching one to a
 report, and prefer an anonymized reproduction.

@@ -8,6 +8,20 @@ Everything here was learned by writing a file, loading it on hardware, saving th
 back off the desk, and diffing the two. That loop is at the bottom — it is the only ground
 truth, and it is worth running before you trust any generated scene at a gig.
 
+---
+
+## Table of contents
+
+- [The scene name comes from the filename, not the header](#the-scene-name-comes-from-the-filename-not-the-header)
+- [Cosmetic re-normalization is expected and harmless](#cosmetic-re-normalization-is-expected-and-harmless)
+- [A bad token aborts the rest of the line](#a-bad-token-aborts-the-rest-of-the-line)
+- [Scene recall is scoped, and channels can be safed](#scene-recall-is-scoped-and-channels-can-be-safed)
+- [Stereo-linked pairs reconcile on recall](#stereo-linked-pairs-reconcile-on-recall)
+- [Linking or unlinking a pair](#linking-or-unlinking-a-pair)
+- [Effect parameter order is real but type-specific](#effect-parameter-order-is-real-but-type-specific)
+- [Getting a file onto the desk](#getting-a-file-onto-the-desk)
+- [The load test — the only ground truth](#the-load-test-the-only-ground-truth)
+
 ## The scene name comes from the filename, not the header
 
 The desk names a scene from its **filename / console slot**, and overwrites the `#4.0#`
@@ -87,6 +101,52 @@ does this by default and exposes `--no-link` to opt out.
 Note this interacts with the parity rule in [format.md](format.md#bus-sends--and-the-oddeven-field-count-invariant):
 the even-side line carries only `<on> <level>`, which is exactly the field that must match.
 
+## Linking or unlinking a pair
+
+The section above is about **recalling a file** whose linked sides disagree. This one is
+about the **link itself changing** — the link key on the desk, or a `/config/buslink`
+write — and what the desk writes into the live state the moment it does. Observed on a
+mix-bus pair, bus N (odd) and bus N+1 (even), by toggling the link on firmware 4.06 and
+pulling the full scene before and after, with the link preferences (`/config/linkcfg`) all
+ON and then with each of EQ, dynamics and fader/mute turned OFF.
+
+**Link.** The odd bus is the source. Bus N+1 takes from bus N:
+
+- **Every sender's send** — channels, aux-ins, FX returns: the send to bus N+1 takes the
+  on and level of the same sender's send to bus N. The bus N send lines, with their pan and
+  tap, are untouched.
+- **The strip**: the colour (the name and icon stay) and the dynamics key filter, always;
+  the rest only when its link preference is ON:
+
+  | Preference | Copied only when it is ON |
+  |---|---|
+  | `eq` | EQ on/off and all six bands |
+  | `dyn` | dynamics and insert |
+  | `fdrmute` | group membership, and every main-mix field but pan — on, fader, LR assign, mono assign, mono level |
+
+  `hadly` (head amp + delay) was not seen to change anything on a bus.
+- **The matrix sends**: on and level, and the tap on the odd matrix lines — whatever the
+  preferences say, as are the sends above and the pans below.
+
+Pans move too:
+
+- **Matrix-send pans** (the odd matrix lines 1, 3 and 5): bus N goes to `-100`, bus N+1 to
+  `+100`, every time.
+- **Main pans** (`/bus/NN/mix` field 4): both centred went to `-100` / `+100` in two probes;
+  bus N off-centre with bus N+1 centred left both alone in a third. That is what was
+  observed, not a verified rule.
+
+**Unlink.** The link token and pans only. Matrix-send pans centre to `+0` on both buses;
+main pans at exactly `-100` / `+100` centre to `+0`, any other main pans stay. Sends and
+strip settings stay as the link left them, so bus N+1 keeps bus N's copied values — link
+then unlink does not restore what bus N+1 had.
+
+Both directions keep every line's field count: send-line shape follows bus parity, not the
+link ([format.md](format.md#bus-sends--and-the-oddeven-field-count-invariant)).
+
+`x32scene set-bus-link` writes the same changes into a file. Loading such a file has not
+been watched; load-test it like any other edit.
+
 ## Effect parameter order is real but type-specific
 
 `/fx/N/par` is positional and specific to the effect type. The orders x32scene ships were
@@ -126,15 +186,18 @@ Load buttons then push the values to the desk from there. Observed on a live con
   the two bus names — and every one of the 134 paths that make up the mix matched the
   second scene byte for byte. Every other aux was untouched. Reloading the first band's
   scene returned the desk to a zero-diff pull.
-
-X32-Edit's Load pushes a file's lines from the computer. Loading the same file from a USB
-stick on the desk is the other route, through the desk's own recall and its header masks;
-the body is identical either way, but that route has not been watched.
+- Show Control → Scenes → Import + Load pushed a whole scene written by x32scene — one
+  re-sourcing channels onto stage-box inputs with their head amps, one linking a bus pair.
+  A full pull afterwards matched each file with zero changed paths.
 - Library → Routing → Load has a **Recall Patching Scope** panel with eight ticks, all on
   by default. Five cover sections a routing preset does not carry (XLR out, out patch,
   aux and P16 patch, user slots); untick those or X32-Edit may write defaults there.
 - X32-Edit's scene export equals the desk's own state byte for byte apart from the title,
   so its files are ground truth for token formats.
+
+X32-Edit's Load pushes a file's lines from the computer. Loading the same file from a USB
+stick on the desk is the other route, through the desk's own recall and its header masks;
+the body is identical either way, but that route has not been watched.
 
 ## The load test — the only ground truth
 

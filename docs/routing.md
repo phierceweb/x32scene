@@ -8,6 +8,16 @@ The commands `x32scene inputs`, `record-map` and `ports` exist to resolve all of
 you. Read this when you need to know *why* an answer came out the way it did — or when you
 are patching by hand.
 
+---
+
+## Table of contents
+
+- [Inputs: a channel does not name its jack](#inputs-a-channel-does-not-name-its-jack)
+- [Outputs: `OUT` and `UOUT` are not the same signal](#outputs-out-and-uout-are-not-the-same-signal)
+- [The record map](#the-record-map)
+- [Changing routing from a file](#changing-routing-from-a-file)
+- [Troubleshooting "the signal isn't arriving"](#troubleshooting-the-signal-isnt-arriving)
+
 ## Inputs: a channel does not name its jack
 
 `/ch/NN/config "Name" colour icon SRC` ends with a source **slot** (1–32), not a physical

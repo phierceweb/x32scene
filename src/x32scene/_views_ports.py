@@ -1,12 +1,14 @@
 """Output views for the CLI: ``ports`` across the five /outputs banks, with the stage
-sidecar's jack / device / wearer columns when one is supplied. Presentation only."""
+sidecar's jack / device / wearer columns when one is supplied, and the outputs a bus-link
+edit reaches. Presentation only."""
 
 from __future__ import annotations
 
 from .model import Scene
 from .services import routing as _routing
+from .services.buslink import BusLinkEdit
 from .services.stage import stage_entries
-from .tables import OUTPUT_BANKS, decode_tap, tap_to_bus
+from .tables import OUTPUT_BANKS, SEND_STRIPS, decode_tap, tap_to_bus
 
 BANKS = (*OUTPUT_BANKS, "all")
 
@@ -78,3 +80,33 @@ def cmd_ports(scene: Scene, physical: int | None = None, *, bank: str = "main",
         print(f"  {r['bank']} {r['n']:02d} {kind}-> {r['label']:<22}{pos}{mtxt}")
         if r["stage"]:
             print(f"      {_stage_text(r['stage'])}")
+
+
+def bus_link_lines(scene: Scene, edit: BusLinkEdit) -> list[str]:
+    """What a set-bus-link edit did, and which outputs hear either bus of the pair."""
+    names = bus_names(scene)
+    a, b = edit.odd, edit.even
+    lines = [f"{'linked' if edit.on else 'unlinked'} bus {a}/{b} "
+             f"({names.get(a) or '-'} / {names.get(b) or '-'})"]
+    sends = [p for p in edit.changed if not p.startswith(("/bus/", "/config/"))]
+    if edit.on:
+        lines.append(f"  bus {b} took on/level from bus {a} on all {len(SEND_STRIPS)} sender "
+                     f"sends; {len(sends)} changed")
+    else:
+        lines.append("  sender sends and strip settings left as they are")
+    strip = [p for p in edit.changed if p.startswith("/bus/")]
+    lines.append(f"  {len(strip)} bus line(s) changed" + (":" if strip else ""))
+    lines += [f"    {p}" for p in strip]
+    feeds = _routing.outputs_from_buses(scene, (a, b))
+    if not feeds:
+        lines.append(f"  no output is fed from bus {a} or {b}")
+    else:
+        lines.append("  outputs fed from the pair (IEM / wedge feeds affected):")
+        lines += [f"    {bank} {n:02d} <- bus {bus}" for bank, n, bus in feeds]
+    return lines
+
+
+def cmd_set_bus_link(scene: Scene, edit: BusLinkEdit, out: str) -> None:
+    print("\n".join(bus_link_lines(scene, edit)))
+    print(f"wrote {out}")
+    print("LOAD-TEST on the console before a gig.")

@@ -7,6 +7,7 @@ import math
 
 from . import _views
 from . import _views_ports as _ports
+from ._views_desk import clock_text
 from .model import Scene
 from .services import describe as _describe
 from .services import fx as _fx
@@ -19,13 +20,21 @@ from .services import groups as _groups
 from .services import routing as _routing
 from .services.diff import Change
 from .services.preflight import Finding
+from .services import preset_library as _presetlib
 from .tables import ROUTING_BLOCKS, SOURCE_DOMAINS, decode_tap, routing_block_names, routing_vocab
 from .tables_fx import FX_DISPLAY_TYPE, FX_SIDE_RACK_TYPES, FX_TYPES, decode_fx
 from .services.show import Show
+from .services.snippets import Snippet
+from .services.watch import Changed, Summary
 
 
 def dump(doc: dict) -> None:
     print(json.dumps(doc, indent=2))
+
+
+def dump_line(doc: dict) -> None:
+    """One JSON-lines record, flushed so a reader sees it as it happens."""
+    print(json.dumps(doc), flush=True)
 
 
 def preflight_doc(findings: list[Finding], checked: dict[str, int] | None = None) -> dict:
@@ -33,6 +42,20 @@ def preflight_doc(findings: list[Finding], checked: dict[str, int] | None = None
             "findings": [{"severity": f.severity, "area": f.area,
                           "message": f.message, "path": f.path} for f in findings],
             "checked": dict(checked or {})}
+
+
+def presets_ok(results: list[_presetlib.PresetCheck]) -> bool:
+    return not any(r.status in (_presetlib.DRIFT, _presetlib.UNREADABLE) for r in results)
+
+
+def presets_diff_doc(results: list[_presetlib.PresetCheck]) -> dict:
+    return {"ok": presets_ok(results),
+            "presets": [{"file": r.file, "status": r.status, "name": r.name,
+                         "channels": r.channels, "compared": r.compared,
+                         "drift": [{"path": d.path, "preset": d.preset, "scene": d.scene}
+                                   for d in r.drift],
+                         "uncompared": r.uncompared, "reason": r.reason} for r in results],
+            "counts": {s: sum(r.status == s for r in results) for s in _presetlib.STATUSES}}
 
 
 def ports_doc(scene: Scene, bank: str = "main", stage: dict | None = None) -> dict:
@@ -150,3 +173,21 @@ def meters_doc(peaks: Peaks, scene: Scene | None) -> dict:
             "slots": [{"slot": k, "name": slot_names(scene, k), "peak": v,
                        "db": None if v <= 0 else round(to_db(v), 1)}
                       for k, v in peaks.peak.items()]}
+
+
+def watch_change_doc(ev: Changed, scene: Scene) -> dict:
+    change = diff_doc([Change(ev.path, ev.before, ev.after)], scene)["changes"][0]
+    return {"event": "change", "time": clock_text(ev.at), **change}
+
+
+def watch_summary_doc(summary: Summary, end: Scene, out: str | None, snip: Snippet | None,
+                      written: bool) -> dict:
+    """``out`` is the --snippet file when one was asked for; ``snip`` is what the net change
+    made, None when there was none."""
+    return {"event": "summary", "logged": summary.logged, "transient": summary.transient,
+            "ignored": summary.ignored, "unanswered": summary.unanswered,
+            "net": diff_doc(summary.net, end)["changes"],
+            "snippet": None if out is None else {
+                "file": out, "written": written,
+                "lines": len(snip.scene.lines) - 1 if written and snip else 0,
+                "skipped": snip.skipped if snip else []}}

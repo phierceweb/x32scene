@@ -86,8 +86,14 @@ class Line:
         self.raw = body
         self.dirty = True
 
+    def require(self, count: int) -> None:
+        """Raise IndexError naming the line when it carries fewer than ``count`` values."""
+        if len(self.args) < count:
+            raise IndexError(f"{self.path} has {len(self.args)} value(s), too few for this edit")
+
     def set_arg(self, idx: int, value: str) -> None:
         check_token(value)
+        self.require(idx + 1 if idx >= 0 else -idx)
         if self.args[idx] != value:
             self.args[idx] = value
             self.rebuild()

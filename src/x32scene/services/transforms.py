@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from ..model import HEADER_RE, Line, Scene
 from .channelfx import link_targets
-from .routing import resolve_in_slot_number, uin_in_index
+from .stagebox import move_input_to_stagebox, move_inputs_to_stagebox  # noqa: F401
 from ..tables import bus_to_tap, headamp_index, strip_path
 
 
@@ -162,62 +162,6 @@ def route_output_from_bus(scene: Scene, out: int, bus: int) -> None:
     """Route main output ``out`` (1-16) from monitor ``bus`` (1-16). ``/outputs/aux`` is
     not reachable this way."""
     set_output_tap(scene, out, bus_to_tap(bus))
-
-
-def move_input_to_stagebox(scene: Scene, ch: int, aes_input: int, *, port: str = "A",
-                           move_gain: bool = True) -> None:
-    """Re-source a channel from an AES50 stage-box input (1-48) via its UIN slot.
-
-    ``move_gain`` carries analog gain + phantom over so the channel sounds the same.
-    Raises on direct-routed (non-UIN) blocks.
-    """
-    _apply_move(scene, _plan_move(scene, ch, aes_input, port), move_gain)
-
-
-def _plan_move(scene: Scene, ch: int, aes_input: int, port: str) -> tuple[int, int, int]:
-    """Validate one stage-box move; returns (userrout index, new source, old source)."""
-    if port not in ("A", "B"):
-        raise ValueError("port must be 'A' or 'B'")
-    if not 1 <= aes_input <= 48:
-        raise ValueError(f"aes_input must be 1-48, got {aes_input}")
-    cfg = scene.get(f"/ch/{ch:02d}/config")
-    if not cfg or not cfg.args:
-        raise KeyError(f"no channel {ch}")
-    slot = int(cfg.args[-1])
-    if not 1 <= slot <= 32:
-        raise ValueError(f"ch{ch} source slot {slot} is OFF/out of range — nothing to move")
-    idx = uin_in_index(scene, slot)
-    if idx is None:
-        raise ValueError(f"ch{ch} slot {slot} is direct-routed (non-UIN routing block) — "
-                         "not supported by this transform")
-    uin = scene.get("/config/userrout/in")
-    if uin is None or not 0 <= idx < len(uin.args):
-        raise ValueError(f"userrout/in index {idx} out of range — "
-                         "malformed /config/routing/IN block?")
-    return idx, {"A": 32, "B": 80}[port] + aes_input, resolve_in_slot_number(scene, slot)
-
-
-def _apply_move(scene: Scene, plan: tuple[int, int, int], move_gain: bool) -> None:
-    idx, new_src, old_src = plan
-    scene.get("/config/userrout/in").set_arg(idx, str(new_src))
-    if move_gain and 1 <= old_src <= 128:
-        old_ha = scene.get(_ha(old_src - 1))
-        new_ha = scene.get(_ha(new_src - 1))
-        if old_ha and new_ha and new_ha.args != old_ha.args:
-            new_ha.args = list(old_ha.args)
-            new_ha.rebuild()
-
-
-def move_inputs_to_stagebox(scene: Scene, mapping: dict[int, int], *, port: str = "A",
-                            move_gain: bool = True) -> int:
-    """Batch move: mapping = {channel: aes_input_number}. Returns channels moved.
-
-    Every move is validated before any is applied, so a bad entry leaves the scene clean.
-    """
-    plans = [_plan_move(scene, ch, aes, port) for ch, aes in mapping.items()]
-    for plan in plans:
-        _apply_move(scene, plan, move_gain)
-    return len(mapping)
 
 
 def port_output_routing(src: Scene, dst: Scene) -> int:

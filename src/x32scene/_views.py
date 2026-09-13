@@ -6,18 +6,22 @@ live in cli.py). Kept separate from CLI wiring so cli.py stays parsers + dispatc
 
 from __future__ import annotations
 
+import sys
+
 from ._views_ports import bus_names as _bus_names
 from ._views_ports import cmd_ports
 from .services import fx as _fx
 from .services import groups as _groups
+from .services import iem as _iem
 from .services import routing as _routing
 from .services.describe import describe, describe_all
 from .services.diff import Change, diff
 from .services.history import history
 from .services.show import Show
 from .services.snippets import Snippet
+from .services.stagebox import InputMove
 from .model import Scene
-from .tables import SEND_STRIPS
+from .tables import SEND_STRIPS, decode_source
 from .tables_fx import decode_fx
 
 __all__ = ["cmd_ports"]
@@ -47,11 +51,7 @@ def cmd_buses(scene: Scene) -> None:
     fx_type = {int(ln.path.split("/")[2]): ln.args[0]
                for ln in scene.find("/fx/") if len(ln.path.split("/")) == 3 and ln.args}
     for n in range(1, 17):
-        taps = {"PRE": 0, "POST": 0}
-        for strip in SEND_STRIPS:
-            ln = scene.get(f"{strip}/mix/{n:02d}")
-            if ln and len(ln.args) >= 4 and ln.args[0] == "ON":
-                taps[ln.args[3]] = taps.get(ln.args[3], 0) + 1
+        taps = _iem.send_taps(scene, n)
         role = ""
         if n in fx_src:
             role = f"-> FX{fx_src[n]} ({decode_fx(fx_type.get(int(fx_src[n]), '?'))})"
@@ -183,8 +183,13 @@ def cmd_diff_by_strip(a: Scene, b: Scene) -> None:
     changed scene line naming only the fields that moved."""
     changes = diff(a, b)
     print(f"{len(changes)} changed path(s):")
+    print_by_strip(b, changes)
+
+
+def print_by_strip(scene: Scene, changes: list[Change]) -> None:
+    """``changes`` in words, one block per strip or section; ``scene`` is the after side."""
     group = None
-    for d in describe_all(b, changes):
+    for d in describe_all(scene, changes):
         if d.group != group:
             group = d.group
             print(d.label)
@@ -222,6 +227,46 @@ def cmd_snippet(snip: Snippet, out: str) -> None:
         print(f"  skipped {len(snip.skipped)} path(s) a snippet cannot carry:")
         for p in snip.skipped:
             print(f"    {p}")
+
+
+def warn_relinked(pairs: list[tuple[int, int]]) -> None:
+    """A snippet that carries lines of a bus pair whose link changed, but not the link."""
+    if pairs:
+        names = ", ".join(f"{odd}/{even}" for odd, even in pairs)
+        print(f"x32scene: warning: the snippet carries lines of bus {names}, whose link "
+              "changed, but not /config/buslink; loaded, they land on a pair still in its old "
+              "link state", file=sys.stderr)
+
+
+def _headamp_level(args: tuple[str, ...]) -> str:
+    if len(args) >= 2:
+        return f"{args[0]} dB, phantom {args[1]}"
+    return f"a malformed head amp ({' '.join(args) or 'no fields'})"
+
+
+def cmd_move_inputs(scene: Scene, moves: list[InputMove], out: str, *,
+                    move_gain: bool = True) -> None:
+    """One line per re-sourced channel: from where, to where, and the new input's head amp."""
+    print(f"moved {len(moves)} channel(s); wrote {out}")
+    for m in moves:
+        cfg = scene.get(f"/ch/{m.ch:02d}/config")
+        name = cfg.args[0].strip('"') if cfg and cfg.args else ""
+        if m.headamp is None:
+            amp = "no head-amp line for the new input"
+        else:
+            level = _headamp_level(m.headamp)
+            if m.carried:
+                amp = f"carried {level}"
+            elif not 1 <= m.old_source <= 128:
+                amp = f"no head amp to carry; the new input stays {level}"
+            elif move_gain:
+                amp = (f"{decode_source(m.old_source)} has no head-amp line to carry; "
+                       f"the new input stays {level}")
+            else:
+                amp = f"head amp not carried; the new input stays {level}"
+        print(f"  ch{m.ch:02d} {name:<14} {decode_source(m.old_source)} -> "
+              f"{decode_source(m.new_source)}   {amp}")
+    print("LOAD-TEST on the console before a gig.")
 
 
 def cmd_header(doc: dict) -> None:

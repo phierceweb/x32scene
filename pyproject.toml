@@ -4,12 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "x32scene"
-version = "0.2.0"
+version = "0.3.0"
 description = "Read, diff, edit and verify Behringer X32 / M32 console files (scenes, snippets, presets, shows) and read the live desk over OSC"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 authors = [{ name = "Mike Farr" }]
 keywords = ["x32", "m32", "behringer", "osc", "audio", "mixing-console", "live-sound", "scene-files", "snippets"]
 classifiers = [
@@ -48,5 +48,5 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "B"]
+select = ["E", "W", "F", "B", "UP035"]
 ignore = ["E501", "B008", "B904"]

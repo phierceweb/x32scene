@@ -11,6 +11,16 @@ expected-config's `outputs` section — output bank, then output number — beca
 one handle a scene file offers that survives a re-patch. Start from
 [`config/example-stage.json`](../config/example-stage.json).
 
+---
+
+## Table of contents
+
+- [What it is, and what it is not](#what-it-is-and-what-it-is-not)
+- [Shape](#shape)
+- [What preflight checks](#what-preflight-checks)
+- [What ports shows](#what-ports-shows)
+- [Where the real one lives](#where-the-real-one-lives)
+
 ## What it is, and what it is not
 
 Every value in the sidecar is an **operator's assertion**. x32scene can check the scene

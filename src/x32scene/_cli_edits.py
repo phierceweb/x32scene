@@ -13,15 +13,19 @@ from pf_core.exceptions import InvalidInputError
 from pf_core.utils.io import atomic_write_bytes
 
 from ._cli_files import clean, load_checked, read_checked, refuse_overwrite
+from ._cli_presets import run_extract_library
 
 from . import _views
+from . import _views_ports as _ports
 from .model import Scene
 from .orchestrators import band_swap as _band_swap
+from .services import buslink as _buslink
 from .services import channelfx as _cfx
 from .services import fx as _fx
 from .services import routing_edit as _rt
 from .services import show as _show
 from .services import snippets as _snippets
+from .services import stagebox as _stagebox
 from .services import transplant as _transplant
 from .services import presets as _presets
 from .services import transforms as T
@@ -30,7 +34,8 @@ EDIT_COMMANDS = frozenset({"set-comp", "set-gate", "set-lowcut", "set-eq", "set-
                            "set-mute", "set-pan", "rename", "extract-preset", "apply-preset",
                            "band-setup", "port-iem", "set-fx", "extract-fx", "apply-fx",
                            "set-routing", "set-input", "set-output", "extract-routing",
-                           "apply-routing", "show-build", "transplant"})
+                           "apply-routing", "show-build", "transplant", "move-inputs",
+                           "set-bus-link"})
 
 
 def _mirrored(paths: list[str]) -> str:
@@ -141,6 +146,11 @@ def parse_edit(text: str, scene: str):
     with the scene and a placeholder output supplied here rather than by the user."""
     from ._parsers import _build_parser   # local: _parsers imports nothing from here
     words = shlex.split(text)
+    if words[:1] == ["set-bus-link"]:
+        raise InvalidInputError(
+            "--edit cannot run set-bus-link: a snippet cannot carry /config/buslink, so it "
+            "would load the reshaped sends and pans onto a pair whose link state has not "
+            f"changed; run set-bus-link SCENE BUS on|off -o OUT.scn and load that scene: {text!r}")
     if not words or words[0] not in IN_PLACE:
         raise InvalidInputError(f"--edit must start with one of {sorted(IN_PLACE)}: {text!r}")
     if "-o" in words or "--out" in words:
@@ -202,6 +212,13 @@ def run_edit(args) -> int:
         atomic_write_bytes(args.out, efx.encode("utf-8"))
         print(f"wrote FX{args.slot} preset -> {args.out}")
         return 0
+    if args.cmd == "set-bus-link":
+        refuse_overwrite(args.out, args.scene, force=args.force)
+        sc = load_checked(args.scene)
+        edit = _buslink.set_bus_link(sc, args.bus, args.state == "on")
+        sc.save(args.out)
+        _ports.cmd_set_bus_link(sc, edit, args.out)
+        return 0
     if args.cmd in IN_PLACE:
         inputs = ([args.scene, args.preset]
                   if args.cmd in ("apply-preset", "apply-fx", "apply-routing") else [args.scene])
@@ -212,6 +229,11 @@ def run_edit(args) -> int:
         print(f"{msg}; wrote {args.out}\nLOAD-TEST on the console before a gig.")
         return 0
     if args.cmd == "extract-preset":
+        if (args.ch is None) != args.all:
+            raise InvalidInputError("extract-preset takes CH or --all, not both" if args.all
+                                    else "extract-preset needs a channel CH, or --all")
+        if args.all:
+            return run_extract_library(args)
         refuse_overwrite(args.out, args.scene, force=args.force)
         chn = _presets.extract_preset(load_checked(args.scene), args.ch, args.scope,
                                       header=args.header)
@@ -222,7 +244,7 @@ def run_edit(args) -> int:
         # every plan-level problem is one class of user error: exit 2, write nothing
         try:
             plan = _band_swap.load_plan(args.plan)
-        except (KeyError, TypeError, ValueError, OSError) as e:
+        except (KeyError, IndexError, TypeError, ValueError, OSError) as e:
             print(f"plan failed, nothing written: {clean(e)}", file=sys.stderr)
             return 2
         # the plan names presets it reads: inputs the arguments alone do not reveal
@@ -233,7 +255,7 @@ def run_edit(args) -> int:
         try:
             load_checked(args.template)   # run() reloads it; this is the shape check
             rep = _band_swap.run(args.template, plan, args.out)
-        except (KeyError, TypeError, ValueError, OSError) as e:
+        except (KeyError, IndexError, TypeError, ValueError, OSError) as e:
             print(f"plan failed, nothing written: {clean(e)}", file=sys.stderr)
             return 2
         print(f"applied plan: {rep['lines_changed']} line(s) over "
@@ -248,5 +270,13 @@ def run_edit(args) -> int:
     if args.cmd == "port-iem":
         refuse_overwrite(args.out, args.src, args.dst, force=args.force)
         cmd_port_iem(load_checked(args.src), load_checked(args.dst), args.out)
+        return 0
+    if args.cmd == "move-inputs":
+        refuse_overwrite(args.out, args.scene, force=args.force)
+        sc = load_checked(args.scene)
+        moves = _stagebox.move_to_stagebox(sc, args.moves, port=args.to,
+                                           move_gain=not args.no_gain)
+        sc.save(args.out)
+        _views.cmd_move_inputs(sc, moves, args.out, move_gain=not args.no_gain)
         return 0
     raise InvalidInputError(f"not an edit command: {args.cmd}")

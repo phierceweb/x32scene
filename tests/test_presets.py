@@ -1,9 +1,14 @@
 """Preset extract/apply tests: scope filtering, head-amp remap, round-trip safety."""
 
+import contextlib
+import io
+import json
 import os
+import tempfile
 import unittest
 
 from x32scene import Scene
+from x32scene.cli import main
 from x32scene.services.diff import diff
 from x32scene.services.presets import apply_preset, extract_preset, header_sections
 from x32scene.services.routing import channel_headamp_index
@@ -110,6 +115,71 @@ class PresetTest(unittest.TestCase):
         dst = Scene.load(EXAMPLE)
         apply_preset(dst, 20, chn)
         self.assertEqual(Scene.parse(dst.dump()).dump(), dst.dump())
+
+
+class DeskWrittenPresetTest(unittest.TestCase):
+    """The console saves /config without the source field and the main mix as one line
+    per field (/mix/fader, /mix/st, ...), where a scene carries one /mix line."""
+
+    DESK = ('/config "Lead Vox" 71 GNi\n'
+            "/mix/fader  -3.5\n/mix/st OFF\n/mix/pan -20\n/mix/mono ON\n/mix/mlevel -10.0\n")
+
+    def setUp(self):
+        self.sc = Scene.load(EXAMPLE)
+
+    def test_scribble_takes_name_icon_colour_and_keeps_the_source(self):
+        before = self.sc.get("/ch/20/config").args
+        self.assertEqual(apply_preset(self.sc, 20, self.DESK, ["scribble"]), 1)
+        self.assertEqual(self.sc.get("/ch/20/config").args,
+                         ['"Lead Vox"', "71", "GNi", before[-1]])
+
+    def test_split_main_mix_lines_set_their_fields_of_the_mix_line(self):
+        on = self.sc.get("/ch/20/mix").args[0]
+        apply_preset(self.sc, 20, self.DESK, ["mainfader"])
+        self.assertEqual(self.sc.get("/ch/20/mix").args, [on, "-3.5", "OFF", "-20", "ON", "-10.0"])
+        self.assertEqual([c.path for c in diff(Scene.load(EXAMPLE), self.sc)], ["/ch/20/mix"])
+
+    def test_a_split_line_already_matching_changes_nothing(self):
+        fader = self.sc.get("/ch/20/mix").args[1]
+        self.assertEqual(apply_preset(self.sc, 20, f"/mix/fader {fader}\n", ["mainfader"]), 0)
+
+    def test_a_config_short_of_name_icon_colour_is_still_refused(self):
+        with self.assertRaises(ValueError):
+            apply_preset(self.sc, 20, '/config "Vox" 71\n', ["scribble"])
+
+    BUS = ('/config "Plate" 71 RDi\n/eq ON\n/eq/1 PEQ 124.7 +0.00 2.0\n'
+           "/eq/5 PEQ 2k00 +0.00 2.0\n/eq/6 HShv 10k02 +0.00 2.0\n"
+           "/mix/01 ON   -oo +0 POST 0\n/mix/fader   0.0\n/mix/st OFF\n")
+
+    def test_a_bus_preset_is_refused_and_the_channel_left_as_it_was(self):
+        before = self.sc.dump()
+        for scopes in (None, ["sends"], ["scribble"], ["eq"]):
+            with self.subTest(scopes=scopes), self.assertRaisesRegex(ValueError, "bus"):
+                apply_preset(self.sc, 1, self.BUS, scopes)
+            self.assertEqual(self.sc.dump(), before)
+
+    def test_the_cli_refuses_a_bus_preset_with_nothing_written(self):
+        with tempfile.TemporaryDirectory() as d:
+            preset, out = os.path.join(d, "Plate.chn"), os.path.join(d, "out.scn")
+            with open(preset, "w") as fh:
+                fh.write(self.BUS)
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+                rc = main(["apply-preset", EXAMPLE, "1", preset, "-o", out])
+            self.assertEqual(rc, 1)
+            self.assertIn("bus", err.getvalue())
+            self.assertFalse(os.path.exists(out))
+
+    def test_band_setup_refuses_a_plan_naming_a_bus_preset_with_nothing_written(self):
+        with tempfile.TemporaryDirectory() as d:
+            preset, plan, out = (os.path.join(d, n) for n in ("Plate.chn", "plan.json", "o.scn"))
+            with open(preset, "w") as fh:
+                fh.write(self.BUS)
+            with open(plan, "w") as fh:
+                json.dump({"channels": {"20": {"preset": preset}}}, fh)
+            with contextlib.redirect_stderr(io.StringIO()), contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(["band-setup", EXAMPLE, plan, "-o", out]), 2)
+            self.assertFalse(os.path.exists(out))
 
 
 if __name__ == "__main__":

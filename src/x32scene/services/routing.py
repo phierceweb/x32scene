@@ -13,11 +13,12 @@ Two indirections this module untangles, both keyed by 8-wide blocks:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from ..model import Scene
 from ..tables import (AUX_BANK_USB, OUTPUT_BANKS, decode_out_source, decode_source,
-                      userrout_out_to_output)
+                      tap_to_bus, userrout_out_to_output)
 
 
 def userrout(scene: Scene, which: str) -> list[int]:
@@ -165,6 +166,14 @@ def output_sources(scene: Scene, bank: str) -> dict[int, int]:
         if ln and ln.args and ln.args[0].isdigit():
             out[n] = int(ln.args[0])
     return out
+
+
+def outputs_from_buses(scene: Scene, buses: Iterable[int]) -> list[tuple[str, int, int]]:
+    """``(bank, output, bus)`` for every /outputs line, in any bank, sourced from one of
+    ``buses``."""
+    wanted = set(buses)
+    return [(bank, n, tap_to_bus(src)) for bank in OUTPUT_BANKS
+            for n, src in output_sources(scene, bank).items() if tap_to_bus(src) in wanted]
 
 
 def output_aes_mirrors(scene: Scene) -> dict[int, list[str]]:

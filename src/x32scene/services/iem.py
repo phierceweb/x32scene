@@ -7,7 +7,7 @@ reverts a one-sided write on recall, so an edit here is a set of lines, not one 
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from collections.abc import Iterable
 
 from ..model import Scene
 from ..tables import SEND_STRIPS, send_line_fields, strip_path
@@ -65,6 +65,20 @@ def send_shape_errors(scene: Scene, paths: Iterable[str]) -> list[str]:
 
 def _bus_linked(scene: Scene, bus: int) -> bool:
     return pair_linked(scene, _bus_path(bus)) is not None
+
+
+def send_taps(scene: Scene, bus: int) -> dict[str, int]:
+    """ON sends into ``bus`` at any level, counted by tap point. An unlinked even bus takes
+    each sender's tap from its odd-bus line; a linked one counts nothing, as its pair is
+    counted on the odd bus."""
+    tap_bus = bus - 1 if bus % 2 == 0 and not _bus_linked(scene, bus) else bus
+    taps = {"PRE": 0, "POST": 0}
+    for strip in SEND_STRIPS:
+        ln = scene.get(f"{strip}/mix/{bus:02d}")
+        tap = scene.get(f"{strip}/mix/{tap_bus:02d}")
+        if ln and ln.args and ln.args[0] == "ON" and tap and len(tap.args) >= 4:
+            taps[tap.args[3]] = taps.get(tap.args[3], 0) + 1
+    return taps
 
 
 def bus_link_group(scene: Scene, bus: int) -> tuple[int, ...]:
@@ -153,6 +167,8 @@ def copy_iem_mix(scene: Scene, src_bus: int, dst_bus: int, *, stereo: bool | Non
             d = scene.get(f"{strip}/mix/{db:02d}")
             if s is None or d is None:
                 continue
+            s.require(2)   # on and level: a shorter line would skip them silently
+            d.require(2)
             before = list(d.args)
             for i in range(min(len(s.args), len(d.args))):
                 d.set_arg(i, s.args[i])

@@ -92,6 +92,14 @@ class DescribeTest(unittest.TestCase):
         self.assertEqual((d.group, d.label, d.what), ("/ch/23", 'ch 23 "Vox 1"', "send -> bus 09"))
         self.assertEqual(d.fields, [("level", "0.0", "-11.0")])
 
+    def test_a_bus_or_main_send_names_the_matrix(self):
+        for path in ("/bus/13/mix/01", "/main/st/mix/03", "/main/m/mix/05"):
+            with self.subTest(path=path):
+                b = Scene.load(EXAMPLE)
+                b.get(path).set_arg(1, "-12.0")
+                d = D.describe(b, diff(self.a, b)[0])
+                self.assertEqual(d.what, f"send -> matrix {path[-2:]}")
+
     def test_fx_param_change_uses_the_effect_map(self):
         b = Scene.load(EXAMPLE)
         b.get("/fx/1/par").set_arg(1, "3.50")
