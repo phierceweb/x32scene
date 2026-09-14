@@ -225,7 +225,7 @@ class HeaderTest(unittest.TestCase):
         info = header_sections('#2.1# 71 "Zeroed" 0 %0011111100000000 1\n/preamp +0.0 OFF OFF 24 20\n')
         self.assertEqual((info["present"], info["active"]), (self.ALL, []))
 
-    def test_apply_ignores_the_header(self):
+    def test_apply_with_a_matching_full_header_changes_nothing(self):
         chn = extract_preset(self.sc, 20, header=True)
         dst = Scene.load(EXAMPLE)
         self.assertEqual(apply_preset(dst, 20, chn), 0)

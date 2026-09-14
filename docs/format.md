@@ -22,6 +22,7 @@ a full 32-channel console scene.
 - [Console configuration lines](#console-configuration-lines)
 - [Output lines](#output-lines)
 - [Enumerations](#enumerations)
+- [Channel references](#channel-references)
 - [Channel presets (`.chn`)](#channel-presets-chn)
 - [FX](#fx)
 - [Verified vs inferred](#verified-vs-inferred)
@@ -45,8 +46,8 @@ grep -E '^/outputs/' scene.scn        # the physical output patch
 ```
 
 - **LF line endings, no CR.** A CRLF file is rejected rather than silently normalized.
-- **Quoted strings may contain spaces** and count as one token: `/ch/01/config "Lead Vox" 1 1 1`
-  tokenizes to `['/ch/01/config', '"Lead Vox"', '1', '1', '1']`. Quotes are retained so the
+- **Quoted strings may contain spaces** and count as one token: `/ch/01/config "Lead Vox" 1 YE 1`
+  tokenizes to `['/ch/01/config', '"Lead Vox"', '1', 'YE', '1']`. Quotes are retained so the
   value round-trips byte-for-byte.
 - **`-oo`** is −∞ (off / fully down).
 
@@ -80,8 +81,11 @@ a channel preset the flags are a `%` bitstring read right to left like the `/grp
 bits 8–13 say which sections the file carries (preamp, config, low cut, gate, EQ,
 dynamics) and bits 0–5 whether each is switched on (phantom, delay, low cut, gate, EQ,
 dynamics), so `%0011111100111000` is "every section present; gate, EQ and dynamics on".
-Confirmed against presets exported from a console; `x32scene extract-preset --header`
-writes one. An effect preset's flags field is a plain integer naming the effect's display
+Confirmed against presets exported from a console, and X32-Edit reads a header x32scene
+writes the same way: a preset carrying gate, EQ and dynamics showed exactly those three in
+its Flags column, EQ lit as the active one, and Load wrote only those sections.
+`x32scene extract-preset --header` writes one, and `apply-preset` takes its default scope
+from the present bits ([channel presets](#channel-presets-chn)). An effect preset's flags field is a plain integer naming the effect's display
 type; a routing preset's is all zeros.
 
 > The on-console scene name comes from the **filename**, not this header — see
@@ -109,7 +113,7 @@ model only populates as many as it has jacks (an X32 Rack fills `000`–`015` an
 `016`–`031` at defaults). Every model writes all 128 lines.
 
 **Channel → headamp** is not 1:1 in general. The last token of
-`/ch/NN/config "Name" colour icon SRC` is a source *slot*; resolve it through the routing
+`/ch/NN/config "Name" icon colour SRC` is a source *slot*; resolve it through the routing
 indirection first ([routing.md](routing.md)), then subtract one:
 `headamp index = source number − 1` for input sources 1–128. Card, Aux and OFF sources
 have no head amp at all.
@@ -124,6 +128,19 @@ and `0.3` at its bottom, frequency `20k00` and `20.0`, EQ gain `+15.0`, fader an
 
 Each line packs its parameters **positionally**. Range-checking a decode is how you confirm
 you counted correctly — a value outside its documented range means you mis-counted.
+
+### Config
+
+```
+/ch/NN/config <name> <icon> <colour> <source>
+```
+
+`/ch/01/config "Kick" 2 YEi 1` = name Kick, icon 2, colour `YEi`, source slot 1. `icon` 1…74 ·
+`colour` ∈ `OFF` `RD` `GN` `YE` `BL` `MG` `CY` `WH` and the same eight with an `i` suffix ·
+`source` a slot resolved through the routing banks ([routing.md](routing.md)), published as
+`0`–`64`: OFF, In01…32, Aux 1…6, USB L, USB R, FX 1L…4R, bus 1…16. It is not a physical
+input and not a channel number, although a scene often has slot *NN* on channel *NN*. The
+order is published and observed in files.
 
 ### Main mix and pan
 
@@ -152,9 +169,10 @@ including the unlinked 13/14 pair.
 > the shape rule. Code that copies sends between buses must respect parity.
 
 `tap` is one of `IN/LC` (input, after the low cut), `<-EQ` (pre-EQ), `EQ->` (post-EQ),
-`PRE` (pre-fader), `POST` (post-fader), `GRP` (subgroup), in the console's own order — all
-six read back from a desk (`tables.SEND_TAPS`); `PRE`, `POST` and `EQ->` are what real
-scenes mostly carry. The trailing `0` is invariant across every send line in the corpus.
+`PRE` (pre-fader), `POST` (post-fader), `GRP` (subgroup), in the console's own order
+(`tables.SEND_TAPS`). All six were written to a desk and read back verbatim (firmware 4.06);
+`PRE`, `POST` and `EQ->` are the ones seen in saved scenes. The trailing `0` is invariant
+across every send line in the corpus.
 
 ### Preamp (digital — not the head amp)
 
@@ -173,7 +191,13 @@ a decimal (below) — the two fields use different formats and confusing them is
 ```
 
 `mode` ∈ `EXP2` `EXP3` `EXP4` `GATE` `DUCK` · `thr` −80…0 dB · `range` 0…60 dB (console
-minimum 3) · `attack` 0…120 ms · `hold` 0.02…2000 ms · `release` 5…4000 ms · `keysrc` 0 = self.
+minimum 3) · `attack` 0…120 ms · `hold` 0.02…2000 ms · `release` 5…4000 ms.
+
+`keysrc` is the side-chain source, published as `0`–`64`: `0` self (`OFF` in the published
+table), `1`–`32` In01…32, `33`–`38` Aux 1…6, `39`, `40` USB L, USB R, `41`–`48` FX 1L…4R,
+`49`–`64` bus 1…16. **What `1`–`32` names is unverified.** The published labels are the
+channel source slot's, which is an input slot; X32-Edit labels the same list `Self`,
+`Channel 01`…`Channel 32`, which is a strip. Every observed file carries `0`.
 
 ### Dynamics
 
@@ -183,8 +207,13 @@ minimum 3) · `attack` 0…120 ms · `hold` 0.02…2000 ms · `release` 5…4000
 ```
 
 `mode` `COMP`/`EXP` · `det` `PEAK`/`RMS` · `env` `LIN`/`LOG` · `thr` −60…0 dB · `knee` 0–5 ·
-`mgain` 0…24 dB (disabled when `auto` is ON) · `pos` `PRE`/`POST` · `mix` 0–100 %
-(100 = full, below that is parallel).
+`mgain` 0…24 dB (disabled when `auto` is ON) · `pos` `PRE`/`POST` · `keysrc` as on the
+[gate](#gate) · `mix` 0–100 % (100 = full, below that is parallel).
+
+`/bus/NN/dyn` has the same 15 fields, `keysrc` included: it is the only key source outside
+the channel strips. `/mtx/NN/dyn`, `/main/st/dyn` and `/main/m/dyn` have 14, with no
+`keysrc`, so `mix` is field 13 there. Aux-in and FX-return strips have no gate or dynamics
+line. Published and observed in files.
 
 **`ratio` is an enum, and its token format matters when writing:**
 
@@ -223,6 +252,16 @@ applied on recall — six positional `ON`/`OFF` tokens, field 1 = group 1, left 
 is the opposite convention from the `%` masks above, which read right to left; a scene saved
 with a group engaged silences its members the moment it loads.
 
+### Automix
+
+```
+/ch/NN/automix <group OFF|X|Y> <weight ±12 dB>
+```
+
+Every channel carries the line (`/ch/01/automix OFF  +0.0`), but **group and weight
+take effect only on channels 1–8** — published, not verified on a console.
+`/config/amixenable` switches groups X and Y on.
+
 ### Stereo links
 
 ```
@@ -255,7 +294,7 @@ each field.
 | `/config/talk/A`, `/B` | level, dim, latch, destination mask: 18 bits read right to left, mix buses 1–16 then main LR and M/C |
 | `/config/osc` | level, F1, F2 (frequency tokens like the EQ's), which one (`F1`/`F2`), type (`SINE` `PINK` `WHITE`), destination as an integer: 0–15 mix bus 1–16, 16 L, 17 R, 18 L+R, 19 M/C, 20–25 matrix 1–6 |
 | `/config/tape` | recorder gain L, gain R (dB), autoplay |
-| `/config/amixenable` | automix group X, group Y |
+| `/config/amixenable` | automix group X, group Y; only channels 1–8 [take part](#automix) |
 | `/config/dp48` | scope mask, broadcast, port `AESA`/`AESB`; `/assign` 48 group numbers, `/link` 24 pair flags, `/grpname` 12 names |
 | `/config/userctrl/A`…`C` | layer colour; `/enc` four encoder strings, `/btn` eight button strings (buttons are numbered 5–12) |
 | `/config/mute` | six mute-group states |
@@ -265,11 +304,16 @@ each field.
 | `/outputs/p16/NN/iQ` | group (`OFF` `A` `B`), speaker (`none` `iQ8` `iQ10` `iQ12` `iQ15` `iQ15B` `iQ18B`), EQ (`Linear` `Live` `Speech` `Playback` `User`), model |
 
 The user-assign strings are compact codes — `F00` is "fader, channel 1", `S0004` "channel
-1's send to bus 5", `X001` "FX 1 parameter 2", `P0051` "jump to channel 1's Config page",
-`O85` "mute group 6", `Mn01064` "MIDI note toggle, channel 1, value 64". Strip indexes run
-channels 0–31, aux-ins 32–39, FX returns 40–47, buses 48–63, matrices 64–69, main LR 70,
-M/C 71, DCAs 72–79, mute groups 80–85. `services/userctrl.py` decodes them; a shape it
-does not know is shown as the code, never guessed.
+1's send to bus 5", `X001` "FX 1 parameter 2", `P0001` "jump to channel 1's Config page",
+`P0051` "jump to the FX1 page", `O85` "mute group 6", `Mn01064` "MIDI note toggle, MIDI
+channel 1, value 64". Strip indexes run channels 0–31, aux-ins 32–39, FX returns 40–47,
+buses 48–63, matrices 64–69, main LR 70, M/C 71, DCAs 72–79, mute groups 80–85. A page jump
+`Pxxyz` names a strip only when its target `y` is `0`; for any other target `xx` is not a
+strip index. `services/userctrl.py` decodes them; a shape it does not know is shown as the
+code, never guessed.
+
+The solo, talkback and oscillator lines store no channel; `/config/chlink` and the
+user-assign codes do — see [Channel references](#channel-references).
 
 ## Output lines
 
@@ -295,7 +339,7 @@ above. Address output lines by exact path: the `/delay` and `/iQ` siblings share
 
 ### Input sources
 
-Used by `/config/userrout/in` and by the source slot on `/ch/NN/config`.
+Used by `/config/userrout/in`. A channel's `/ch/NN/config` source is an input *slot*, 0-64, not this table ([Config](#config)).
 
 | Range | Domain |
 |---|---|
@@ -359,6 +403,56 @@ P16 bank is normally patched from channel direct outs, which is why its values s
 FX-direct-out bands are also observed in files, the matrix, aux-direct-out and monitor bands
 are not.
 
+## Channel references
+
+The lines below hold a channel number *as a value* rather than in their path. Every
+`/ch/NN/*` line belongs to channel *NN* by its path; its values name no other channel apart
+from the key sources below. Provenance: *published* is Maillot's protocol document,
+*observed* is seen in files a console or X32-Edit wrote.
+
+### Values that point at a channel
+
+| Line | Field | Encoding | Provenance |
+|---|---|---|---|
+| `/outputs/{main,aux,p16,aes,rec}/NN` | 1, `src` | `26`–`57` = direct out of channel 1–32 (channel = value − 25); no other value names a channel, and neither do `pos`, `invert` or the output index | published for all five banks; observed on `p16` only |
+| `/config/chlink` | token *k* | `ON` links channels 2*k*−1 and 2*k* | published, observed |
+| `/config/userctrl/{A,B,C}/enc` | 1–4 | `Fxx` fader, `Pxx` pan, `Sxxyy` send: `xx` `00`–`31` = channel `xx`+1; `yy` is a bus | published; not yet seen naming a channel in a file |
+| `/config/userctrl/{A,B,C}/btn` | 1–8 (buttons 5–12) | `Oxx` mute, `Ixx` insert, `Pxx0z` page jump: `xx` `00`–`31` = channel `xx`+1. A page jump with any other target `y` names no strip | published; `P0000` (channel 1, Home) observed as the factory default on layer B buttons 11 and 12 |
+
+Outside scenes, a snippet header's `channels` mask and the `snippet/NNN` lines of a show
+index hold one bit per channel ([Related save types](#related-save-types)).
+
+Position matters without any reference: [automix](#automix) group and weight act only on
+channels 1–8.
+
+### Key sources, meaning unverified
+
+| Line | Field | Encoding | Provenance |
+|---|---|---|---|
+| `/ch/NN/gate` | 8, `keysrc` | `0` self, `1`–`32` a channel or an input slot, `33`–`64` aux, USB, FX, bus ([gate](#gate)) | enumeration published; field position observed; only `0` observed |
+| `/ch/NN/dyn` | 13, `keysrc` | as the gate | as the gate |
+| `/bus/NN/dyn` | 13, `keysrc` | as the gate; the only key source outside the channel strips | as the gate |
+
+### Values that look like channel numbers but are not
+
+| Line | What the value is | Provenance |
+|---|---|---|
+| `/ch/NN/config` source (field 4) | an input slot, resolved through the routing banks ([Config](#config)) | published, observed |
+| `/headamp/NNN` | the index is a physical input | published, observed |
+| `/config/userrout/in`, `/config/userrout/out` | input sources and output slots; the output enumeration has no channel direct-out band | published, observed |
+| `/config/routing`, `/config/routing/*` | routing block tokens | published, observed |
+| `/auxin/NN/config` source | an input slot on an aux-in strip | published, observed |
+| `/config/solo`, `/config/talk/A`, `/config/talk/B`, `/config/osc` | no channel field (below) | published, observed |
+| `/config/dp48/assign`, `/config/dp48/link` | indexed by the DP48 personal mixer's own 48 channels, not by console channel | published, observed |
+| `/fx/N/source`, `/ch/NN/insert` | `INS`, `MIX1`…`MIX16`, `M/C`; FX slot sides and aux sends | published, observed |
+| `.chn` `.efx` `.rou` header slot | a library slot | observed on `.chn` and `.efx` |
+| `.shw` cue MIDI channel, user-assign `Mxyyzzz` `yy` | a MIDI channel | published; observed in cue lines |
+
+**No scene-file solo, monitor, talkback or oscillator setting stores a channel.** The solo
+source, the talkback destination masks and the oscillator destination name buses, main and
+matrix only. Channel solo switches and the selected channel exist only as live state
+(`/-stat/solosw/NN`, `/-stat/selidx`), published and never observed in a file.
+
 ## Channel presets (`.chn`)
 
 A `.chn` is **one strip saved with bare paths** — the `/ch/NN` or `/bus/NN` prefix stripped,
@@ -393,6 +487,14 @@ preset to a channel on a different physical input means **remapping the index** 
 
 The same checkboxes apply to "Save as scene", so a `.scn` can legitimately be partial.
 
+When a preset has a [header](#headers), `apply-preset` without `--scope` applies only the
+sections its flags mark present: preamp and low cut select HA Config, config selects
+Scribble Strip and `/delay`, gate Gate, EQ EQ, and dynamics Compressor. Sends, Main/Fader,
+insert and automix have no flag, so they apply whenever the body carries them. A headerless
+preset, or one whose header carries no 16-bit `%` flag mask, applies every scope it carries,
+and `--scope` overrides the header (`/delay` is then HA Config). `extract-preset
+--header` sets the config flag for a `/config` or `/delay` line.
+
 ## FX
 
 - `/fx/N <TYPE>` — the slot's effect short-code (`PLAT` plate, `VRM` vintage room, `D/CR`,
@@ -405,8 +507,12 @@ corroborated against a line a console wrote — the scene fixtures, a desk's eff
 library, and the default parameter line the desk returns for each type. Two published
 tables disagree with the desk: the stereo enhancer has a ninth parameter (`Solo`), and the
 dual pitch shifter has twelve, not thirteen. The graphic EQs (`GEQ`, `GEQ2`, `TEQ`, `TEQ2`)
-decode 31 band gains plus a master per side for reading, but writes are refused, because
-the band labels are the standard ISO series rather than console-verified.
+carry 31 band gains plus a master per side: `par` 1–31 are the ISO bands 20 Hz to 20 kHz
+in order, 32 the master, and on the dual types 33–64 the B side the same way. Verified on
+a console for `GEQ` and `GEQ2` — X32-Edit labels the faders 20 … 20k, and a value written
+to `par` 1 moved the 20 Hz fader, to 31 the 20 kHz one, to 33 the B side's 20 Hz. Gains are
+`-15.0`…`15.0` written as `3.0`, `-6.0`, `0.0`, no plus sign. `TEQ` and `TEQ2` are assumed
+to match and stay read-only.
 
 ## Verified vs inferred
 
@@ -416,8 +522,14 @@ oversights:
 | Item | Status |
 |---|---|
 | `/config/userrout` enumerations | Published (Maillot v4.06). Earlier releases decoded `169`–`184` as mix buses and `167`/`168` as the USB player; they are output slots 1–16 and talkback |
-| Output taps `20`–`25`, `58`–`65`, `74`–`76` | Published enumeration; not yet seen in a file |
-| GEQ band labels | Standard ISO series, not verified band-by-band on a console |
+| Output taps `20`–`25`, `58`–`65`, `74`–`76` | Published enumeration; `20` (Matrix 1) and `75` (Monitor R) written to a desk through X32-Edit and read back as written; the rest not yet seen in a file |
+| Output taps `26`–`57` on the `main`, `aux`, `aes` and `rec` banks | Published; observed on `p16` only |
+| Gate and dynamics `keysrc` `1`–`64` | Published enumeration; only `0` observed. Whether `1`–`32` names a channel or an input slot is unverified |
+| User-assign codes naming a channel (`Fxx`, `Pxx`, `Sxxyy`, `Oxx`, `Ixx`, `Pxx0z`) | Published; only the factory `P0000` observed |
+| Automix on channels 1–8 only | Published; not verified on a console |
+| Send taps `IN/LC`, `<-EQ`, `GRP` | Taken and read back verbatim on a desk (OSC root write, `/node` read-back, firmware 4.06); not yet seen in a saved file |
+| Output lines in a `.rou` | Published; not yet seen in a file |
+| GEQ band labels | Verified on a console for `GEQ` and `GEQ2` (fader labels, and `par` 1, 31 and 33 moved the 20 Hz, 20 kHz and B-side 20 Hz faders); `TEQ`/`TEQ2` assumed to match |
 | `PIT` parameters 4–5 | The desk's default line carries a low-cut-like value and a frequency where the published table has Gain and Pan; named `Lo Cut`/`Hi Cut` from the defaults |
 | Total line count per scene | Varies with console model and firmware — only *agreement across a library* is checkable |
 
@@ -460,14 +572,18 @@ two logarithmic values to its own grid** (a decay of `2.10` became `2.11`, a dam
 `8k00` became `8k34`), the same clamping the protocol document describes for faders. Read
 a slot back after loading before trusting a value to the digit.
 
-**Routing presets** (`.rou`) are the four input routing banks, `/config/routing/{IN,AES50A,
-AES50B,CARD}`, as scene lines. Each block token comes from a fixed vocabulary per bank and
-block (`tables.routing_vocab`): 24 input-bank sources for `IN`/`PLAY` plus 16 for their
-`AUX` block, 36 for the `AES50A`/`AES50B`/`CARD` blocks (inputs, outputs, P16, `AUX/CR`,
-`AUX/TB`, user slots), and 36 four-wide ones for `OUT`, where blocks `1-4`/`9-12` take the
-low half of each eight (`AN1-4`, `AN9-12` …) and `5-8`/`13-16` the high half. The two
-monitor tokens the protocol document spells `AUX1-6/Mon` and `AuxIN1-6/TB` are written
-`AUX/CR` and `AUX/TB`. `extract-routing` writes a preset; `set-routing` edits a bank.
+**Routing presets** (`.rou`), as x32scene writes them, are the four input routing banks,
+`/config/routing/{IN,AES50A,AES50B,CARD}`, as scene lines. Each block token comes from a
+fixed vocabulary per bank and block (`tables.routing_vocab`): 24 input-bank sources for
+`IN`/`PLAY` plus 16 for their `AUX` block, 36 for the `AES50A`/`AES50B`/`CARD` blocks
+(inputs, outputs, P16, `AUX/CR`, `AUX/TB`, user slots), and 36 four-wide ones for `OUT`,
+where blocks `1-4`/`9-12` take the low half of each eight (`AN1-4`, `AN9-12` …) and
+`5-8`/`13-16` the high half. The two monitor tokens the protocol document spells
+`AUX1-6/Mon` and `AuxIN1-6/TB` are written `AUX/CR` and `AUX/TB`. `extract-routing` writes a
+preset; `set-routing` edits a bank. The protocol document's routing-preset list is longer:
+`/config/routing/routswitch`, `OUT` and `PLAY`, and the `/outputs/main`, `aux`, `p16` and
+`aes` lines with their `/delay` and `/iQ` siblings. A routing preset may therefore carry the
+output patch, channel direct outs included — published, not yet seen in a file.
 
 **Show files** (`.shw`) are an index X32-Edit writes next to `<show>.NNN.scn` and
 `<show>.NNN.snp` companions: a `show "<name>" …` line, then one `cue/NNN`, `scene/NNN` or
@@ -480,7 +596,7 @@ cue/000 100 "Opener" 0 0 -1 0 1 0 0
 
 the cue number times 100 (`1.2.3` is `123`), its name, skip, the scene slot and snippet
 slot it recalls (`-1` for none), then the MIDI type, channel and two values. `x32scene
-show` lists one; `x32scene show-build` writes one from scene and snippet files and cue
-lines, in the shape X32-Edit imports.
+show` lists one and `show --check` checks its cues and companions; `x32scene show-build`
+writes one from scene and snippet files and cue lines, in the shape X32-Edit imports.
 
 **Cues** pair a scene with a snippet (and MIDI); they live only in the show index.

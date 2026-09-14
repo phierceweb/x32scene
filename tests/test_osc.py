@@ -122,6 +122,16 @@ class FakeConsoleTest(unittest.TestCase):
         marks = [started, *calls, time.monotonic()]
         self.assertLess(max(b - a for a, b in pairwise(marks)), 0.75, marks)
 
+    def test_each_path_is_stamped_with_when_it_was_first_asked(self):
+        asked = {}
+        before = time.monotonic()
+        pull_lines("127.0.0.1", ["ch/01/config", "ch/99/nope", "ch/01/eq/1"],
+                   port=self.console.port, timeout=0.2, retries=1, asked=asked)
+        self.assertEqual(list(asked), ["/ch/01/config", "/ch/99/nope", "/ch/01/eq/1"])
+        stamps = [before, *asked.values(), time.monotonic()]
+        self.assertEqual(stamps, sorted(stamps))
+        self.assertGreaterEqual(asked["/ch/01/eq/1"] - asked["/ch/99/nope"], 0.4)  # not the retry
+
     def test_pull_scene_like_reference(self):
         ref = Scene.parse('#4.0# "REF" "" %000000000 1\n'
                           + "\n".join(CANNED.values()) + "\n")

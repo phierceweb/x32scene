@@ -52,6 +52,21 @@ class StartPullTest(WatchCliBase):
         console = WatchConsole(on_query=("/ch/01/config", MIX_DOWN, ["/ch/01/mix/fader"]))
         self.assertEqual(self.changes(console), ([], []))
 
+    def test_the_watch_is_told_when_the_start_pull_asked_for_each_path(self):
+        seen = []
+        real_run = W.Watch.run
+
+        def spy(w, *a, **kw):
+            seen.append((dict(kw.get("pulled") or {}), time.monotonic()))
+            return real_run(w, *a, **kw)
+
+        started = time.monotonic()
+        with mock.patch.object(W.Watch, "run", spy):
+            self.watch(WatchConsole(), "--seconds", "0.3")
+        pulled, run_began = seen[0]
+        self.assertEqual(len(pulled), 5)
+        self.assertTrue(all(started < t < run_began for t in pulled.values()), pulled)
+
     def test_the_subscription_is_renewed_during_a_long_pull(self):
         console = WatchConsole(reply_delay=0.06)
         with mock.patch.object(W, "RENEW", 0.1):

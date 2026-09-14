@@ -13,11 +13,10 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from ..model import HEADER_RE, Scene
+from ..model import HEADER_RE, Scene, read_file
 from . import validate
-from .presets import extract_preset
+from .presets import extract_preset, preset_selects
 from .routing import channel_headamp_index
-from .scopes import SCOPES, scope_of
 from .snippets import MIX_FIELD
 
 MATCH, DRIFT, NO_CHANNEL, AMBIGUOUS, UNREADABLE = (
@@ -101,10 +100,10 @@ def _scene_tokens(scene: Scene, ch: int, path: str) -> list[str] | None:
     return None if target is None else list(target.args)
 
 
-def _compare(scene: Scene, ch: int, preset: Scene, sel: set[str]) -> PresetCheck:
+def _compare(scene: Scene, ch: int, preset: Scene, selects: Callable[[str], bool]) -> PresetCheck:
     res = PresetCheck("", MATCH)
     for ln in preset.lines:
-        if not ln.path or HEADER_RE.match(ln.path) or scope_of(ln.path) not in sel:
+        if not ln.path or HEADER_RE.match(ln.path) or not selects(ln.path):
             continue
         path, want = ln.path, list(ln.args)
         if path.startswith("/headamp"):
@@ -133,7 +132,9 @@ def check_preset(scene: Scene, file: str, text: str,
     """Match one preset's text to a channel of ``scene`` and compare it there.
 
     The name is the preset's own ``/config`` scribble, or the ``file`` stem when that is
-    missing or empty. Never raises for a malformed preset: it comes back UNREADABLE.
+    missing or empty. Without ``scopes``, a header's section flags choose what is compared,
+    as they choose what an apply writes. Never raises for a malformed preset: it comes back
+    UNREADABLE.
     """
     try:
         preset = Scene.parse(text)
@@ -149,19 +150,17 @@ def check_preset(scene: Scene, file: str, text: str,
     channels = match_channels(scene, name, stem=from_file)
     if len(channels) != 1:
         return PresetCheck(file, AMBIGUOUS if channels else NO_CHANNEL, name, channels)
-    res = _compare(scene, channels[0], preset, set(SCOPES if scopes is None else scopes))
+    res = _compare(scene, channels[0], preset, preset_selects(text, scopes))
     res.file, res.name, res.channels = file, name, channels
     return res
 
 
-def _read(path: str) -> str:
-    with open(path, encoding="utf-8", newline="") as fh:
-        return fh.read()
 
 
 def check_library(scene: Scene, directory: str, scopes: list[str] | None = None, *,
-                  read: Callable[[str], str] = _read) -> list[PresetCheck]:
-    """``check_preset`` for every ``.chn`` directly in ``directory``, by file name.
+                  read: Callable[[str], str] = read_file) -> list[PresetCheck]:
+    """``check_preset`` for every ``.chn`` regular file directly in ``directory``, by file
+    name. A ``._`` AppleDouble sidecar is skipped, and so is a FIFO, which would block a read.
 
     ``read`` fetches a file's text; one that raises OSError or ValueError is UNREADABLE.
     Raises OSError when ``directory`` itself cannot be listed.
@@ -169,7 +168,8 @@ def check_library(scene: Scene, directory: str, scopes: list[str] | None = None,
     out = []
     for file in sorted(os.listdir(directory), key=str.casefold):
         path = os.path.join(directory, file)
-        if validate.kind_of(file) != "chn" or os.path.isdir(path):
+        if (validate.kind_of(file) != "chn" or file.startswith("._")
+                or not os.path.isfile(path)):
             continue
         try:
             text = read(path)

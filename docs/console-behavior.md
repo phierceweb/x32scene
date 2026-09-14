@@ -20,7 +20,7 @@ truth, and it is worth running before you trust any generated scene at a gig.
 - [Linking or unlinking a pair](#linking-or-unlinking-a-pair)
 - [Effect parameter order is real but type-specific](#effect-parameter-order-is-real-but-type-specific)
 - [Getting a file onto the desk](#getting-a-file-onto-the-desk)
-- [The load test — the only ground truth](#the-load-test-the-only-ground-truth)
+- [The load test — the only ground truth](#the-load-test--the-only-ground-truth)
 
 ## The scene name comes from the filename, not the header
 
@@ -39,7 +39,9 @@ normal and mean your value was accepted:
 - **Frequencies snap to the console's own steps.** `4k50` may come back `4k52`, `3k00` may
   come back `2k99`. The desk has a fixed detent grid and moves your value to the nearest
   one. The same holds for every logarithmic effect parameter: a reverb decay of `2.10`
-  loaded through X32-Edit came back `2.11`, a damping of `8k00` came back `8k34`.
+  loaded through X32-Edit came back `2.11`, a damping of `8k00` came back `8k34`. Channel
+  processing snaps the same way: an EQ band at `200.0` came back `202.3`, a low cut at `80`
+  came back `79`, a compressor release of `120` came back `124`.
 
 A value being valid means it survives as the nearest detent — not that it comes back
 character-identical. Do not treat a snapped frequency as a failed write.
@@ -87,16 +89,20 @@ is the first thing to rule out.
 ## Stereo-linked pairs reconcile on recall
 
 Buses, channels and other strips can be **stereo-linked in pairs** (`/config/buslink` and
-friends carry one ON/OFF token per pair). On recall the console reconciles a linked pair.
+friends carry one ON/OFF token per pair). Observed on firmware 4.06: **a write to one side
+of a linked channel pair is mirrored to the other side at once.** A root write of a send's
+level to the odd channel put the same level on the even channel's send, a tap point written
+to one side appeared on the other, and the send pans stayed per side (`-100` / `+100`).
+X32-Edit's Load pushes a file line by line, so a file whose two sides disagree ends with the
+pair equal to whichever line was pushed last — the even channel's, in scene order: a scene
+with a one-sided send level and tap loaded and came back with both sides at the even
+channel's values, the odd side's edit gone. Recall from a USB stick on the desk has not
+been watched.
 
-The consequence: **writing one side of a linked pair is not durable.** If you set the odd
-bus and leave the even side untouched, the link reverts the odd side's level to match the
-untouched even side when the scene is recalled. Pan and tap live on the odd line only, so
-they survive — producing the tell-tale pattern *pan and tap recalled correctly, level did
-not, and only one bus was affected.*
-
-Anything that copies or sets a send must write **both sides** of a linked pair. x32scene
-does this by default and exposes `--no-link` to opt out.
+The consequence: **writing one side of a linked pair is not durable.** Anything that copies
+or sets a send must write **both sides** of a linked pair. x32scene does this by default and
+exposes `--no-link` to opt out; `preflight`'s `require_send_symmetry` checks a file for the
+same reason.
 
 Note this interacts with the parity rule in [format.md](format.md#bus-sends--and-the-oddeven-field-count-invariant):
 the even-side line carries only `<on> <level>`, which is exactly the field that must match.
@@ -132,20 +138,23 @@ Pans move too:
 
 - **Matrix-send pans** (the odd matrix lines 1, 3 and 5): bus N goes to `-100`, bus N+1 to
   `+100`, every time.
-- **Main pans** (`/bus/NN/mix` field 4): both centred went to `-100` / `+100` in two probes;
-  bus N off-centre with bus N+1 centred left both alone in a third. That is what was
-  observed, not a verified rule.
+- **Main pans** (`/bus/NN/mix` field 4): both centred go to `-100` / `+100`; any other pair
+  stays as it was. Observed from ten starting pairs on firmware 4.06: `+0/+0` spread, while
+  `+30/+0`, `+0/+30`, `+30/+30`, `-50/+50`, `-100/+100`, `+100/-100`, `+30/-20`, `-100/+0`
+  and `+0/+100` stayed.
 
 **Unlink.** The link token and pans only. Matrix-send pans centre to `+0` on both buses;
-main pans at exactly `-100` / `+100` centre to `+0`, any other main pans stay. Sends and
+main pans at exactly `-100` / `+100` centre to `+0`, any other main pans stay — `+100/-100`
+included (the same ten starting pairs). Sends and
 strip settings stay as the link left them, so bus N+1 keeps bus N's copied values — link
 then unlink does not restore what bus N+1 had.
 
 Both directions keep every line's field count: send-line shape follows bus parity, not the
 link ([format.md](format.md#bus-sends--and-the-oddeven-field-count-invariant)).
 
-`x32scene set-bus-link` writes the same changes into a file. Loading such a file has not
-been watched; load-test it like any other edit.
+`x32scene set-bus-link` writes the same changes into a file. A file it wrote linking a pair
+has been loaded through X32-Edit, and a full pull afterwards matched the file with zero
+changed paths ([Getting a file onto the desk](#getting-a-file-onto-the-desk)).
 
 ## Effect parameter order is real but type-specific
 
@@ -188,12 +197,33 @@ Load buttons then push the values to the desk from there. Observed on a live con
   scene returned the desk to a zero-diff pull.
 - Show Control → Scenes → Import + Load pushed a whole scene written by x32scene — one
   re-sourcing channels onto stage-box inputs with their head amps, one linking a bus pair.
-  A full pull afterwards matched each file with zero changed paths.
+  A full pull afterwards matched each file with zero changed paths. So did a `swap-strips`
+  scene: two strips exchanged, a P16 output moved to the other strip's direct-out tap, and
+  two user-assign page jumps re-pointed.
+- The same route carried a `band-setup` scene with a channel's low cut, EQ band, compressor,
+  gate and pan, an FX slot's type and a parameter, a CARD routing block, a record track's
+  user-out slot, and `rec` and `aes` outputs re-pointed to Monitor R and Matrix 1. Every line
+  took; three values came back on the desk's grid (EQ `200.0` as `202.3`, low cut `80` as
+  `79`, compressor release `120` as `124`).
+- Library → Routing → Import + Load of a routing preset that changes a CARD block, with
+  only Channel In, AES50 Out and Card Out ticked in Recall Patching Scope, changed exactly
+  `/config/routing/CARD`.
+- Library → Channel → Import + Load of a channel preset x32scene wrote with `--header`:
+  X32-Edit's Flags column showed exactly the sections the header flags present (gate, EQ,
+  dynamics, with EQ lit as the active one), and Load wrote only those sections onto the
+  selected channel, every Recall Scope tick on.
 - Library → Routing → Load has a **Recall Patching Scope** panel with eight ticks, all on
   by default. Five cover sections a routing preset does not carry (XLR out, out patch,
   aux and P16 patch, user slots); untick those or X32-Edit may write defaults there.
 - X32-Edit's scene export equals the desk's own state byte for byte apart from the title,
   so its files are ground truth for token formats.
+
+**Over OSC, one line at a time.** A `/` root write of each line a scene changes sets those
+nodes directly. It is what X32-Edit's Load does, minus X32-Edit. On firmware 4.06, a
+`swap-strips` file exchanging two strips (52 lines) was loaded this way. The two strips, a
+P16 output moved to the other strip's direct-out tap, and user-control page jumps
+re-pointed to the moved channel (`P0000` to `P2800`) all took. A full pull matched the file
+with zero changed paths. That proves the desk accepts the tokens; it is not a recall.
 
 X32-Edit's Load pushes a file's lines from the computer. Loading the same file from a USB
 stick on the desk is the other route, through the desk's own recall and its header masks;

@@ -9,10 +9,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from itertools import zip_longest
 
-from ..model import Line, Scene
+from ..model import Scene, put_field
 from ..tables import LINKCFG, SEND_STRIPS
 
-_FIELD = re.compile(r'(?:^| )( *(?:"[^"]*"|[^ ]+))')
 _LINK, _PREFS = "/config/buslink", "/config/linkcfg"
 _PAN, _MTX_PAN, _MTX_TAP, _COLOUR = 3, 2, 3, 2
 _MATRIX = tuple(range(1, 7))
@@ -30,15 +29,6 @@ class BusLinkEdit:
     even: int
     on: bool
     changed: list[str] = field(default_factory=list)
-
-
-def _fields(ln: Line) -> list[str]:
-    return _FIELD.findall(ln.raw[len(ln.path) + 1:])
-
-
-def _put(fields: list[str], i: int, tok: str) -> None:
-    """Replace a field's token, keeping the padding the desk wrote in front of it."""
-    fields[i] = fields[i][:len(fields[i]) - len(fields[i].lstrip(" "))] + tok
 
 
 def _pan(fields: list[str], i: int, path: str) -> int:
@@ -59,7 +49,7 @@ class _Plan:
             ln = self.scene.get(path)
             if ln is None:
                 raise KeyError(f"no {path}: cannot {self.verb} the pair")
-            self.read[path] = _fields(ln)
+            self.read[path] = ln.padded_fields()
             self.fields[path] = list(self.read[path])
         return self.fields[path]
 
@@ -79,10 +69,7 @@ class _Plan:
         for path, fields in self.fields.items():
             if fields == self.read[path]:
                 continue
-            ln = self.scene.get(path)
-            raw = f"{path} {' '.join(fields)}"
-            if raw != ln.raw:
-                ln.raw, ln.args, ln.dirty = raw, Line.parse(raw).args, True
+            if self.scene.get(path).set_fields(fields):
                 changed.add(path)
         return [ln.path for ln in self.scene.lines if ln.path in changed]
 
@@ -124,7 +111,7 @@ def set_bus_link(scene: Scene, bus: int, on: bool) -> BusLinkEdit:
         raise ValueError(f"{_LINK} has no token for bus {odd}/{even}")
     if (link[k].strip() == "ON") == on:
         raise ValueError(f"bus {odd}/{even} is already {verb}ed")
-    _put(link, k, "ON" if on else "OFF")
+    put_field(link, k, "ON" if on else "OFF")
     b1, b2 = f"/bus/{odd:02d}", f"/bus/{even:02d}"
     main1, main2 = plan.get(f"{b1}/mix"), plan.get(f"{b2}/mix")
     pans = (_pan(main1, _PAN, f"{b1}/mix"), _pan(main2, _PAN, f"{b2}/mix"))
@@ -150,10 +137,10 @@ def set_bus_link(scene: Scene, bus: int, on: bool) -> BusLinkEdit:
         for path, tok in ((f"{b1}/mix/{m:02d}", "-100"), (f"{b2}/mix/{m:02d}", "+100")):
             fields = plan.get(path)
             _pan(fields, _MTX_PAN, path)
-            _put(fields, _MTX_PAN, tok if on else "+0")
+            put_field(fields, _MTX_PAN, tok if on else "+0")
     if spread:
-        _put(main1, _PAN, "-100" if on else "+0")
-        _put(main2, _PAN, "+100" if on else "+0")
+        put_field(main1, _PAN, "-100" if on else "+0")
+        put_field(main2, _PAN, "+100" if on else "+0")
     return BusLinkEdit(odd, even, on, plan.apply())
 
 

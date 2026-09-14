@@ -139,6 +139,17 @@ class RegenerateCliTest(unittest.TestCase):
                 self.assertIn(f".{kind}", err)
                 self.assertFalse(os.path.exists(self.out))
 
+    def test_refuses_a_scene_with_no_channel_strips(self):
+        header_only = os.path.join(self.dir, "fx-only.scn")
+        with open(header_only, "w", encoding="utf-8") as fh:
+            fh.write('#4.0# "x" "" %000000000 1'.ljust(127) + "\n/fx/1 PLAT\n")
+        for src in (CONFIG, header_only):
+            with self.subTest(src=os.path.basename(src)):
+                rc, out, err = run("preflight", src, "--regenerate", self.out)
+                self.assertEqual((rc, out), (1, ""))
+                self.assertIn(f"{src} has no channel strips", err.splitlines()[-1])
+                self.assertFalse(os.path.exists(self.out))
+
     def test_a_scene_without_the_scn_extension_is_still_read(self):
         scene = os.path.join(self.dir, "pulled.txt")
         shutil.copy(SCENE, scene)

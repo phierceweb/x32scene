@@ -155,11 +155,14 @@ class FxTest(unittest.TestCase):
             with self.subTest(code=code):
                 self.assertEqual(len(names), len(set(names)))
 
-    def test_set_fx_param_geq_still_refused(self):
-        with self.assertRaises(ValueError):
+    def test_set_fx_param_writes_geq_bands_and_refuses_true_eq(self):
+        FX.set_fx_param(self.sc, 8, "20", "3.0")
+        FX.set_fx_param(self.sc, 7, "20 A", "3.0")
+        self.assertEqual(self.sc.get("/fx/8/par").args[0], "3.0")
+        self.assertEqual(self.sc.get("/fx/7/par").args[0], "3.0")
+        FX.set_fx_type(self.sc, 8, "TEQ")
+        with self.assertRaisesRegex(ValueError, "not desk-verified"):
             FX.set_fx_param(self.sc, 8, "20", "3.0")
-        with self.assertRaises(ValueError):
-            FX.set_fx_param(self.sc, 7, "20 A", "3.0")
 
 
 class GroupsTest(unittest.TestCase):

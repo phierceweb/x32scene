@@ -64,7 +64,8 @@ value is free text, so the sidecar describes any rig. Keys starting with `_` are
 
 A malformed document is refused whole before anything is checked: an unknown key, an unknown
 bank, an output number outside its bank, `"9"` beside `"09"`, a `bus` outside 1–16, a
-non-string label, or two entries claiming the same jack on the same box.
+non-string label, two entries claiming the same jack on the same box, or a key repeated
+inside one object.
 
 ## What preflight checks
 
@@ -87,7 +88,8 @@ run without one never claims to have checked it.
 box), the device and wearer, and either `confirmed <date>` or `unconfirmed` — so the note
 that still needs a soundcheck is visible before doors. `--bank all` covers every bank, and
 `--config rig.json` labels main outputs physical or virtual from the config's
-`monitor.physical_outputs`, since the console model is not in the file either.
+`monitor.physical_outputs`, or `--console MODEL` from the model's jack count, since the
+console model is not in the file either.
 
 ## Where the real one lives
 

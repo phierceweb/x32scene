@@ -89,6 +89,21 @@ class ShowBuildCliTest(unittest.TestCase):
                 self.assertEqual(main(["show", os.path.join(out, "Night.shw")]), 0)
             self.assertIn("cue/000  1.0.0 Opener   [scene 0, snippet 0]", buf.getvalue())
 
+    def test_a_target_that_cannot_be_replaced_leaves_every_file_as_it_was(self):
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "S.001.scn"))
+            for name in ("S.shw", "S.000.scn"):
+                with open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+                    fh.write("old\n")
+            err = io.StringIO()
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+                self.assertNotEqual(main(["show-build", "-o", d, "--name", "S", "--scene", EXAMPLE,
+                                          "--scene", EXAMPLE, "--force"]), 0)
+            self.assertEqual((_read(os.path.join(d, "S.shw")), _read(os.path.join(d, "S.000.scn"))),
+                             ("old\n", "old\n"))
+            self.assertIn("S.001.scn", err.getvalue())
+            self.assertEqual(sorted(os.listdir(d)), ["S.000.scn", "S.001.scn", "S.shw"])
+
     def test_bad_cue_writes_nothing(self):
         with tempfile.TemporaryDirectory() as d:
             out = os.path.join(d, "show")

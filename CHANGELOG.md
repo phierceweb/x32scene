@@ -3,6 +3,148 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.4.0] — 2026-09-14
+
+### Added
+- `swap-strips SCENE A B`, `move-strip SCENE FROM --to TO` and `reorder-strips SCENE
+  FROM:TO…`: channel strips to new positions. Every `/ch/NN` line travels whole; channel
+  direct-out taps on every output bank, `/config/chlink` and user-assign codes naming a moved
+  channel (the factory `P0000` included) follow it, each rewrite printed. All-or-nothing;
+  refuses a mapping that is not a permutation, a stereo-linked pair split or reversed, a key
+  source 1–32 naming a moving channel, an automix group crossing channels 1–8, and an input
+  that is not a `.scn`. Refused in `snippet --edit`.
+  Library: `services.stripmove.permute_channels`, `swap_mapping`, `move_mapping`,
+  `unexpected_changes`; `services.userctrl.strip_index`, `retarget`;
+  `tables.tap_to_channel`, `channel_to_tap`; `Line.padded_fields`, `Line.set_fields`,
+  `model.put_field`.
+- `set-send-tap SCENE STRIP BUS TAP`: a channel, aux-in or FX-return send's tap point,
+  written on the odd bus line of the pair and mirrored to a stereo-linked strip unless
+  `--no-link`; an even BUS names the odd line it writes. Carried by `snippet --edit`.
+  Library: `services.iem.set_send_tap`, `send_strip_group`, `tap_bus`.
+- `set-record SCENE TRACK SRC`: a USB card record track's source, written into the
+  `/config/userrout/out` slot its CARD block reads; SRC takes the words `record-map` prints
+  or 0–208. Names every other AES50, card or XLR channel the slot feeds; refuses a track
+  whose CARD block is not `UOUT…`. Carried by `snippet --edit`.
+  Library: `services.routing_edit.set_record`, `record_slot`, `encode_out_source`;
+  `services.routing.user_out_readers`.
+- band-setup plan key `record`: card record track → source words, written through each
+  track's CARD block after `routing`; a non-`UOUT` block, an unknown source or two tracks
+  naming different sources for one slot is a plan error, exit 2. Each track prints as
+  `set-record` prints it, with every other destination its slot feeds.
+  Library: `band_swap.apply_plan` and `run` report `record`; `routing_edit.record_row`.
+- `--console MODEL` and `X32SCENE_CONSOLE` on `ports`, `report` and `preflight`: the
+  console's main output jack count from its model (X32 and M32: 16; X32 Producer, X32
+  Compact, X32 Rack and M32R: 8; X32 Core and M32C: 0; each from its manual), by
+  `/xinfo` model string or product name in any case. `preflight --regenerate` writes it as
+  `monitor.physical_outputs` with `require_reachable`; `preflight` fills a config that
+  declares no count; `ports` and `report` label physical and virtual outputs. A config
+  declaring another count, or an unknown model, is refused. `monitor.physical_outputs`
+  takes 0-16: with 0, every main output is virtual.
+  Library: `services.console_models.console_model`, `main_jacks`;
+  `preflight_regen.regenerate(..., console=)`.
+- `set-fx --set` and a plan's `fx.params` write the `GEQ` and `GEQ2` bands by their labels
+  (`20` … `20000`, `Master`; `20 A`, `20 B` on the dual), in the desk's own `3.0` form. Verified
+  on a console; `TEQ` and `TEQ2` stay read-only.
+- `--json` on `info`, `buses`, `explain`, `audit` and `live-diff`. `audit --json` carries
+  `ok` and keeps its exit codes; `live-diff --json` carries `changes` and `unanswered`, with
+  warnings on stderr. Library: `services.buses.channel_names`, `bus_names`, `bus_rows`;
+  `services.audit.routing_drift`, `record_patch_drift`.
+- `show FILE.shw --check`: a FAIL line for a file with no `show` line (empty, header-only
+  or another kind), for each cue that is not a whole cue line (a scene or snippet field that is
+  not a number included; plain `show` lists it undecoded), for each cue naming a scene or snippet slot the index
+  lacks, and each slot whose `<show>.NNN.scn` / `.snp` companion beside the `.shw` is
+  missing, unreadable, misshapen, of the other kind, or (a snippet) carries a header its
+  `snippet/NNN` line does not; exit 1 on any. `--json` as `preflight`'s document.
+  Library: `services.show_check.check_show`, `check_cues`, `companion`; `Show.has_show_line`.
+- `x32scene --kind scn|snp|chn|efx|rou|shw COMMAND …`: the kind of a named file whose
+  extension is none of those, for its shape warning, the `.scn`-only refusal of
+  `swap-strips`, `move-strip` and `reorder-strips`, and `preflight --regenerate`'s
+  needs-a-scene refusal. A file named with a kind's extension keeps its own.
+
+### Changed
+- `UdpTransport` moved from `services.watch` to `services.osc`.
+- The sdist no longer carries `tests/`; the suite runs from a repository checkout.
+- `x32scene --help` opens with what the tool does and where to read on (`x32scene <command>
+  --help`, docs/cli.md) instead of the CLI module's internals.
+- Every word from a fixed list is accepted in either case — `set-mute` and `set-output
+  --invert` `on|off`, `set-routing` KEY and `switch REC|PLAY`, `set-output` BANK and `--pos`,
+  `ports` and `apply-routing --bank`, `vocab`, `meters`, every `--scope` — and written in its
+  canonical spelling. Library: `routing_edit.set_routswitch` and `set_output(pos=)` fold case.
+- `band-setup` prints every changed path grouped by strip after its summary line, marking
+  `(mirrored)` each send a stereo-linked pair wrote without the plan naming it.
+  Library: `band_swap.mirrored_paths`; `verify` and `run` report `mirrored`.
+- `apply-preset` without `--scope`, and a `band-setup` preset without `scopes`, apply only
+  the sections a preset header flags present and name the scopes they skipped (`/delay` by
+  path, under the config flag); a headerless
+  preset is unchanged, and `presets-diff` compares the same scopes. The config flag selects
+  `/delay` with `/config`; a header with no 16-bit flag mask selects as a headerless preset
+  does, and `header` shows it with no sections. `extract-preset --header` flags the config
+  section for `/config`.
+  Library: `presets.header_scopes`, `unflagged_scopes`, `preset_selects`;
+  `band_swap.apply_plan` and `run` report `preset_skipped`.
+
+### Fixed
+- `show-build` writes its index and companions all or none, refusing a directory at any
+  target name before writing, as `extract-preset --all` does.
+- `band-setup` applies a channel preset whose main mix is saved one field per line
+  (`/mix/fader`, `/mix/pan` …) instead of refusing its own `/ch/NN/mix` write as out-of-plan.
+- `ports` for a console whose 16 main outputs are all jacks heads the list without a
+  `17-16 = virtual` range.
+- `extract-preset --all --force` puts back every original it already replaced when a later
+  target cannot be replaced, naming that target rather than the staging folder, and removes
+  a DIR it created when nothing is written.
+- `presets-diff` skips `._` AppleDouble sidecars and anything in DIR that is not a regular
+  file, so a sidecar is no longer `UNREADABLE` and a pipe named `*.chn` no longer hangs it.
+- A write that fails (a missing folder, a directory in OUT's place, no permission) names the
+  OUT given, not the temporary file behind it, for every `-o` writer and `--regenerate`.
+  Library: `Scene.save` raises the OSError against its path; `model.write_file`.
+- A file that is not UTF-8 is refused in one line naming it — a scene, snippet or preset as
+  not a console text file, a plan, preflight config or stage sidecar as not a JSON document —
+  instead of a codec error naming nothing. Library: `Scene.load` and `model.read_file` raise
+  ValueError.
+- A plan, preflight config or stage sidecar that repeats a key inside one object, at any
+  depth, is refused naming the key and file instead of keeping the last value: `band-setup`
+  exits 2 with nothing written, `preflight` exits 1. Library: `services.jsonfile.read_json`.
+- `preflight SCENE --regenerate` exits 1 with nothing written when SCENE has no channel
+  strips (a JSON file, a header-only scene), instead of writing a near-empty config.
+- `pull`, `live-diff` and `watch`'s start pull exit 2 once 8 paths in a row go unanswered,
+  no late reply arrived during them, and the last path that answered does not answer again,
+  instead of waiting out every
+  remaining path. Library: `pull_lines(give_up=)`; `pull_scene_like` defaults it to
+  `osc.GIVE_UP`.
+- `watch` never takes a late `/node` reply to an earlier read-back for the answer to a newer
+  one, so a stale line no longer reaches the log, the net change or `--snippet`, and a reply
+  nothing asked for is ignored; nor does a slow reply that lands after its retry's fresher one.
+  A path whose reply could answer either is asked again once
+  every read-back of it still out is `watch.LATE` reply timeouts old, so one slow reply
+  during a fader ride holds that path for one such window rather than until the ride stops.
+- `watch` no longer dates a change from a push its start pull already held. Library:
+  `pull_lines(asked=)`, `pull_scene_like(asked=)`, `Watch.run(pulled=)`.
+
+### Docs
+- `docs/console-behavior.md`: the main-pan rule for linking and unlinking a bus pair,
+  observed from ten starting pan pairs; `set-bus-link` matches the desk in each.
+- console-behavior.md: a `swap-strips` file root-written to the desk line by line matched a full
+  pull, remapped direct-out tap and user-control page jumps included.
+- console-behavior.md: the table-of-contents link to the load test resolves on GitHub, and
+  `set-bus-link` records its X32-Edit load test.
+- cli.md: `watch` states which paths the end of a watch asks again, and how often.
+- format.md: a Channel references section (values that point at a channel, key sources,
+  look-alikes); `/ch/NN/config` field order corrected to name, icon, colour, source; the
+  `keysrc` enumeration and which dyn lines carry it; automix acts on channels 1–8 only;
+  user-assign `P0051` is the FX1 page; routing presets may carry output lines (published).
+- format.md: how a channel preset header's section flags map to apply scopes.
+- format.md: the send taps `IN/LC`, `<-EQ` and `GRP` are desk-verified (written and read back on
+  firmware 4.06) but not yet seen in a saved file.
+- console-behavior.md: X32-Edit load tests on firmware 4.06 — a `swap-strips` scene, a
+  `band-setup` scene (channel processing, an FX type and parameter, a CARD block, a record
+  slot, `rec`/`aes` taps), a routing preset that changes a block, and a `--header` channel
+  preset all loaded as written; which channel-processing values the desk snaps; a write to
+  one side of a stereo-linked channel pair mirrors to the other, so a one-sided file ends
+  at the even side's values.
+- format.md: `GEQ`/`GEQ2` band order and gain form verified on a console; output taps `20`
+  and `75` written and read back; X32-Edit reads a preset header x32scene writes.
+
 ## [0.3.0] — 2026-09-12
 
 ### Added

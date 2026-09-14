@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import socket
 import tempfile
 import threading
@@ -109,6 +110,9 @@ class WatchCliBase(unittest.TestCase):
         with open(self.ref, "w") as fh:
             fh.write(REF_TEXT)
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        # interrupt_main does nothing while SIGINT is ignored, as in a backgrounded shell
+        self.addCleanup(signal.signal, signal.SIGINT,
+                        signal.signal(signal.SIGINT, signal.default_int_handler))
 
     def watch(self, console, *argv):
         out, err = io.StringIO(), io.StringIO()
@@ -225,6 +229,17 @@ class WatchSnippetTest(WatchCliBase):
         self.assertFalse(os.path.exists(out_snp))
         self.assertIn(f"no net change; nothing written to {out_snp}", out)
         self.assertIn("1 path(s) changed and came back", out)
+
+
+class CtrlCTestHarnessTest(unittest.TestCase):
+    def test_the_base_restores_ctrl_c_when_sigint_starts_ignored(self):
+        previous = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        self.addCleanup(signal.signal, signal.SIGINT, previous)
+        base = WatchCliBase()
+        base.setUp()
+        self.assertIs(signal.getsignal(signal.SIGINT), signal.default_int_handler)
+        base.doCleanups()
+        self.assertIs(signal.getsignal(signal.SIGINT), signal.SIG_IGN)
 
 
 class WatchSecondsBoundTest(unittest.TestCase):

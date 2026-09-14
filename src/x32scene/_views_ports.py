@@ -6,20 +6,12 @@ from __future__ import annotations
 
 from .model import Scene
 from .services import routing as _routing
+from .services.buses import bus_names
 from .services.buslink import BusLinkEdit
 from .services.stage import stage_entries
 from .tables import OUTPUT_BANKS, SEND_STRIPS, decode_tap, tap_to_bus
 
 BANKS = (*OUTPUT_BANKS, "all")
-
-
-def bus_names(scene: Scene) -> dict[int, str]:
-    names = {}
-    for ln in scene.find("/bus/"):
-        if ln.path.endswith("/config"):
-            n = int(ln.path.split("/")[2])
-            names[n] = ln.args[0].strip('"') if ln.args else ""
-    return names
 
 
 def ports_rows(scene: Scene, bank: str = "main", stage: dict | None = None) -> list[dict]:
@@ -66,8 +58,12 @@ def cmd_ports(scene: Scene, physical: int | None = None, *, bank: str = "main",
     ``monitor.physical_outputs``) labels main outputs physical or virtual — the scene file
     cannot say which is which. A stage sidecar adds where each output lands and who hears it."""
     if physical is None:
-        print("Outputs (declare monitor.physical_outputs in a preflight config to label "
-              "physical vs virtual):")
+        print("Outputs (pass --console or declare monitor.physical_outputs in a preflight "
+              "config to label physical vs virtual):")
+    elif physical >= 16:
+        print("Outputs (main 1-16 = physical jacks):")
+    elif physical == 0:
+        print("Outputs (main 1-16 = virtual: no rear jacks)")
     else:
         print(f"Outputs (main 1-{physical} = physical jacks; {physical + 1}-16 = virtual, "
               "mirrored via AES50):")

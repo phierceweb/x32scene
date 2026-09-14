@@ -8,7 +8,8 @@ from pf_core.utils.env import resolve_str
 
 from . import __version__
 from .services.scopes import SCOPES
-from ._parsers_edit import _add_edits
+from .services.validate import KINDS
+from ._parsers_edit import _add_edits, _choice
 from ._parsers_live import _add_live
 from .tables import OUTPUT_BANKS
 
@@ -53,24 +54,40 @@ class _Subcommands(argparse._SubParsersAction):
         return super().add_parser(name, **kwargs)
 
 
+DESCRIPTION = ("Read, diff and edit Behringer X32 / M32 scene, snippet and preset files, and "
+               "read a live console over OSC. An edit writes a new file, never its input. Run "
+               "`x32scene <command> --help` for one command; docs/cli.md in the repository "
+               "is the full reference.")
+
+
 def _build_parser(description: str | None) -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="x32scene", description=description)
     p.add_argument("--version", action="version", version=f"x32scene {__version__}")
+    p.add_argument("--kind", **_choice(*KINDS),
+                   help="the kind of a named file whose extension is none of these "
+                        "(gig.scn.bak); a file named .scn, .snp … keeps its own. Goes "
+                        "before the command")
     sub = p.add_subparsers(dest="cmd", required=True, action=_Subcommands)
 
     # resolved once: every subparser reading them shares it, and a malformed value warns once
     config_default = resolve_str(None, "X32SCENE_CONFIG", default=None)
     stage_default = resolve_str(None, "X32SCENE_STAGE", default=None)
     stage_help = "stage sidecar JSON, or set X32SCENE_STAGE (start from config/example-stage.json)"
+    console_default = resolve_str(None, "X32SCENE_CONSOLE", default=None)
+    console_help = ("console model, e.g. X32RACK or \"X32 Rack\", for its main output jack "
+                    "count (or set X32SCENE_CONSOLE)")
     for name in ("info", "buses", "explain"):
-        sub.add_parser(name, help=_VIEW_HELP[name]).add_argument("scene")
+        s = sub.add_parser(name, help=_VIEW_HELP[name])
+        s.add_argument("scene")
+        s.add_argument("--json", action="store_true")
     s = sub.add_parser("ports", help="outputs -> source per bank; a sidecar adds jack/wearer")
     s.add_argument("scene")
-    s.add_argument("--bank", choices=(*OUTPUT_BANKS, "all"), default="main")
+    s.add_argument("--bank", **_choice(*OUTPUT_BANKS, "all"), default="main")
     s.add_argument("--config", default=config_default,
                    help="preflight config, read for monitor.physical_outputs "
                         "(or set X32SCENE_CONFIG)")
     s.add_argument("--stage", default=stage_default, help=stage_help)
+    s.add_argument("--console", default=console_default, metavar="MODEL", help=console_help)
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("console", help="the console-wide settings in words: monitor, talkback, "
                                        "oscillator, recorder, DP48, delays, iQ, user assign")
@@ -91,6 +108,7 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
                    help="preflight config, read for monitor.physical_outputs "
                         "(or set X32SCENE_CONFIG)")
     s.add_argument("--stage", default=stage_default, help=stage_help)
+    s.add_argument("--console", default=console_default, metavar="MODEL", help=console_help)
     s = sub.add_parser("iem-matrix", help="every monitor mix at once: senders x buses")
     s.add_argument("scene")
     s.add_argument("--buses", type=_bus_list, default=None, metavar="1,3,9",
@@ -152,12 +170,12 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s.add_argument("--source", action="store_true", help="also take the preset's source")
     s = sub.add_parser("vocab", help="the words the console accepts: routing bank tokens, "
                                      "output sources (taps), input sources")
-    s.add_argument("what", choices=("routing", "taps", "sources"))
+    s.add_argument("what", **_choice("routing", "taps", "sources"))
     s.add_argument("key", nargs="?", help="routing: IN, AES50A, AES50B, CARD, OUT or PLAY")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("set-routing", help="set routing bank blocks: KEY BLOCK=TOKEN …")
     s.add_argument("scene")
-    s.add_argument("key", choices=("IN", "AES50A", "AES50B", "CARD", "OUT", "PLAY", "switch"),
+    s.add_argument("key", **_choice("IN", "AES50A", "AES50B", "CARD", "OUT", "PLAY", "switch"),
                    help="a bank, or `switch` with REC|PLAY")
     s.add_argument("blocks", nargs="+", metavar="BLOCK=TOKEN",
                    help="e.g. 1-8=A1-8 AUX=AUX1-4 (for switch: REC or PLAY)")
@@ -169,14 +187,21 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     _out(s)
     s = sub.add_parser("set-output", help="an output's source, tap point and polarity")
     s.add_argument("scene")
-    s.add_argument("bank", choices=tuple(OUTPUT_BANKS))
+    s.add_argument("bank", **_choice(*OUTPUT_BANKS))
     s.add_argument("n", type=int, metavar="N")
     _out(s)
     s.add_argument("--src", help='"bus 9", "main l", "matrix 2", "direct out ch 5", off, 0-76')
     s.add_argument("--pos", help="tap point: IN/LC, <-EQ, EQ->, PRE, POST; the first four "
                                  "also as +M")
-    s.add_argument("--invert", choices=("on", "off"))
+    s.add_argument("--invert", **_choice("on", "off"))
     s.set_defaults(knobs={"--src": "src", "--pos": "pos", "--invert": "invert"})
+    s = sub.add_parser("set-record", help="point a USB card record track at a source, "
+                                          "through the user-out slot its CARD block reads")
+    s.add_argument("scene")
+    s.add_argument("track", type=int, metavar="TRACK", help="card record track 1-32")
+    s.add_argument("source", metavar="SRC", help='the words record-map prints ("Output 9", '
+                   '"P16 5", "Aux Out 2", "Monitor L"), "local 5", "card 7", off, or 0-208')
+    _out(s)
     s = sub.add_parser("extract-routing", help="the input routing banks as a routing preset (.rou)")
     s.add_argument("scene")
     _out(s, metavar="OUT.rou")
@@ -185,7 +210,7 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s.add_argument("scene")
     s.add_argument("preset")
     _out(s)
-    s.add_argument("--bank", action="append", choices=("IN", "AES50A", "AES50B", "CARD"),
+    s.add_argument("--bank", action="append", **_choice("IN", "AES50A", "AES50B", "CARD"),
                    help="only these banks (repeatable); default: all the preset carries")
     s = sub.add_parser("transplant", help="carry lines from SRC into DST and touch nothing "
                                           "else: a monitor bus, path patterns, channel sections")
@@ -198,7 +223,7 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
                    help="paths matching a pattern, e.g. /headamp/000 or '/ch/03/eq/*' (repeatable)")
     s.add_argument("--ch", type=int, action="append", default=[], metavar="N",
                    help="a channel's sections as a preset load would (repeatable)")
-    s.add_argument("--scope", action="append", choices=SCOPES,
+    s.add_argument("--scope", action="append", **_choice(*SCOPES),
                    help="with --ch: limit to these sections (default: all)")
     s = sub.add_parser("header", help="decode a file's header: scene safes, snippet filters, "
                                       "preset flags")
@@ -207,6 +232,8 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s = sub.add_parser("show", help="list a .shw index: scenes, snippets, cues")
     s.add_argument("file")
     s.add_argument("--json", action="store_true")
+    s.add_argument("--check", action="store_true",
+                   help="exit 1 unless every cue's slots and companion files are sound")
     s = sub.add_parser("show-build", help="write a show (.shw plus companions) from scenes, "
                                           "snippets and cues, the way X32-Edit imports one")
     s.add_argument("-o", "--dir", required=True, metavar="DIR", help="directory to write into")
@@ -227,6 +254,7 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s = sub.add_parser("audit", help="check a scene library's invariants and surface rig drift over time")
     s.add_argument("dir", nargs="?", default=resolve_str(None, "X32SCENE_CORPUS", default=None),
                    help="directory of .scn files (or set X32SCENE_CORPUS)")
+    s.add_argument("--json", action="store_true")
     s = sub.add_parser("preflight",
                        help="check a scene against the documented rig (FAIL/WARN report), "
                             "or write that config from the scene")
@@ -236,6 +264,8 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
     s.add_argument("--config", help="expected-config JSON, or set X32SCENE_CONFIG "
                                     "(start from config/example-preflight.json)")
     s.add_argument("--stage", help=stage_help)
+    s.add_argument("--console", default=console_default, metavar="MODEL",
+                   help=console_help + "; with --regenerate, writes monitor.physical_outputs")
     s.add_argument("--json", action="store_true")
     s.add_argument("--regenerate", metavar="OUT.json",
                    help="write the expected-config this scene satisfies instead of checking")

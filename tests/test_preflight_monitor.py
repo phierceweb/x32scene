@@ -52,6 +52,21 @@ class ReachabilityTest(unittest.TestCase):
         self.assertEqual(len(fs), 1, fs)
         self.assertIn("physical_outputs", fs[0].message)
 
+    def test_physical_outputs_0_means_every_output_must_leave_the_console(self):
+        exp = {"monitor": {"physical_outputs": 0, "require_reachable": True}}
+        self.assertEqual(fails(preflight(mini_scene(), exp)), [])
+        sc = mini_scene({"/config/routing/AES50B": "/config/routing/AES50B UOUT1-8 UOUT9-16 "
+                                                   "UOUT17-24 UOUT41-48 UOUT41-48 UOUT41-48"})
+        self.assertEqual(fails(preflight(sc, REACH)), [])
+        self.assertEqual([f.area for f in fails(preflight(sc, exp))],
+                         [f"out main {n:02d}" for n in range(1, 9)])
+
+    def test_physical_outputs_outside_0_to_16_is_refused(self):
+        for bad in (-1, 17, True, 8.0):
+            with self.subTest(bad=bad):
+                fs = fails(preflight(mini_scene(), {"monitor": {"physical_outputs": bad}}))
+                self.assertIn("physical_outputs must be a whole number 0-16", fs[0].message)
+
     def test_physical_outputs_16_means_nothing_is_virtual(self):
         exp = {"monitor": {"physical_outputs": 16, "require_reachable": True}}
         sc = mini_scene({"/config/routing/AES50A": ALL_UOUT})

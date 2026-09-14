@@ -39,10 +39,11 @@ def cmd_fx_types(code: str | None) -> None:
 def cmd_vocab(what: str, key: str | None) -> None:
     """The console's words: routing bank tokens per block, output sources, input sources."""
     if what == "routing":
-        keys = [key] if key else list(ROUTING_BLOCKS)
+        keys = [key.upper()] if key else list(ROUTING_BLOCKS)
         for k in keys:
             if k not in ROUTING_BLOCKS:
-                raise InvalidInputError(f"routing key must be one of {', '.join(ROUTING_BLOCKS)}")
+                raise InvalidInputError(f"routing key must be one of {', '.join(ROUTING_BLOCKS)}, "
+                                        f"not {key!r}")
             print(f"/config/routing/{k}")
             for label in routing_block_names(k):
                 print(f"  {label:6} " + " ".join(routing_vocab(k, label)))

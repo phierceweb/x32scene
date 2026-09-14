@@ -2,7 +2,7 @@
 
 The JSON document `x32scene band-setup TEMPLATE PLAN.json -o OUT.scn` applies to a
 known-good template scene: names, head amps, per-channel processing, DCA membership,
-monitor mixes, effects, routing and the output patch, in one file.
+monitor mixes, effects, routing, the output patch and the USB record patch, in one file.
 
 Do not confuse it with the two other JSON documents this tool reads. A **plan** *writes* a
 scene; the [preflight config](preflight-config.md) and the [stage sidecar](stage-sidecar.md)
@@ -22,6 +22,7 @@ Start from [`config/example-plan.json`](../config/example-plan.json).
 - [`outputs` and `output_patch`](#outputs-and-output_patch)
 - [`fx`](#fx)
 - [`routing`](#routing)
+- [`record`](#record)
 - [Rules that decide whether a plan works](#rules-that-decide-whether-a-plan-works)
 - [Failure modes](#failure-modes)
 - [Adding a new plan section](#adding-a-new-plan-section)
@@ -41,6 +42,7 @@ The stage order is fixed and load-bearing:
 5. `iem_sends`
 6. `outputs`
 7. `fx`, `routing`, `output_patch`
+8. `record`
 
 A preset applies before the plan's own values, so a plan key always wins over the preset
 that carried it. A copy replaces a destination send wholesale, so `iem_sends` runs after
@@ -61,6 +63,7 @@ Any other key is an error. Keys beginning `_` are comments and are ignored.
 | `fx` | object, key `"1"`–`"8"` | `/fx/N*` |
 | `routing` | object | `/config/routing/*` |
 | `output_patch` | object, bank → output → spec | `/outputs/<bank>/NN` |
+| `record` | object, track `"1"`–`"32"` → source | `/config/userrout/out` |
 
 ## `channels`
 
@@ -80,7 +83,7 @@ Any other key is an error. Keys beginning `_` are comments and are ignored.
 |---|---|
 | `name` | string; the scribble-strip name |
 | `preset` | path to a `.chn`, resolved **relative to the plan file** (absolute wins) |
-| `scopes` | list from `ha scribble gate comp eq sends mainfader insert automix`; limits what the preset carries |
+| `scopes` | list from `ha scribble gate comp eq sends mainfader insert automix`; limits what the preset carries. Omitted, a preset header's section flags decide, as `apply-preset` does ([format.md](format.md#channel-presets-chn)), and the report names each channel's skipped scopes |
 | `gain_db` | −12…+60, the analog head amp — not the channel's digital trim |
 | `phantom` | `true`/`false`; a JSON string is refused |
 | `fader` | −90…+10 dB, or `"-oo"` / `"oo"` (synonyms here) |
@@ -142,7 +145,9 @@ Three rules, each of which raises:
 
 Unlike channel processing, a send **is** mirrored: each record writes every send the
 console mirrors it to, both sides of a stereo bus pair and of a stereo strip pair. Name
-only one side, or the two records collide and the plan is refused.
+only one side, or the two records collide and the plan is refused. `iem_copy` writes both
+buses of a linked destination the same way. `band-setup` lists every path it changed and
+marks each send no record named `(mirrored)`.
 
 ## `outputs` and `output_patch`
 
@@ -191,6 +196,30 @@ Every block token is checked against the console's vocabulary for that bank and 
 `x32scene vocab routing KEY` lists it. A token the desk would not accept is a plan error,
 not a silent no-op. See [routing.md](routing.md) for what the banks mean.
 
+## `record`
+
+```json
+"record": {"5": "Output 9", "17": "Local input 1", "32": "Monitor R"}
+```
+
+Each key is a USB card record track, 1–32, and each value the source that track records:
+a word `record-map` prints (`"Local input 5"`, `"AES50-A input 3"`, `"Card 7"`, `"Aux In
+2"`, `"Talkback Int"`, `"Output 9"`, `"P16 5"`, `"Aux Out 2"`, `"Monitor L"`), a `set-input`
+word (`"local 5"`, `"aes50-b 12"`), `"off"`, or the number 0–208. A track map copied out of
+one scene's `record-map` drops straight in.
+
+A track is written through its `/config/routing/CARD` block into the user-out slot that
+block reads, exactly as `set-record` does ([routing.md](routing.md#the-record-map)). The
+section runs after `routing`, so a plan that re-points a card block records through the new
+block. A track whose block is not `UOUT…` is a plan error naming the block's token, as are
+two tracks that read one slot and name different sources. Every track resolves before any
+is written.
+
+A user-out slot is one signal wherever it is read: an AES50 or XLR block reading the same
+slot carries the new source too. `band-setup` prints each track as `set-record` does —
+`record track 3: Local input 3 -> Output 9 (user-out slot 3)`, then every other AES50, card
+or XLR channel that slot feeds — and `run`'s report carries the same rows as `record`.
+
 ## Rules that decide whether a plan works
 
 - **Preset paths resolve relative to the plan file**, not the working directory. An
@@ -213,9 +242,10 @@ not a silent no-op. See [routing.md](routing.md) for what the banks mean.
 | 1 | an output that already exists (pass `--force`), or an input refused outright |
 | 2 | a plan error — nothing written; the message names the key |
 
-A plan that is not a JSON object, an unknown key, a typo'd scope, a channel the template
-lacks, a template line the plan writes or copies from that has lost its values, a bus out
-of range, a `true` where a number belongs: all exit 2 before any line is written.
+A plan that is not a JSON object, a key repeated inside one object, an unknown key, a
+typo'd scope, a channel the template lacks, a template line the plan writes or copies from
+that has lost its values, a bus out of range, a `true` where a number belongs: all exit 2
+before any line is written.
 
 After a plan runs, `x32scene diff template.scn out.scn --by-strip` shows what moved, and
 the console is still the only proof the result is right — see

@@ -4,6 +4,7 @@ import contextlib
 import io
 import json
 import os
+import tempfile
 import unittest
 
 from x32scene.cli import main
@@ -42,6 +43,24 @@ class DecodeHeaderTest(unittest.TestCase):
         self.assertEqual(d["slot"], 20)
         self.assertEqual(d["version"], "2.0")
         self.assertEqual(d["sections"]["active"], ["gate", "eq", "dyn"])
+
+    def test_a_channel_preset_header_without_a_flag_mask_has_no_sections(self):
+        for head in ('#4.0# 1 "Kick" 0 0 1', '#4.0# 1 "Kick" 0 %0011 1'):
+            with self.subTest(head=head):
+                self.assertIsNone(decode_header(head)["sections"])
+        zero = decode_header('#4.0# 1 "Kick" 0 %0000000000000000 1')["sections"]
+        self.assertEqual(zero, {"present": [], "active": []})
+
+    def test_the_header_command_says_a_maskless_preset_applies_every_scope(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "kick.chn")
+            with open(path, "w", encoding="utf-8", newline="") as fh:
+                fh.write('#4.0# 1 "Kick" 0 0 1\n/preamp +0.0 OFF OFF 24 20\n')
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                self.assertEqual(main(["header", path]), 0)
+        self.assertIn("sections: no flag mask, so every scope the body carries applies",
+                      buf.getvalue())
 
     def test_effect_and_routing_presets(self):
         self.assertEqual(decode_header(_read("example.efx")),

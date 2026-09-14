@@ -29,7 +29,7 @@ def load_library(scenes_dir: str) -> tuple[list[tuple[str, Scene]], list[str]]:
         try:
             out.append((os.path.basename(p), Scene.load(p)))
         except ValueError as e:
-            errors.append(f"{os.path.basename(p)}: {e}")
+            errors.append(f"{os.path.basename(p)}: {str(e).removeprefix(f'{p}: ')}")
     return out, errors
 
 
@@ -67,6 +67,26 @@ def _sig_changes(lib, keyfn):
             last = v
 
 
+ROUTING_KEYS = ("IN", "AES50A", "AES50B")
+
+
+def routing_drift(lib: list[tuple[str, Scene]]) -> list[tuple[str, dict[str, list[str]]]]:
+    """The AES50 routing topology each time it changes down the chronology."""
+    def sig(sc):
+        return tuple(tuple(sc.get(f"/config/routing/{k}").args)
+                     if sc.get(f"/config/routing/{k}") else () for k in ROUTING_KEYS)
+    return [(name, {k: list(v) for k, v in zip(ROUTING_KEYS, value, strict=True)})
+            for name, value in _sig_changes(lib, sig)]
+
+
+def record_patch_drift(lib: list[tuple[str, Scene]]) -> list[tuple[str, list[str]]]:
+    """``/config/userrout/out`` each time it changes down the chronology, every slot."""
+    def sig(sc):
+        ln = sc.get("/config/userrout/out")
+        return tuple(ln.args) if ln else ()
+    return [(name, list(value)) for name, value in _sig_changes(lib, sig)]
+
+
 def report(lib: list[tuple[str, Scene]], scenes_dir: str,
            load_errors: list[str] | None = None) -> str:
     out = [f"### {len(lib)} scenes in {scenes_dir}\n"]
@@ -76,23 +96,12 @@ def report(lib: list[tuple[str, Scene]], scenes_dir: str,
     out.append("  ALL OK" if not viol else "\n".join("  " + v for v in viol))
 
     out.append("\n## AES50 routing topology (chronological; stage-box footprint)")
-    def aes_sig(sc):
-        return tuple(
-            tuple(sc.get(k).args) if sc.get(k) else ()
-            for k in ("/config/routing/IN", "/config/routing/AES50A", "/config/routing/AES50B")
-        )
-    for name, sig in _sig_changes(lib, aes_sig):
+    for name, banks in routing_drift(lib):
         out.append(f"  [{name}]")
-        out.append(f"    IN     {' '.join(sig[0])}")
-        out.append(f"    AES50A {' '.join(sig[1])}")
-        out.append(f"    AES50B {' '.join(sig[2])}")
+        out += [f"    {k:<6} {' '.join(banks[k])}" for k in ROUTING_KEYS]
 
     out.append("\n## Recording patch /config/userrout/out (chronological)")
-    def rec_sig(sc):
-        ln = sc.get("/config/userrout/out")
-        return tuple(ln.args) if ln else ()
-    for name, sig in _sig_changes(lib, rec_sig):
-        nz = [x for x in sig if x != "0"]
-        out.append(f"  [{name}] {' '.join(nz)}")
+    for name, slots in record_patch_drift(lib):
+        out.append(f"  [{name}] {' '.join(x for x in slots if x != '0')}")
 
     return "\n".join(out)

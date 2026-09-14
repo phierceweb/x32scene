@@ -220,7 +220,9 @@ class RigConfigDriftTest(unittest.TestCase):
 
     def test_tracked_config_matches_a_regenerated_one(self):
         cfg, scene = os.environ["X32SCENE_CONFIG"], os.environ["X32SCENE_REGEN_SCENE"]
-        diff = _drift(load_expected(cfg), regenerate(Scene.load(scene), scene, DAY))
+        fresh = regenerate(Scene.load(scene), scene, DAY,
+                           console=os.environ.get("X32SCENE_CONSOLE") or None)
+        diff = _drift(load_expected(cfg), fresh)
         if diff:
             print(diff)
         self.assertEqual(diff, "", "the tracked rig config differs from the scene; the diff "

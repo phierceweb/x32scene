@@ -221,6 +221,22 @@ def output_reach(scene: Scene) -> dict[int, list[str]]:
     return reach
 
 
+_READER_LABELS = {"AES50A": "AES50-A", "AES50B": "AES50-B", "CARD": "CARD track", "OUT": "XLR out"}
+
+
+def user_out_readers(scene: Scene, slot: int) -> list[str]:
+    """Every destination channel a UOUT block fills from user-out ``slot`` (1-48):
+    ``['AES50-A 5', 'CARD track 5', 'XLR out 5']``."""
+    out = []
+    for key, label in _READER_LABELS.items():
+        width = 4 if key == "OUT" else 8
+        for b, tok in enumerate(routing_blocks(scene, key)):
+            prefix, start = _block(tok)
+            if prefix == "UOUT" and start <= slot < start + width:
+                out.append(f"{label} {width * b + 1 + slot - start}")
+    return out
+
+
 def card_sourced_channels(scene: Scene) -> list[ChannelSource]:
     """Channels whose input is a USB card return (DAW playback / loopback / reamp)."""
     return [cs for cs in channel_sources(scene) if "Card" in cs.source]

@@ -44,6 +44,25 @@ class SecondsEndTest(unittest.TestCase):
         self.assertEqual({a for _, a, _ in desk.sent}, {"/xremote"})
 
 
+class EndRetryTest(unittest.TestCase):
+    """The end-of-watch retry docs/cli.md states for `watch`."""
+
+    def test_a_path_already_unanswered_is_asked_twice_more(self):
+        desk = ScriptedDesk(drop=10)
+        desk.push(1.0, "/ch/01/mix/on", [0], MIX_OFF)
+        w, _ = run(desk, seconds=3.0)
+        self.assertEqual([t < 3.0 for t in desk.queries("ch/01/mix")], [True, True, False, False])
+        self.assertEqual(w.summary().unanswered, ["/ch/01/mix"])
+
+    def test_a_read_back_out_at_the_end_keeps_its_own_schedule(self):
+        desk = ScriptedDesk(drop=10)
+        desk.push(1.0, "/ch/01/mix/on", [0], MIX_OFF)
+        w, _ = run(desk, seconds=1.9)
+        self.assertEqual(len(desk.queries("ch/01/mix")), 2)
+        self.assertLess(max(desk.queries("ch/01/mix")), 1.9)
+        self.assertEqual(w.summary().unanswered, ["/ch/01/mix"])
+
+
 class InterruptTest(unittest.TestCase):
     def test_flush_reads_back_what_an_interrupted_watch_left_waiting(self):
         desk = InterruptedDesk(lambda d: d.now >= 1.0)

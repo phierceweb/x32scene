@@ -5,10 +5,12 @@ from __future__ import annotations
 from datetime import date
 
 from pf_core.exceptions import InvalidInputError
-from pf_core.utils.io import atomic_write_bytes
 
 from . import _json
-from ._cli_files import load_checked, refuse_overwrite, refuse_unwritable
+from ._cli_console import with_console
+from ._cli_files import file_kind, load_checked, refuse_overwrite, refuse_unwritable
+from .model import write_file
+from .services import console_models as _models
 from .services import preflight as _preflight
 from .services import preflight_regen as _regen
 from .services import stage as _stage
@@ -28,8 +30,9 @@ def run_preflight(args) -> int:
             "preflight needs --config or X32SCENE_CONFIG; write one from a scene you trust "
             "with `x32scene preflight GOOD.scn --regenerate rig.json`")
     expected = _preflight.load_expected(config)
+    checked_against = with_console(expected, args.console)
     stage = _stage.load_stage(stage_path) if stage_path else None
-    findings = _preflight.preflight(load_checked(args.scene), expected, stage=stage)
+    findings = _preflight.preflight(load_checked(args.scene), checked_against, stage=stage)
     checked = _preflight.coverage(expected, stage)
     if args.json:
         _json.dump(_json.preflight_doc(findings, checked))
@@ -46,7 +49,8 @@ def _run_regenerate(args) -> int:
     if typed:
         raise InvalidInputError(f"--regenerate writes a config and checks nothing; "
                                 f"drop {', '.join(typed)}")
-    kind = _validate.kind_of(args.scene)
+    console = _models.console_model(args.console) if args.console else None
+    kind = file_kind(args.scene)
     if kind not in (None, "scn"):
         raise InvalidInputError(f"--regenerate describes a whole console and needs a scene; "
                                 f"{args.scene} is a .{kind} file")
@@ -56,9 +60,13 @@ def _run_regenerate(args) -> int:
     if out_kind is not None:
         raise InvalidInputError(f"--regenerate writes a JSON config; {args.regenerate} is named "
                                 f"as a .{out_kind} console file")
-    doc = _regen.regenerate(load_checked(args.scene), args.scene, date.today())
+    scene = load_checked(args.scene)
+    if not _validate.strip_counts(scene)[0]:
+        raise InvalidInputError(f"--regenerate needs a whole-console scene; {args.scene} has no "
+                                "channel strips, nothing written")
+    doc = _regen.regenerate(scene, args.scene, date.today(), console=console)
     try:
-        atomic_write_bytes(args.regenerate, _regen.dumps(doc).encode("utf-8"))
+        write_file(args.regenerate, _regen.dumps(doc).encode("utf-8"))
     except OSError as e:
         raise InvalidInputError(f"--regenerate {args.regenerate}: {e.strerror or e}") from None
     sections = " ".join(f"{k}({v})" for k, v in _preflight.coverage(doc).items())

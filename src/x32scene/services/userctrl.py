@@ -54,6 +54,29 @@ def _int(s: str) -> int | None:
     return int(s) if s.isdigit() else None
 
 
+def strip_index(code: str, *, button: bool) -> int | None:
+    """The two-digit strip index (00 = channel 1) an assignment names by number, or None.
+
+    Encoders name one in fader, pan and send codes; buttons in mute, insert and a page jump
+    whose target is a channel. The index is always characters 1-2 of the code."""
+    code = code.strip('"')
+    k, xx = code[:1], code[1:3]
+    if len(xx) != 2 or not xx.isdigit():
+        return None
+    if button:
+        named = k in ("O", "I") or (k == "P" and len(code) >= 5 and code[3] == "0")
+    else:
+        named = k in ("F", "P") or (k == "S" and len(code) >= 5 and code[3:5].isdigit())
+    return int(xx) if named else None
+
+
+def retarget(code: str, index: int) -> str:
+    """``code`` naming strip ``index`` instead, quoting kept; the code must name one."""
+    q = '"' if code.startswith('"') else ""
+    inner = code.strip('"')
+    return f"{q}{inner[0]}{index:02d}{inner[3:]}{q}"
+
+
 def decode_assignment(code: str, *, button: bool) -> str:
     """One encoder or button assignment string in words; an unknown shape comes back as
     the code itself, never a guess."""

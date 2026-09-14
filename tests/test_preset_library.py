@@ -128,7 +128,7 @@ class CheckPresetTest(unittest.TestCase):
         edited.get("/headamp/000").set_arg(0, "+40.0")
         r = self.check(chn, scene=edited)
         self.assertEqual([(d.path, d.preset, d.scene) for d in r.drift],
-                         [("/headamp/000", ["+27.0", "OFF"], ["+40.0", "OFF"])])
+                         [("/headamp/000", ["+27.5", "OFF"], ["+40.0", "OFF"])])
 
     def test_head_amp_on_a_source_without_one_is_not_comparable(self):
         chn = extract_preset(self.sc, 31) + "/headamp/000 +27.0 OFF\n"   # DAW L <- card
@@ -162,6 +162,22 @@ class CheckPresetTest(unittest.TestCase):
                 r = self.check(text)
                 self.assertEqual(r.status, lib.UNREADABLE)
                 self.assertTrue(r.reason)
+
+
+class HeaderScopeTest(unittest.TestCase):
+    """A header that leaves a section unflagged: apply skips it, so the compare does too."""
+
+    def test_the_compare_covers_what_an_apply_of_the_preset_touches(self):
+        sc = Scene.load(EXAMPLE)
+        header = extract_preset(sc, 1, ["eq"], header=True).splitlines()[0]
+        body = extract_preset(sc, 1)
+        drifted = Scene.load(EXAMPLE)
+        drifted.get("/ch/01/gate").set_arg(2, "-10.0")
+        self.assertEqual(lib.check_preset(drifted, "Kick.chn", body).status, lib.DRIFT)
+        self.assertEqual(lib.check_preset(drifted, "Kick.chn", header + "\n" + body).status,
+                         lib.MATCH)
+        self.assertEqual(lib.check_preset(drifted, "Kick.chn", header + "\n" + body,
+                                          ["gate"]).status, lib.DRIFT)
 
 
 class CheckLibraryTest(unittest.TestCase):
@@ -200,6 +216,21 @@ class CheckLibraryTest(unittest.TestCase):
 
         [r] = lib.check_library(self.sc, self.dir, read=read)
         self.assertEqual((seen, r.status), (["Kick.chn"], lib.MATCH))
+
+    def test_appledouble_sidecars_and_anything_not_a_regular_file_are_never_read(self):
+        self._write("Kick.chn", extract_preset(self.sc, 1))
+        self._write("._Kick.chn", "\x00\x05\x16\x07")
+        os.mkfifo(os.path.join(self.dir, "Pipe.chn"))
+        os.symlink(os.path.join(self.dir, "gone"), os.path.join(self.dir, "Dangling.chn"))
+        seen = []
+
+        def read(path):
+            seen.append(os.path.basename(path))
+            return extract_preset(self.sc, 1)
+
+        self.assertEqual([r.file for r in lib.check_library(self.sc, self.dir, read=read)],
+                         ["Kick.chn"])
+        self.assertEqual(seen, ["Kick.chn"])
 
 
 class ExtractLibraryTest(unittest.TestCase):

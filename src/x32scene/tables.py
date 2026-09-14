@@ -107,6 +107,18 @@ def bus_to_tap(bus: int) -> int:
     return bus + 3
 
 
+def tap_to_channel(tap: int) -> int | None:
+    """Channel 1-32 whose direct out an output tap carries, or None."""
+    return tap - 25 if 26 <= tap <= 57 else None
+
+
+def channel_to_tap(ch: int) -> int:
+    """Output-tap value carrying channel ``ch``'s (1-32) direct out."""
+    if not 1 <= ch <= 32:
+        raise ValueError(f"channel must be 1-32, got {ch}")
+    return ch + 25
+
+
 # the published /outputs source enumeration, 0-76, one list for all five banks
 _TAP_SINGLE = {0: "OFF", 1: "Main L", 2: "Main R", 3: "Main M/C",
                74: "Monitor L", 75: "Monitor R", 76: "Talkback"}

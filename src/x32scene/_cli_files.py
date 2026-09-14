@@ -3,24 +3,34 @@ about its shape. Presentation — the only place outside cli.py that writes to s
 
 from __future__ import annotations
 
+import contextlib
+import errno
 import os
 import shutil
 import sys
 import tempfile
+from collections.abc import Collection
 
 from pf_core.exceptions import InvalidInputError
 from pf_core.utils.io import atomic_write_bytes
 
-from .model import Scene
+from .model import Scene, read_file
 from .services import validate as _validate
 
 _warned: set[str] = set()   # one shape warning per file per run, however often it loads
+_this_run: dict[str, str | None] = {"kind": None}
 
 
-def reset_warnings() -> None:
-    """Start a run: without it the dedup outlives one invocation and a long-lived process
-    falls silent after a file's first read."""
+def start_run(kind: str | None = None) -> None:
+    """Start a run with its ``--kind``: without it the dedup outlives one invocation and a
+    long-lived process falls silent after a file's first read."""
     _warned.clear()
+    _this_run["kind"] = kind
+
+
+def file_kind(path: str) -> str | None:
+    """A named file's kind: its extension's, else the run's ``--kind`` for a name that has none."""
+    return _validate.kind_of(path) or _this_run["kind"]
 
 
 def clean(e: Exception) -> str:
@@ -110,9 +120,11 @@ def refuse_overwrite_all(outs: list[str], *inputs: str, force: bool = False) -> 
                                 f"pass --force to overwrite: {', '.join(names)}")
 
 
-def write_all(files: list[tuple[str, bytes]], directory: str) -> None:
+def write_all(files: list[tuple[str, bytes]], directory: str,
+              replaceable: Collection[str] = ()) -> None:
     """Every file or none: each is written in full to a staging folder inside ``directory``
-    before any target is replaced; every name the filesystem refuses is named at once."""
+    before any target is replaced; every name the filesystem refuses is named at once. Only a
+    file in ``replaceable`` is replaced: anything else found at a target refuses the batch."""
     try:
         stage = tempfile.mkdtemp(prefix=".x32scene-", dir=directory)
     except OSError as e:
@@ -127,10 +139,84 @@ def write_all(files: list[tuple[str, bytes]], directory: str) -> None:
         if refused:
             raise InvalidInputError(f"{len(refused)} file(s) could not be written in "
                                     f"{directory}, nothing written: {', '.join(refused)}")
-        for path, _ in files:
-            os.replace(os.path.join(stage, os.path.basename(path)), path)
-    finally:
-        shutil.rmtree(stage, ignore_errors=True)
+        _replace_all([path for path, _ in files], stage, set(replaceable))
+    except BaseException:
+        aside = os.path.join(stage, _ASIDE)
+        if not (os.path.isdir(aside) and os.listdir(aside)):   # an original not put back
+            shutil.rmtree(stage, ignore_errors=True)
+        raise
+    shutil.rmtree(stage, ignore_errors=True)
+
+
+def write_into(directory: str, files: list[tuple[str, bytes]], *inputs: str,
+               force: bool = False) -> None:
+    """``refuse_overwrite_all`` then ``write_all`` into ``directory``, created if missing and
+    removed again when nothing is written."""
+    refuse_overwrite_all([path for path, _ in files], *inputs, force=force)
+    checked = {path for path, _ in files if os.path.lexists(path)}
+    made = _missing(directory)
+    try:
+        os.makedirs(directory, exist_ok=True)
+    except OSError as e:
+        raise InvalidInputError(f"-o {directory}: {e.strerror or e}") from None
+    try:
+        write_all(files, directory, checked)
+    except InvalidInputError:
+        for d in made:
+            with contextlib.suppress(OSError):
+                os.rmdir(d)
+        raise
+
+
+def _missing(directory: str) -> list[str]:
+    """The folders ``makedirs(directory)`` would create, deepest first."""
+    made, d = [], os.path.abspath(directory)
+    while not os.path.lexists(d):
+        made.append(d)
+        d = os.path.dirname(d)
+    return made
+
+
+_ASIDE = "replaced"
+
+
+def _replace_all(paths: list[str], stage: str, replaceable: set[str]) -> None:
+    """Move each existing target aside into ``stage`` before its new file lands, so a
+    refused rename puts every original back and removes every new file."""
+    aside = os.path.join(stage, _ASIDE)
+    os.mkdir(aside)
+    moved: list[tuple[str, str]] = []
+    placed: list[str] = []
+    for path in paths:
+        name = os.path.basename(path)
+        try:
+            if os.path.lexists(path):
+                if path not in replaceable or (os.path.isdir(path) and not os.path.islink(path)):
+                    raise OSError(errno.EEXIST, "appeared after the overwrite check")
+                os.replace(path, os.path.join(aside, name))
+                moved.append((path, os.path.join(aside, name)))
+            os.replace(os.path.join(stage, name), path)
+            placed.append(path)
+        except OSError as e:
+            lost = _roll_back(placed, moved)
+            what = f"{path}: {e.strerror or e}"
+            if lost:
+                raise InvalidInputError(f"{what}; could not restore {', '.join(lost)}, "
+                                        f"originals kept in {aside}") from None
+            raise InvalidInputError(f"{what}; nothing written") from None
+
+
+def _roll_back(placed: list[str], moved: list[tuple[str, str]]) -> list[str]:
+    for path in placed:
+        with contextlib.suppress(OSError):
+            os.remove(path)
+    lost = []
+    for path, kept in reversed(moved):
+        try:
+            os.replace(kept, path)
+        except OSError:
+            lost.append(path)
+    return lost
 
 
 def read_checked(path: str) -> str:
@@ -140,12 +226,11 @@ def read_checked(path: str) -> str:
     job. stderr, so ``--json`` stays a clean pipe. CR is normalized for the check alone —
     Scene.parse refuses it, but `header` and `show` are diagnostics that still read one.
     """
-    with open(path, "r", encoding="utf-8", newline="") as fh:
-        text = fh.read()
+    text = read_file(path)
     if path not in _warned:
         _warned.add(path)
         lf = text.replace("\r\n", "\n").replace("\r", "\n")
-        for f in _validate.findings(Scene.parse(lf), _validate.kind_of(path)):
+        for f in _validate.findings(Scene.parse(lf), file_kind(path)):
             print(f"x32scene: warning: {path}: {f.area} — {f.message}", file=sys.stderr)
     return text
 

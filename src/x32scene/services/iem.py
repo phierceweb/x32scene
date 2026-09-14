@@ -9,8 +9,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
-from ..model import Scene
-from ..tables import SEND_STRIPS, send_line_fields, strip_path
+from ..model import Scene, put_field
+from ..tables import SEND_STRIPS, SEND_TAPS, send_line_fields, strip_path
 from .channelfx import link_line, pair_linked
 from .transforms import fmt_level
 
@@ -93,26 +93,61 @@ def bus_link_group(scene: Scene, bus: int) -> tuple[int, ...]:
     return (odd, odd + 1)
 
 
+def send_strip_group(scene: Scene, strip: int | str, *,
+                     linked: bool | None = None) -> list[str]:
+    """A send strip's path and, unless ``linked=False``, its stereo-linked partner's.
+
+    Ignores ``/config/linkcfg``: which preference governs sends is unconfirmed.
+    """
+    path = send_strip_path(strip)
+    if linked is False:
+        return [path]
+    cfg = link_line(path)
+    if cfg is not None and scene.get(cfg) is None:
+        raise KeyError(f"no {cfg}: cannot tell stereo strip pairs apart")
+    partner = pair_linked(scene, path)
+    return [path] + ([partner] if partner in _SEND_STRIP_SET else [])
+
+
 def iem_send_targets(scene: Scene, strip: int | str, bus: int, *,
                      linked: bool | None = None) -> list[tuple[str, int]]:
     """Every send line one monitor-send edit must write together, ``(strip path, bus)``.
 
     ``linked=False`` confines the edit to the named strip; the bus pair still mirrors,
     since that axis is the send itself.
-
-    The strip axis ignores ``/config/linkcfg``: which preference governs sends is unconfirmed.
     """
-    path = send_strip_path(strip)
-    partner = None
-    if linked is not False:
-        cfg = link_line(path)
-        if cfg is not None and scene.get(cfg) is None:
-            raise KeyError(f"no {cfg}: cannot tell stereo strip pairs apart")
-        partner = pair_linked(scene, path)
-        if partner is not None and partner not in _SEND_STRIP_SET:
-            partner = None
-    paths = [path] + ([partner] if partner else [])
+    paths = send_strip_group(scene, strip, linked=linked)
     return [(p, b) for p in paths for b in bus_link_group(scene, bus)]
+
+
+def tap_bus(bus: int) -> int:
+    """The bus whose send line holds ``bus``'s tap point: the odd bus of its pair."""
+    if not 1 <= bus <= 16:
+        raise ValueError(f"bus {bus} is out of range 1-16")
+    return bus if bus % 2 else bus - 1
+
+
+def set_send_tap(scene: Scene, strip: int | str, bus: int, tap: str, *,
+                 linked: bool | None = None) -> list[str]:
+    """Set the tap point of a strip's send to ``bus``, in either case. The tap lives only on
+    the odd bus's line, so an even bus writes its odd partner's. Returns every line written;
+    all-or-nothing."""
+    canon = {t.casefold(): t for t in SEND_TAPS}.get(tap.casefold())
+    if canon is None:
+        raise ValueError(f"send tap {tap!r} is not one of {', '.join(SEND_TAPS)}")
+    odd = tap_bus(bus)
+    lines = []
+    for path in send_strip_group(scene, strip, linked=linked):
+        line = scene.get(f"{path}/mix/{odd:02d}")
+        if line is None:
+            raise KeyError(f"no send {path}->bus{odd}")
+        line.require(4)
+        lines.append(line)
+    for line in lines:
+        fields = line.padded_fields()
+        put_field(fields, 3, canon)
+        line.set_fields(fields)
+    return [line.path for line in lines]
 
 
 def copy_iem_dst_buses(scene: Scene, src_bus: int, dst_bus: int, *,

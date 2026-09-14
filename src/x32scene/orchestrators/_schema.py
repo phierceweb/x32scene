@@ -9,12 +9,12 @@ from __future__ import annotations
 from ..services import transforms as T
 from ..services.scopes import SCOPES
 from ..tables import SEND_STRIPS, strip_path
-from . import _sections
+from . import _sections, _sections_record
 from ._sections import _numbered_key
 
 
 PLAN_KEYS = {"title", "channels", "dca", "iem_copy", "iem_sends", "outputs", "fx", "routing",
-             "output_patch"}
+             "output_patch", "record"}
 IEM_SEND_KEYS = {"strip", "bus", "level", "on"}
 IEM_COPY_KEYS = {"src", "dst"}
 CHANNEL_KEYS = {"name", "preset", "scopes", "gain_db", "phantom", "fader", "mute",
@@ -87,6 +87,7 @@ def validate_plan(plan: dict) -> None:
     _sections.validate_fx(plan)
     _sections.validate_routing(plan)
     _sections.validate_output_patch(plan)
+    _sections_record.validate_record(plan)
 
 
 def _validate_channels(plan: dict) -> None:

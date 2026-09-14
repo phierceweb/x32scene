@@ -22,7 +22,7 @@ _PAIR_BANKS = ("main", "aux")
 def check(scene: Scene, expected: dict, out: list[Finding]) -> None:
     mon = mapping(expected, "monitor", "config", out)
     fail_unknown(mon, _KEYS, "monitor", out)
-    physical = want_index(mon, "physical_outputs", "monitor", out, lo=1, hi=16)
+    physical = want_index(mon, "physical_outputs", "monitor", out, lo=0, hi=16)
     if want_bool(mon, "require_reachable", "monitor", out):
         _reachable(scene, physical, out)
     for bank in _pair_banks(mon, out):

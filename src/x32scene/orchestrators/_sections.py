@@ -64,6 +64,9 @@ def _read(plan: dict, rel: str) -> str:
         return p.read_text(encoding="utf-8")
     except OSError as e:
         raise ValueError(f"preset {p}: {e.strerror}") from e
+    except UnicodeDecodeError as e:
+        raise ValueError(f"preset {p}: not a console text file (byte {e.start} is not UTF-8)"
+                         ) from None
 
 
 # ---- validation --------------------------------------------------------------------

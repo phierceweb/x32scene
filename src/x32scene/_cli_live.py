@@ -22,11 +22,12 @@ def run_watch(args) -> int:
         refuse_overwrite(args.snippet, args.reference, force=args.force, flag="--snippet")
     ref = load_checked(args.reference)
     port = _osc.X32_PORT
-    with _watch.UdpTransport(args.ip, port) as link:
+    with _osc.UdpTransport(args.ip, port) as link:
         sub = _watch.subscribe(link)
+        pulled: dict[str, float] = {}
         try:
-            start, unanswered = _osc.pull_scene_like(ref, args.ip, port=port,
-                                                     timeout=args.timeout, between=sub)
+            start, unanswered = _osc.pull_scene_like(ref, args.ip, port=port, timeout=args.timeout,
+                                                     asked=pulled, between=sub)
             sub()
         except _osc.OscError as e:
             print(f"watch failed: {e}", file=sys.stderr)
@@ -50,7 +51,7 @@ def run_watch(args) -> int:
 
         lost = None
         try:
-            log(w.run(link, seconds=args.seconds, backlog=sub.backlog))
+            log(w.run(link, seconds=args.seconds, backlog=sub.backlog, pulled=pulled))
         except KeyboardInterrupt:
             try:
                 log(w.flush(link))

@@ -8,9 +8,19 @@ from pf_core.exceptions import InvalidInputError
 
 from . import _json
 from . import _views_presets as _vpresets
-from ._cli_files import (load_checked, read_listed, refuse_not_directory, refuse_overwrite_all,
-                         write_all)
+from ._cli_files import load_checked, read_checked, read_listed, refuse_not_directory, write_into
+from .model import Scene
 from .services import preset_library as _lib
+from .services import presets as _presets
+
+
+def apply_preset_edit(sc: Scene, args) -> str:
+    text = read_checked(args.preset)
+    n = _presets.apply_preset(sc, args.ch, text, args.scope)
+    skipped = _presets.unflagged_scopes(text, args.scope)
+    note = (f"; skipped {', '.join(skipped)}: the preset header does not flag them present"
+            if skipped else "")
+    return f"applied {n} line(s) to ch{args.ch:02d}{note}"
 
 
 def run_presets_diff(args) -> int:
@@ -38,12 +48,8 @@ def run_extract_library(args) -> int:
     if not presets:
         raise InvalidInputError(f"{args.scene}: no channel has a scribble name; nothing to write")
     paths = [os.path.join(args.out, p.file) for p in presets]
-    refuse_overwrite_all(paths, args.scene, force=args.force)
-    try:
-        os.makedirs(args.out, exist_ok=True)
-    except OSError as e:
-        raise InvalidInputError(f"-o {args.out}: {e.strerror or e}") from None
-    write_all([(path, p.text.encode("utf-8")) for p, path in zip(presets, paths, strict=True)],
-              args.out)
+    write_into(args.out, [(path, p.text.encode("utf-8"))
+                          for p, path in zip(presets, paths, strict=True)],
+               args.scene, force=args.force)
     _vpresets.cmd_extract_library(presets, skipped, shared, paths)
     return 0

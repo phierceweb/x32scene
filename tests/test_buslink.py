@@ -242,5 +242,32 @@ class OutputsTest(unittest.TestCase):
         self.assertEqual(outputs_from_buses(sc, (13, 14)), [])
 
 
+
+class RelinkedPairsTest(unittest.TestCase):
+    """Which pairs a snippet's paths reach whose link differs between two scenes."""
+
+    def setUp(self):
+        self.a = Scene.load(EXAMPLE)
+        self.b = Scene.load(EXAMPLE)
+        BL.set_bus_link(self.b, 13, True)
+
+    def test_every_line_kind_that_reaches_the_pair_names_it(self):
+        for path in ("/bus/14", "/bus/13/config", "/bus/14/mix", "/ch/03/mix/14",
+                     "/auxin/01/mix/13", "/fxrtn/08/mix/14"):
+            with self.subTest(path=path):
+                self.assertEqual(BL.relinked_pairs(self.a, self.b, [path]), [(13, 14)])
+
+    def test_a_path_off_the_pair_or_under_an_unchanged_link_names_nothing(self):
+        paths = ["/ch/03/mix/01", "/bus/01/mix", "/bus/140", "/main/st/mix/14", "/ch/03/mix"]
+        self.assertEqual(BL.relinked_pairs(self.a, self.b, paths), [])
+        self.assertEqual(BL.relinked_pairs(self.a, Scene.load(EXAMPLE), ["/bus/14/mix"]), [])
+
+    def test_a_scene_without_the_link_line_names_nothing(self):
+        bare = Scene.parse("".join(ln.raw + "\n" for ln in self.b.lines
+                                   if ln.path != "/config/buslink"))
+        self.assertEqual(BL.relinked_pairs(self.a, bare, ["/bus/14/mix"]), [])
+        self.assertEqual(BL.relinked_pairs(bare, self.a, ["/bus/14/mix"]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

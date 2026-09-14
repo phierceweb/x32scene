@@ -8,16 +8,17 @@ from __future__ import annotations
 import json
 import os
 import re
-from collections import Counter
 from datetime import date
 
 from ..model import Scene
 from ..tables import (LINK_LINES, LINK_WIDTHS, LINKCFG, MUTE_GROUPS, OUTPUT_BANKS,
-                      ROUTING_BLOCKS, SEND_STRIPS, USERROUT_SLOTS, send_is_live, tap_to_bus)
-from . import preflight_links, preflight_monitor, preflight_sends
+                      ROUTING_BLOCKS, USERROUT_SLOTS, tap_to_bus)
+from . import preflight_links, preflight_monitor
+from .console_models import MODELS, console_model, main_jacks
 from .groups import GROUP_STRIPS, dca_members, dca_names, mute_members
 from .preflight import _ALL_SECTIONS, _SECTIONS, GAIN_TOLERANCE_DB, _in_main
 from .preflight_outputs import _SRC_MAX, out_path
+from .preflight_regen_sends import sends
 from .routing import (channel_headamp_index, output_sources, record_map, resolve_in_slot,
                       routing_blocks, uin_in_index)
 
@@ -26,7 +27,7 @@ __all__ = ["dumps", "regenerate"]
 # every section inverts today; name one here, with why, before leaving it out
 _NOT_INVERTIBLE: frozenset[str] = frozenset()
 _NOT_INVERTED_KEYS = {
-    # the jack count is the console model, which no scene line records; reachability needs it
+    # no scene line records the console model: written only when one is named
     "monitor": frozenset({"physical_outputs", "require_reachable"}),
 }
 _GAIN = re.compile(r"[+-]?\d+(\.\d+)?")
@@ -128,7 +129,7 @@ def _outputs(scene: Scene) -> dict:
     return out
 
 
-def _monitor(scene: Scene) -> dict:
+def _monitor(scene: Scene, jacks: int | None = None) -> dict:
     pairs = [b for b in preflight_monitor._PAIR_BANKS
              if _holds(preflight_monitor, scene, "monitor", {"stereo_pairs": [b]})]
     # with an output line missing, a bus it routes goes unchecked and passes vacuously
@@ -136,7 +137,12 @@ def _monitor(scene: Scene) -> dict:
                    for bank, (size, _) in OUTPUT_BANKS.items())
     live = complete and _holds(preflight_monitor, scene, "monitor",
                                {"require_live_senders": True})
-    return {"stereo_pairs": pairs, "require_live_senders": live}
+    body = {"stereo_pairs": pairs, "require_live_senders": live}
+    if jacks is not None:
+        body["physical_outputs"] = jacks
+        body["require_reachable"] = _holds(preflight_monitor, scene, "monitor", {
+            "physical_outputs": jacks, "require_reachable": True})
+    return body
 
 
 def _routing(scene: Scene) -> dict:
@@ -173,51 +179,6 @@ def _links(scene: Scene) -> dict:
     return out
 
 
-def _majority(taps: list[str]) -> str:
-    counts = Counter(taps)
-    return min(counts, key=lambda t: (-counts[t], t))
-
-
-def _rules_under(tap: str, taps: dict[str, str]) -> dict[str, str]:
-    """A family rule only where it saves rules, then each strip that still disagrees."""
-    rules: dict[str, str] = {}
-    for fam in preflight_sends._FAMILIES:
-        own = [t for s, t in taps.items() if s.rpartition("/")[0] == fam]
-        others = [t for t in own if t != tap]
-        if others:
-            alt = _majority(others)
-            if 1 + sum(t != alt for t in own) < len(others):
-                rules[fam] = alt
-    for strip, t in taps.items():
-        if t != rules.get(strip.rpartition("/")[0], tap):
-            rules[strip] = t
-    return rules
-
-
-def _tap_rules(taps: dict[str, str]) -> dict:
-    """The bus tap with the fewest except rules; a tie goes to the commoner tap."""
-    counts = Counter(taps.values())
-    tap = min(counts, key=lambda t: (len(_rules_under(t, taps)), -counts[t], t))
-    rules = _rules_under(tap, taps)
-    return {"tap": tap, "except": rules} if rules else {"tap": tap}
-
-
-def _sends(scene: Scene) -> dict:
-    out = {}
-    for bus in range(1, 17):
-        lines = {s: scene.get(f"{s}/mix/{bus:02d}") for s in SEND_STRIPS}
-        entry: dict = {}
-        if bus % 2 and all(lines.values()):
-            taps = {s: ln.args[3] for s, ln in lines.items() if len(ln.args) >= 4}
-            if taps:
-                entry.update(_tap_rules(taps))
-        if any(lines.values()):
-            entry["present"] = [s for s, ln in lines.items() if ln and send_is_live(ln.args)]
-            entry["absent"] = [s for s, ln in lines.items() if ln and not send_is_live(ln.args)]
-        out[str(bus)] = entry
-    return out
-
-
 def _masks_known(scene: Scene, arg: int) -> bool:
     """Any strip could belong to any group, so one unreadable mask hides every group's
     membership."""
@@ -241,23 +202,29 @@ def _groups(scene: Scene) -> dict:
 
 
 _INVERTERS = {"channels": _channels, "record": _record, "fx": _fx, "outputs": _outputs,
-              "monitor": _monitor, "routing": _routing, "links": _links, "sends": _sends,
+              "monitor": _monitor, "routing": _routing, "links": _links, "sends": sends,
               "groups": _groups}
 
 
-def regenerate(scene: Scene, source: str, generated: date) -> dict:
+def regenerate(scene: Scene, source: str, generated: date, *,
+               console: str | None = None) -> dict:
     """The expected-config ``scene`` satisfies. ``source`` is the scene's file, named in the
-    comment by its base name only."""
+    comment by its base name only. ``console`` names the model (``console_models``), whose
+    jack count becomes ``monitor.physical_outputs``; an unknown one raises ValueError."""
+    jacks = None if console is None else main_jacks(console)
+    tail = ("A scene does not record the console model, so monitor.physical_outputs and "
+            "require_reachable are written only with --console." if jacks is None else
+            f"monitor.physical_outputs is the {MODELS[console_model(console)]}'s jack count, "
+            "from --console.")
     doc: dict = {
         "_comment": (f"Written by `x32scene preflight --regenerate` from "
                      f"{os.path.basename(source)} on {generated.isoformat()}. Regenerate "
-                     "rather than hand-edit. A scene does not record the console's jack "
-                     "count, so monitor.physical_outputs and require_reachable are not "
-                     "written."),
+                     f"rather than hand-edit. {tail}"),
         "gain_tolerance_db": GAIN_TOLERANCE_DB,
     }
+    inverters = {**_INVERTERS, "monitor": lambda sc: _monitor(sc, jacks)}
     for section in _ALL_SECTIONS:
-        body = None if section in _NOT_INVERTIBLE else _pruned(_INVERTERS[section](scene))
+        body = None if section in _NOT_INVERTIBLE else _pruned(inverters[section](scene))
         if body:
             doc[section] = body
     return doc

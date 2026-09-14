@@ -1,201 +1,201 @@
 {
-  "_comment": "Example expected-rig config for `x32scene preflight`, generated from tests/fixtures/example.scn and pruned by hand. `x32scene preflight SCENE --regenerate rig.json` writes a complete one from your own scene, without monitor.physical_outputs and require_reachable: a scene does not record how many jacks the console has. Every section is optional. Gain is checked with a tolerance (WARN); everything else is exact (FAIL). Line shapes are checked with no config at all.",
+  "_comment": "Example expected-rig config for `x32scene preflight`, generated from tests/fixtures/example.scn and pruned by hand. `x32scene preflight SCENE --regenerate rig.json` writes a complete one from your own scene; add --console MODEL (e.g. X32RACK) for monitor.physical_outputs and require_reachable, since a scene does not record how many jacks the console has. Every section is optional. Gain is checked with a tolerance (WARN); everything else is exact (FAIL). Line shapes are checked with no config at all.",
   "gain_tolerance_db": 3.0,
   "channels": {
     "1": {
       "name": "Kick",
       "source": "Local input 1",
       "in_main": true,
-      "gain": 27.0,
+      "gain": 27.5,
       "phantom": false
     },
     "2": {
       "name": "Kick Sub",
       "source": "Local input 2",
       "in_main": true,
-      "gain": 26.0,
+      "gain": 27.0,
       "phantom": false
     },
     "3": {
       "name": "Snare Top",
       "source": "Local input 3",
       "in_main": true,
-      "gain": 18.5,
+      "gain": 21.0,
       "phantom": false
     },
     "4": {
       "name": "Snare Bot",
       "source": "Local input 4",
       "in_main": true,
-      "gain": 19.0,
+      "gain": 21.5,
       "phantom": false
     },
     "5": {
       "name": "Rack 1",
       "source": "Local input 5",
       "in_main": false,
-      "gain": 13.0,
+      "gain": 16.5,
       "phantom": false
     },
     "6": {
       "name": "Rack 2",
       "source": "Local input 6",
       "in_main": true,
-      "gain": 23.0,
+      "gain": 24.5,
       "phantom": false
     },
     "7": {
       "name": "Rack 3",
       "source": "Local input 7",
       "in_main": false,
-      "gain": 14.0,
+      "gain": 17.5,
       "phantom": false
     },
     "8": {
       "name": "Rack 4",
       "source": "Local input 8",
       "in_main": false,
-      "gain": 14.0,
+      "gain": 17.5,
       "phantom": false
     },
     "9": {
       "name": "Floor 1",
       "source": "Local input 9",
       "in_main": true,
-      "gain": 19.5,
+      "gain": 22.0,
       "phantom": false
     },
     "10": {
       "name": "Floor 2",
       "source": "Local input 10",
       "in_main": true,
-      "gain": 14.0,
+      "gain": 17.5,
       "phantom": false
     },
     "11": {
       "name": "OH L",
       "source": "Local input 11",
       "in_main": true,
-      "gain": 16.0,
+      "gain": 19.0,
       "phantom": true
     },
     "12": {
       "name": "OH R",
       "source": "Local input 12",
       "in_main": true,
-      "gain": 16.0,
+      "gain": 19.0,
       "phantom": true
     },
     "13": {
       "name": "Hat",
       "source": "Local input 13",
       "in_main": true,
-      "gain": 25.0,
+      "gain": 26.0,
       "phantom": true
     },
     "14": {
       "name": "Ride",
       "source": "Local input 14",
       "in_main": true,
-      "gain": 26.0,
+      "gain": 27.0,
       "phantom": true
     },
     "15": {
       "name": "ROOM L",
       "source": "Local input 15",
       "in_main": false,
-      "gain": 23.5,
+      "gain": 25.0,
       "phantom": true
     },
     "16": {
       "name": "ROOM R",
       "source": "Local input 16",
       "in_main": false,
-      "gain": 23.5,
+      "gain": 25.0,
       "phantom": true
     },
     "17": {
       "name": "Bass DI",
       "source": "AES50-A input 1",
       "in_main": true,
-      "gain": 39.5,
+      "gain": 37.5,
       "phantom": false
     },
     "18": {
       "name": "Bass Amp",
       "source": "AES50-A input 2",
       "in_main": true,
-      "gain": 11.0,
+      "gain": 15.0,
       "phantom": false
     },
     "19": {
       "name": "Gtr 1 DI",
       "source": "AES50-A input 3",
       "in_main": false,
-      "gain": 10.0,
+      "gain": 14.0,
       "phantom": false
     },
     "20": {
       "name": "Gtr 1",
       "source": "AES50-A input 4",
       "in_main": true,
-      "gain": 0.5,
+      "gain": 6.5,
       "phantom": false
     },
     "21": {
       "name": "Gtr 2 DI",
       "source": "AES50-A input 5",
       "in_main": false,
-      "gain": 42.5,
+      "gain": 40.0,
       "phantom": false
     },
     "22": {
       "name": "Gtr 2",
       "source": "AES50-A input 6",
       "in_main": true,
-      "gain": 2.5,
+      "gain": 8.0,
       "phantom": false
     },
     "23": {
       "name": "Vox 1",
       "source": "AES50-A input 7",
       "in_main": true,
-      "gain": 42.5,
+      "gain": 40.0,
       "phantom": false
     },
     "24": {
       "name": "Vox 2",
       "source": "AES50-A input 8",
       "in_main": true,
-      "gain": 42.5,
+      "gain": 40.0,
       "phantom": false
     },
     "25": {
       "name": "Vox 3",
       "source": "AES50-A input 9",
       "in_main": false,
-      "gain": 42.5,
+      "gain": 40.0,
       "phantom": false
     },
     "26": {
       "name": "Vox 4",
       "source": "AES50-A input 10",
       "in_main": false,
-      "gain": 34.0,
+      "gain": 33.0,
       "phantom": false
     },
     "27": {
       "name": "Trigger L",
       "source": "AES50-A input 11",
       "in_main": false,
-      "gain": 5.0,
+      "gain": 10.0,
       "phantom": false
     },
     "28": {
       "name": "Trigger R",
       "source": "AES50-A input 12",
       "in_main": false,
-      "gain": 5.0,
+      "gain": 10.0,
       "phantom": false
     },
     "30": {
@@ -256,7 +256,7 @@
     "4": "CR/R"
   },
   "monitor": {
-    "_comment": "physical_outputs: how many /outputs/main have a rear jack on THIS console (8 = X32 Rack, 16 = full-size X32); the file cannot say. stereo_pairs: banks where an odd output carrying an odd bus must be followed by its partner. require_reachable: every virtual output with a source must leave the console via an AES50/card block or a user-out slot. require_live_senders: every bus that feeds an output must have a sender ON above -oo.",
+    "_comment": "physical_outputs: how many /outputs/main have a rear jack on THIS console (docs/preflight-config.md, Console models, lists them); the file cannot say, and --console MODEL can stand in for it. stereo_pairs: banks where an odd output carrying an odd bus must be followed by its partner. require_reachable: every virtual output with a source must leave the console via an AES50/card block or a user-out slot. require_live_senders: every bus that feeds an output must have a sender ON above -oo.",
     "physical_outputs": 8,
     "stereo_pairs": [
       "main",

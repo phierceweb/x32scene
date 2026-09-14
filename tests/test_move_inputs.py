@@ -1,8 +1,8 @@
 """Stage-box moves: the batch service and the `move-inputs` command over it.
 
-Fixture facts the cases lean on: ch1 is Local 1 (/headamp/000 +27.0 OFF); ch17-28 are
+Fixture facts the cases lean on: ch1 is Local 1 (/headamp/000 +27.5 OFF); ch17-28 are
 AES50-A 1-12 through user-in slots 17-28; AES50-A 13 and up feed no channel (13 and 14
-sit at +21.5 OFF); ch31 is Card 1.
+sit at +23.0 OFF); ch31 is Card 1.
 """
 
 import contextlib
@@ -55,14 +55,14 @@ class StageboxBatchTest(unittest.TestCase):
         moves = SB.move_to_stagebox(self.sc, [(1, 13), (31, 14)], port="A")
         self.assertEqual([(m.ch, m.old_source, m.new_source) for m in moves],
                          [(1, 1, 45), (31, 129, 46)])
-        self.assertEqual((moves[0].headamp, moves[0].carried), (("+27.0", "OFF"), True))
+        self.assertEqual((moves[0].headamp, moves[0].carried), (("+27.5", "OFF"), True))
         # a card source has no head amp: the destination keeps its own
-        self.assertEqual((moves[1].headamp, moves[1].carried), (("+21.5", "OFF"), False))
+        self.assertEqual((moves[1].headamp, moves[1].carried), (("+23.0", "OFF"), False))
         self.assertEqual(_ha(self.sc, 45), _ha(self.base, 45))
 
     def test_no_gain_reports_the_destination_as_it_stays(self):
         moves = SB.move_to_stagebox(self.sc, [(1, 13)], port="A", move_gain=False)
-        self.assertEqual((moves[0].headamp, moves[0].carried), (("+21.5", "OFF"), False))
+        self.assertEqual((moves[0].headamp, moves[0].carried), (("+23.0", "OFF"), False))
         self.assertEqual(_changed(self.base, self.sc), {"/config/userrout/in"})
 
     def test_port_b_numbers_from_81(self):
@@ -181,8 +181,8 @@ class MoveInputsCliTest(unittest.TestCase):
         return path
 
     def test_a_head_amp_line_short_of_fields_still_reports(self):
-        for old, new, flags in (("/headamp/000 +27.0 OFF", "/headamp/000 +27.0", ()),
-                                ("/headamp/044 +21.5 OFF", "/headamp/044", ("--no-gain",))):
+        for old, new, flags in (("/headamp/000 +27.5 OFF", "/headamp/000 +27.5", ()),
+                                ("/headamp/044 +23.0 OFF", "/headamp/044", ("--no-gain",))):
             with self.subTest(line=new):
                 scene = self._variant(old, new)
                 rc, out, err = self._run("1:13", "--to", "A", *flags, scene=scene)
@@ -191,7 +191,7 @@ class MoveInputsCliTest(unittest.TestCase):
                 os.remove(self.out)
 
     def test_a_missing_old_head_amp_line_is_not_reported_as_no_gain(self):
-        scene = self._variant("/headamp/000 +27.0 OFF", None)
+        scene = self._variant("/headamp/000 +27.5 OFF", None)
         rc, out, _ = self._run("1:13", "--to", "A", scene=scene)
         self.assertEqual(rc, 0)
         kick = next(ln for ln in out.splitlines() if "ch01" in ln)
@@ -221,7 +221,7 @@ class MoveInputsCliTest(unittest.TestCase):
         kick = next(ln for ln in lines if "ch01" in ln)
         self.assertIn("Kick", kick)
         self.assertIn("Local input 1 -> AES50-A input 13", kick)
-        self.assertIn("+27.0 dB, phantom OFF", kick)
+        self.assertIn("+27.5 dB, phantom OFF", kick)
         daw = next(ln for ln in lines if "ch31" in ln)
         self.assertIn("USB Card (DAW) 1 -> AES50-A input 14", daw)
         self.assertIn("no head amp", daw)

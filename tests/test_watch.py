@@ -211,6 +211,22 @@ class BacklogTest(unittest.TestCase):
         self.assertEqual(w.summary().ignored, 0)
 
 
+    def test_a_backlog_push_the_start_pull_already_read_does_not_date_a_later_change(self):
+        desk = ScriptedDesk()
+        sub = W.subscribe(desk, clock=desk.clock, wall=desk.wall)
+        desk.push(2.0, "/ch/01/mix/fader", [0.1], MIX_DOWN)
+        desk.push(9.0, "/ch/01/mix/on", [0], MIX_OFF)
+        for t in (2.0, 5.0, 9.0, 12.0):          # the pull reads /ch/01/mix at 5.0
+            desk.now = t
+            sub()
+        start = Scene.parse(REF_TEXT.replace("/ch/01/mix ON  +6.5 ON +0 OFF   -oo", MIX_DOWN))
+        w = W.Watch(Scene.parse(REF_TEXT), start)
+        events = list(w.run(desk, seconds=2, clock=desk.clock, wall=desk.wall,
+                            backlog=sub.backlog, pulled={"/ch/01/mix": 5.0}))
+        self.assertEqual([(e.before, e.after) for e in events], [(MIX_DOWN, MIX_OFF)])
+        self.assertAlmostEqual(events[0].at, 1_700_000_009.0, places=3)
+
+
 class UnownedTest(unittest.TestCase):
     def test_addresses_with_no_node_are_counted_and_never_queried(self):
         desk = ScriptedDesk()

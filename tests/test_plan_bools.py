@@ -39,6 +39,7 @@ NESTED = [
      lambda k, v: {"fx": {"1": {"type": "PLAT", "params": {k: v}}}}),
     ("routing.IN.{k}", ("1-8",),
      lambda k, v: {"routing": {"IN": {k: v}}}),
+    ("record.{k}", ("5",), lambda k, v: {"record": {k: v}}),
     ("dca.1[]", ("",), lambda k, v: {"dca": {"1": [v]}}),
     ("outputs.1", ("",), lambda k, v: {"outputs": {"1": v}}),
     ("iem_copy[].src", ("src",), lambda k, v: {"iem_copy": [{k: v, "dst": 2}]}),
@@ -102,7 +103,7 @@ class BooleanIsNeverANumberTest(unittest.TestCase):
                     self.assertIn("nothing written", err)
                     self.assertFalse(wrote)
 
-    def test_the_two_encoders_refuse_one_directly(self):
+    def test_the_encoders_refuse_one_directly(self):
         from x32scene.services import routing_edit as rt
         for value in (True, False):
             with self.subTest(value=value):
@@ -110,6 +111,8 @@ class BooleanIsNeverANumberTest(unittest.TestCase):
                     rt.encode_input_source(value)
                 with self.assertRaises(ValueError):
                     rt.encode_tap(value)
+                with self.assertRaises(ValueError):
+                    rt.encode_out_source(value)
 
     def test_the_scene_is_untouched_by_every_rejected_plan(self):
         for _where, plan in plans_with_a_bool(False):

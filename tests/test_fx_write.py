@@ -23,7 +23,9 @@ class FormatLikeTest(unittest.TestCase):
         cases = [("2.11", 3, "3.00"), ("60", 45.6, "46"), ("0.0", -6.5, "-6.5"),
                  ("+10", 5, "+5"), ("+0", -20, "-20"), ("+0", 0, "+0"),
                  ("6k50", 8000, "8k00"), ("6k50", 850, "850.0"), ("7k2", 12000, "12k0"),
-                 ("7k2", 800, "800"), ("20k0", 20000, "20k0"), ("0.95", "1.2", "1.20")]
+                 ("7k2", 800, "800"), ("20k0", 20000, "20k0"), ("0.95", "1.2", "1.20"),
+                 ("0.0", -0.04, "0.0"), ("0.0", "-0", "0.0"), ("+0", -0.3, "+0"),
+                 ("2.11", -0.001, "0.00")]
         for default, value, want in cases:
             with self.subTest(default=default, value=value):
                 self.assertEqual(FX.format_like(default, value), want)
@@ -51,6 +53,32 @@ class DefaultsTest(unittest.TestCase):
 class SetFxTest(unittest.TestCase):
     def setUp(self):
         self.sc = Scene.load(EXAMPLE)
+
+    def test_graphic_eq_bands_write_in_the_desk_form(self):
+        FX.set_fx_type(self.sc, 8, "GEQ")
+        FX.set_fx_params(self.sc, 8, {"20": 3, "20000": -6, "Master": 1.5, "1000": 0})
+        p = self.sc.get("/fx/8/par").args
+        self.assertEqual((p[0], p[30], p[31], p[17]), ("3.0", "-6.0", "1.5", "0.0"))
+        FX.set_fx_type(self.sc, 7, "GEQ2")
+        FX.set_fx_params(self.sc, 7, {"20 A": 3, "20 B": -6, "Master B": -1})
+        p = self.sc.get("/fx/7/par").args
+        self.assertEqual((p[0], p[32], p[63]), ("3.0", "-6.0", "-1.0"))
+        self.assertEqual(Scene.parse(self.sc.dump()).dump(), self.sc.dump())
+
+    def test_the_summary_names_the_tokens_written(self):
+        with tempfile.TemporaryDirectory() as d:
+            geq, out = os.path.join(d, "g.scn"), os.path.join(d, "o.scn")
+            self.assertEqual(main(["set-fx", EXAMPLE, "8", "--type", "GEQ", "-o", geq]), 0)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                self.assertEqual(main(["set-fx", geq, "8", "--set", "1000=+4.26",
+                                       "--set", "31.5=-0.04", "-o", out]), 0)
+        self.assertIn("FX8: 1000=4.3, 31.5=0.0;", buf.getvalue())
+
+    def test_true_eq_stays_read_only(self):
+        FX.set_fx_type(self.sc, 8, "TEQ")
+        with self.assertRaisesRegex(ValueError, "not desk-verified"):
+            FX.set_fx_params(self.sc, 8, {"20": 3})
 
     def test_set_params_by_name(self):
         FX.set_fx_params(self.sc, 1, {"Decay": 2.1, "Damp": 8000, "PreDelay": "40"})
@@ -127,7 +155,7 @@ class FxCliTest(unittest.TestCase):
             code, out = self._run("set-fx", EXAMPLE, "1", "-o", a, "--set", "Decay=2.1",
                                   "--set", "Damp=8000")
             self.assertEqual(code, 0)
-            self.assertIn("FX1: Decay=2.1, Damp=8000", out)
+            self.assertIn("FX1: Decay=2.10, Damp=8k00", out)
             code, out = self._run("extract-fx", a, "1", "-o", efx, "--name", "Long Plate")
             self.assertEqual(code, 0)
             self.assertEqual(decode_header(open(efx, encoding="utf-8").read())["name"], "Long Plate")

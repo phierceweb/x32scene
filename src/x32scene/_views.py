@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import sys
 
-from ._views_ports import bus_names as _bus_names
 from ._views_ports import cmd_ports
+from .services import buses as _buses
 from .services import fx as _fx
 from .services import groups as _groups
-from .services import iem as _iem
 from .services import routing as _routing
 from .services.describe import describe, describe_all
 from .services.diff import Change, diff
@@ -30,36 +29,20 @@ __all__ = ["cmd_ports"]
 def cmd_info(scene: Scene) -> None:
     print(f"title: {scene.name!r}   lines: {len(scene.lines)}")
     print("channels:")
-    for ln in scene.find("/ch/"):
-        if ln.path.endswith("/config"):
-            n = int(ln.path.split("/")[2])
-            print(f"  ch{n:02d}  {ln.args[0].strip(chr(34))}")
+    for n, nm in sorted(_buses.channel_names(scene).items()):
+        print(f"  ch{n:02d}  {nm}")
     print("buses:")
-    for n, nm in sorted(_bus_names(scene).items()):
+    for n, nm in sorted(_buses.bus_names(scene).items()):
         print(f"  bus{n:02d}  {nm}")
 
 
 def cmd_buses(scene: Scene) -> None:
     """Show the 16 mix buses: stereo-link pairs, names, FX assignment, and send-tap mix."""
-    names = _bus_names(scene)
-    bl = scene.get("/config/buslink")  # 8 tokens, one per pair 1/2 … 15/16
-    linked = {2 * i + 1: (bl.args[i] == "ON") for i in range(8)} if bl else {}
-    fx_src = {}
-    for ln in scene.find("/fx/"):
-        if ln.path.endswith("/source") and ln.args and ln.args[0].startswith("MIX"):
-            fx_src[int(ln.args[0][3:])] = ln.path.split("/")[2]
-    fx_type = {int(ln.path.split("/")[2]): ln.args[0]
-               for ln in scene.find("/fx/") if len(ln.path.split("/")) == 3 and ln.args}
-    for n in range(1, 17):
-        taps = _iem.send_taps(scene, n)
-        role = ""
-        if n in fx_src:
-            role = f"-> FX{fx_src[n]} ({decode_fx(fx_type.get(int(fx_src[n]), '?'))})"
-        pair = ""
-        if n % 2 == 1:
-            pair = "stereo-pair" if linked.get(n) else "mono"
-        tapmix = " ".join(f"{k}:{v}" for k, v in taps.items() if v)
-        print(f"  bus{n:02d} {names.get(n, ''):<11} {pair:<11} {role:<18} sends[{tapmix}]")
+    for r in _buses.bus_rows(scene):
+        role = "" if r.fx_slot is None else f"-> FX{r.fx_slot} ({decode_fx(r.fx_type)})"
+        pair = ("stereo-pair" if r.linked else "mono") if r.bus % 2 else ""
+        tapmix = " ".join(f"{k}:{v}" for k, v in r.taps.items() if v)
+        print(f"  bus{r.bus:02d} {r.name:<11} {pair:<11} {role:<18} sends[{tapmix}]")
 
 
 def cmd_inputs(scene: Scene) -> None:
@@ -186,14 +169,16 @@ def cmd_diff_by_strip(a: Scene, b: Scene) -> None:
     print_by_strip(b, changes)
 
 
-def print_by_strip(scene: Scene, changes: list[Change]) -> None:
-    """``changes`` in words, one block per strip or section; ``scene`` is the after side."""
+def print_by_strip(scene: Scene, changes: list[Change], mirrored=frozenset()) -> None:
+    """``changes`` in words, one block per strip or section; ``scene`` is the after side.
+    A path in ``mirrored`` is marked ``(mirrored)``."""
     group = None
     for d in describe_all(scene, changes):
         if d.group != group:
             group = d.group
             print(d.label)
-        print(f"  {d.what:<18} {_fields_text(d)}")
+        mark = "  (mirrored)" if d.path in mirrored else ""
+        print(f"  {d.what:<18} {_fields_text(d)}{mark}")
 
 
 def cmd_history(lib: list[tuple[str, Scene]], paths: list[str]) -> None:
@@ -272,7 +257,9 @@ def cmd_move_inputs(scene: Scene, moves: list[InputMove], out: str, *,
 def cmd_header(doc: dict) -> None:
     """A decoded header, one field per line; list fields joined."""
     for k, v in doc.items():
-        if isinstance(v, dict):
+        if k == "sections" and v is None:
+            v = "no flag mask, so every scope the body carries applies"
+        elif isinstance(v, dict):
             v = "; ".join(f"{a}: {', '.join(b) or '-'}" for a, b in v.items())
         elif isinstance(v, list):
             v = ", ".join(v) or "(none)"

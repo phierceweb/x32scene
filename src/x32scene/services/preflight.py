@@ -155,7 +155,7 @@ def physical_outputs(expected: dict) -> int | None:
     valid one."""
     mon = expected.get("monitor")
     v = mon.get("physical_outputs") if isinstance(mon, dict) else None
-    return v if isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= 16 else None
+    return v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 16 else None
 
 
 def coverage(expected: dict, stage: dict | None = None) -> dict[str, int]:

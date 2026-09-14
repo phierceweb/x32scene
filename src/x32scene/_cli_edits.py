@@ -10,14 +10,16 @@ import shlex
 import sys
 
 from pf_core.exceptions import InvalidInputError
-from pf_core.utils.io import atomic_write_bytes
 
-from ._cli_files import clean, load_checked, read_checked, refuse_overwrite
-from ._cli_presets import run_extract_library
+from ._cli_files import clean, load_checked, read_checked, refuse_overwrite, write_into
+from ._cli_presets import apply_preset_edit, run_extract_library
+from ._cli_record import RECORD_COMMANDS, record_edit, run_record
+from ._cli_sends import SEND_COMMANDS, run_send_tap, send_tap_edit
+from ._cli_strips import NOT_IN_SNIPPET, STRIP_COMMANDS
 
-from . import _views
+from . import _views, _views_band
 from . import _views_ports as _ports
-from .model import Scene
+from .model import Scene, write_file
 from .orchestrators import band_swap as _band_swap
 from .services import buslink as _buslink
 from .services import channelfx as _cfx
@@ -35,7 +37,7 @@ EDIT_COMMANDS = frozenset({"set-comp", "set-gate", "set-lowcut", "set-eq", "set-
                            "band-setup", "port-iem", "set-fx", "extract-fx", "apply-fx",
                            "set-routing", "set-input", "set-output", "extract-routing",
                            "apply-routing", "show-build", "transplant", "move-inputs",
-                           "set-bus-link"})
+                           "set-bus-link"}) | SEND_COMMANDS | RECORD_COMMANDS
 
 
 def _mirrored(paths: list[str]) -> str:
@@ -61,7 +63,7 @@ def require_a_knob(args) -> None:
 
 IN_PLACE = frozenset({"set-comp", "set-gate", "set-lowcut", "set-eq", "set-fader",
                       "set-mute", "set-pan", "rename", "apply-preset", "set-fx", "apply-fx",
-                      "set-routing", "set-input", "set-output", "apply-routing"})
+                      "set-routing", "set-input", "set-output", "apply-routing"}) | SEND_COMMANDS | RECORD_COMMANDS
 
 
 def apply_edit(sc: Scene, args) -> str:
@@ -92,8 +94,7 @@ def apply_edit(sc: Scene, args) -> str:
     elif args.cmd == "rename":
         edited = T.rename_strip(sc, args.strip, args.name)
     elif args.cmd == "apply-preset":
-        n = _presets.apply_preset(sc, args.ch, read_checked(args.preset), args.scope)
-        return f"applied {n} line(s) to ch{args.ch:02d}"
+        return apply_preset_edit(sc, args)
     elif args.cmd == "set-fx":
         did = []
         if args.type:
@@ -109,16 +110,15 @@ def apply_edit(sc: Scene, args) -> str:
                 if not sep:
                     raise InvalidInputError(f"--set wants NAME=VALUE, got {item!r}")
                 values[name.strip()] = value.strip()
-            _fx.set_fx_params(sc, args.slot, values)
-            did.append(", ".join(f"{k}={v}" for k, v in values.items()))
+            written = _fx.set_fx_params(sc, args.slot, values)
+            did.append(", ".join(f"{k}={v}" for k, v in written.items()))
         return f"FX{args.slot}: " + "; ".join(did)
     elif args.cmd == "apply-fx":
         code = _fx.apply_fx(sc, args.slot, read_checked(args.preset), source=args.source)
         return f"loaded {code} preset into FX{args.slot}"
     elif args.cmd == "set-routing":
         if args.key == "switch":
-            _rt.set_routswitch(sc, args.blocks[0])
-            return f"routing switch {args.blocks[0]}"
+            return f"routing switch {_rt.set_routswitch(sc, args.blocks[0])}"
         blocks = {}
         for item in args.blocks:
             label, sep, value = item.partition("=")
@@ -133,6 +133,10 @@ def apply_edit(sc: Scene, args) -> str:
         inv = None if args.invert is None else args.invert == "on"
         words = _rt.set_output(sc, args.bank, args.n, src=args.src, pos=args.pos, invert=inv)
         return f"{args.bank} {args.n:02d}: {words}"
+    elif args.cmd in SEND_COMMANDS:
+        return send_tap_edit(sc, args, linked)
+    elif args.cmd in RECORD_COMMANDS:
+        return record_edit(sc, args)
     elif args.cmd == "apply-routing":
         keys = _rt.apply_routing(sc, read_checked(args.preset), args.bank)
         return f"applied routing banks {', '.join(keys)}"
@@ -151,6 +155,9 @@ def parse_edit(text: str, scene: str):
             "--edit cannot run set-bus-link: a snippet cannot carry /config/buslink, so it "
             "would load the reshaped sends and pans onto a pair whose link state has not "
             f"changed; run set-bus-link SCENE BUS on|off -o OUT.scn and load that scene: {text!r}")
+    if words[:1] and words[0] in STRIP_COMMANDS:
+        raise InvalidInputError(f"--edit cannot run {words[0]}: {NOT_IN_SNIPPET}; run it on "
+                                f"the scene with -o OUT.scn and load that scene: {text!r}")
     if not words or words[0] not in IN_PLACE:
         raise InvalidInputError(f"--edit must start with one of {sorted(IN_PLACE)}: {text!r}")
     if "-o" in words or "--out" in words:
@@ -189,12 +196,9 @@ def run_edit(args) -> int:
                                  [read(p) for p in args.snippet], cues)
         # a show is written into the layout it reads from, so an input can be one of
         # the names about to be written
-        for fname in files:
-            refuse_overwrite(os.path.join(args.dir, fname), *args.scene, *args.snippet,
-                             force=args.force)
-        os.makedirs(args.dir, exist_ok=True)
-        for fname, text in files.items():
-            atomic_write_bytes(os.path.join(args.dir, fname), text.encode("utf-8"))
+        write_into(args.dir, [(os.path.join(args.dir, fname), text.encode("utf-8"))
+                              for fname, text in files.items()],
+                   *args.scene, *args.snippet, force=args.force)
         print(f"wrote {args.name}.shw with {len(cues)} cue(s), {len(args.scene)} scene(s), "
               f"{len(args.snippet)} snippet(s) -> {args.dir}")
         return 0
@@ -202,14 +206,14 @@ def run_edit(args) -> int:
         refuse_overwrite(args.out, args.scene, force=args.force)
         name = args.name or os.path.splitext(os.path.basename(args.out))[0]
         rou = _rt.extract_routing(load_checked(args.scene), name)
-        atomic_write_bytes(args.out, rou.encode("utf-8"))
+        write_file(args.out, rou.encode("utf-8"))
         print(f"wrote routing preset -> {args.out}")
         return 0
     if args.cmd == "extract-fx":
         refuse_overwrite(args.out, args.scene, force=args.force)
         name = args.name or os.path.splitext(os.path.basename(args.out))[0]
         efx = _fx.extract_fx(load_checked(args.scene), args.slot, name)
-        atomic_write_bytes(args.out, efx.encode("utf-8"))
+        write_file(args.out, efx.encode("utf-8"))
         print(f"wrote FX{args.slot} preset -> {args.out}")
         return 0
     if args.cmd == "set-bus-link":
@@ -219,6 +223,10 @@ def run_edit(args) -> int:
         sc.save(args.out)
         _ports.cmd_set_bus_link(sc, edit, args.out)
         return 0
+    if args.cmd in SEND_COMMANDS:
+        return run_send_tap(args)
+    if args.cmd in RECORD_COMMANDS:
+        return run_record(args)
     if args.cmd in IN_PLACE:
         inputs = ([args.scene, args.preset]
                   if args.cmd in ("apply-preset", "apply-fx", "apply-routing") else [args.scene])
@@ -237,7 +245,7 @@ def run_edit(args) -> int:
         refuse_overwrite(args.out, args.scene, force=args.force)
         chn = _presets.extract_preset(load_checked(args.scene), args.ch, args.scope,
                                       header=args.header)
-        atomic_write_bytes(args.out, chn.encode("utf-8"))   # LF-only, as Scene.save
+        write_file(args.out, chn.encode("utf-8"))   # LF-only, as Scene.save
         print(f"wrote preset for ch{args.ch:02d} -> {args.out}")
         return 0
     if args.cmd == "band-setup":
@@ -253,16 +261,16 @@ def run_edit(args) -> int:
         if args.snippet:
             refuse_overwrite(args.snippet, *inputs, args.out, force=args.force)
         try:
-            load_checked(args.template)   # run() reloads it; this is the shape check
+            template = load_checked(args.template)   # shape-checked here; run() loads its own copy
             rep = _band_swap.run(args.template, plan, args.out)
         except (KeyError, IndexError, TypeError, ValueError, OSError) as e:
             print(f"plan failed, nothing written: {clean(e)}", file=sys.stderr)
             return 2
-        print(f"applied plan: {rep['lines_changed']} line(s) over "
-              f"{len(rep['changed'])} path(s); wrote {args.out}")
+        edited = Scene.load(args.out)
+        _views_band.cmd_band_setup(template, edited, rep, args.out)
         if args.snippet:
             name = os.path.splitext(os.path.basename(args.snippet))[0]
-            snip = _snippets.make_snippet(load_checked(args.template), Scene.load(args.out), name)
+            snip = _snippets.make_snippet(template, edited, name)
             snip.scene.save(args.snippet)
             _views.cmd_snippet(snip, args.snippet)
         print("LOAD-TEST on the console before a gig.")

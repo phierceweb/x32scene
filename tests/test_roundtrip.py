@@ -2,8 +2,8 @@
 round-trip alone cannot provide: token validation and edit->reparse structure checks
 (verbatim storage round-trips ANY input, including ones the token layer misreads).
 
-Coverage: the checked-in example scenes (always run), and optionally your own library —
-point ``X32SCENE_CORPUS`` at a directory of real ``.scn``/``.chn`` files.
+Coverage: every file kind among the checked-in fixtures (always run), and optionally your own
+library — point ``X32SCENE_CORPUS`` at a directory of real console files.
 """
 
 import glob
@@ -15,6 +15,12 @@ from x32scene import Scene, tokenize
 from x32scene.model import HEADER_WIDTH
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
+KINDS = ("scn", "snp", "chn", "efx", "rou", "shw")
+
+
+def _files(root: str, kind: str) -> list[str]:
+    return sorted(glob.glob(os.path.join(root, "**", f"*.{kind}"), recursive=True))
+
 
 HEADER = '#4.0# "Example Rig" "" %000000000 1'.ljust(HEADER_WIDTH)
 
@@ -45,30 +51,28 @@ class RoundTripTest(unittest.TestCase):
         emitted = Scene.parse(SCENE).dump()
         self.assertIn("/some/unknown/path with weird tokens 1 2 3", emitted)
 
-    def test_fixture_scenes_roundtrip(self):
-        """The checked-in example scenes — anonymized full-console exports, 2118 lines each."""
-        files = sorted(glob.glob(os.path.join(FIXTURES, "*.scn")))
-        self.assertTrue(files, "no fixture scenes found")
+    def _assert_roundtrips(self, root: str, files: list[str]) -> None:
         for path in files:
-            with self.subTest(file=os.path.basename(path)):
+            with self.subTest(file=os.path.relpath(path, root)):
                 with open(path, encoding="utf-8", newline="") as fh:
                     original = fh.read()
                 self.assertEqual(Scene.parse(original).dump(), original)
+
+    def test_fixtures_of_every_kind_roundtrip(self):
+        for kind in KINDS:
+            files = _files(FIXTURES, kind)
+            with self.subTest(kind=kind):
+                self.assertTrue(files, f"no .{kind} fixture")
+            self._assert_roundtrips(FIXTURES, files)
 
     @unittest.skipUnless(os.environ.get("X32SCENE_CORPUS"),
                          "set X32SCENE_CORPUS to a scene directory to run")
     def test_user_corpus_roundtrips(self):
         """Opt-in: prove the parser against exports this repo has never seen."""
         root = os.environ["X32SCENE_CORPUS"]
-        files = []
-        for ext in ("scn", "chn"):
-            files.extend(glob.glob(os.path.join(root, "**", f"*.{ext}"), recursive=True))
-        self.assertTrue(files, f"no .scn/.chn found under {root}")
-        for path in sorted(files):
-            with self.subTest(file=os.path.basename(path)):
-                with open(path, encoding="utf-8", newline="") as fh:
-                    original = fh.read()
-                self.assertEqual(Scene.parse(original).dump(), original)
+        files = [p for kind in KINDS for p in _files(root, kind)]
+        self.assertTrue(files, f"no {'/'.join('.' + k for k in KINDS)} file under {root}")
+        self._assert_roundtrips(root, files)
 
     def test_save_is_byte_identical_to_dump(self):
         """Round-trip through a FILE, not only memory. A text-mode write translates
@@ -120,6 +124,47 @@ class MutationGuardTest(unittest.TestCase):
         ln.set_arg(0, '"Lead Vox"')
         ln.set_arg(1, "2")
         self.assertEqual(ln.args[:2], ['"Lead Vox"', "2"])
+
+
+class PaddedFieldTest(unittest.TestCase):
+    def test_a_replaced_field_keeps_the_padding_in_front_of_it(self):
+        from x32scene.model import Line, put_field
+        ln = Line.parse('/ch/01/config "A B"  6 YEi   5')
+        fields = ln.padded_fields()
+        self.assertEqual(fields, [' "A B"', '  6', ' YEi', '   5'])
+        put_field(fields, 3, "12")
+        put_field(fields, 0, '"C"')
+        self.assertTrue(ln.set_fields(fields))
+        self.assertEqual(ln.raw, '/ch/01/config "C"  6 YEi   12')
+        self.assertEqual(ln.args, ['"C"', "6", "YEi", "12"])
+        self.assertFalse(ln.set_fields(ln.padded_fields()))
+        with self.assertRaises(ValueError):
+            put_field(fields, 0, "two words")
+
+    def test_trailing_padding_and_a_token_glued_to_a_quote_survive_an_edit(self):
+        from x32scene.model import Line, put_field
+        for raw, i, tok, want in (
+                ("/outputs/main/02 26 POST OFF  ", 0, "27", "/outputs/main/02 27 POST OFF  "),
+                ('/config/userctrl/B/btn "F05""P01" x', 2, "y",
+                 '/config/userctrl/B/btn "F05""P01" y'),
+                ('  /ch/01/mix ON  +6.5', 1, "-3.0", '  /ch/01/mix ON  -3.0')):
+            with self.subTest(raw=raw):
+                ln = Line.parse(raw)
+                fields = ln.padded_fields()
+                self.assertEqual([f.lstrip(" ") for f in fields], ln.args)
+                self.assertFalse(ln.set_fields(fields))
+                put_field(fields, i, tok)
+                self.assertTrue(ln.set_fields(fields))
+                self.assertEqual((ln.raw, ln.args), (want, Line.parse(want).args))
+
+    def test_a_field_that_would_merge_with_its_neighbour_is_refused(self):
+        from x32scene.model import Line, put_field
+        ln = Line.parse('/config/userctrl/B/btn "F05""P01"')
+        fields = ln.padded_fields()
+        put_field(fields, 0, "F05")
+        with self.assertRaises(ValueError):
+            ln.set_fields(fields)
+        self.assertEqual(ln.raw, '/config/userctrl/B/btn "F05""P01"')
 
 
 class EditReparseTest(unittest.TestCase):

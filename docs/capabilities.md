@@ -5,7 +5,8 @@ The whole toolkit on one page, organized by the job in front of you. Every comma
 new file**, refuse to overwrite an input, and refuse an output that already exists unless
 you pass `--force`, so your saved scenes are never touched — the way to change a real scene
 is to write a copy, load-test it, and adopt it. Reading a file whose shape does not match
-its kind warns on stderr without refusing the file.
+its kind warns on stderr without refusing the file; `x32scene --kind scn …` names the kind
+of a file whose extension does not.
 
 The file kinds it handles, all byte-faithful (`Scene.parse(text).dump() == text`):
 
@@ -42,7 +43,7 @@ what the desk does with them.
 |---|---|
 | `info` | title, channel and bus names |
 | `inputs` | each channel's physical source, resolved through the routing banks and user patch |
-| `ports` | every output bank: what feeds each jack, its tap point, mirrors; `--config` marks physical vs virtual outputs, `--stage` adds the jack, device and wearer |
+| `ports` | every output bank: what feeds each jack, its tap point, mirrors; `--config` or `--console MODEL` marks physical vs virtual outputs, `--stage` adds the jack, device and wearer |
 | `buses` | the 16 mix buses: stereo pairs, which feed an FX slot, PRE/POST tallies |
 | `iem BUS` | one monitor mix: who is in it and at what level |
 | `iem-matrix` | every monitor mix at once, senders down, buses across; `--compare` shows before>after against another scene |
@@ -83,8 +84,11 @@ mirror and take no `--no-link`. The rest address a slot, a channel, an output, a
 | `set-input CH` | a channel's input source by name (`"aes50-a 3"`, `"card 7"`) |
 | `move-inputs CH:IN… --to A\|B` | a set of channels onto stage-box inputs, each one's head-amp gain and phantom travelling with it (`--no-gain` leaves them); all-or-nothing, and refused when it would also re-source or re-gain a channel it did not name |
 | `set-output BANK N` | an output's source (`"bus 12"`, `"direct out ch 5"`), tap point and polarity |
+| `set-record TRACK SRC` | a USB card record track's source (`"Output 9"`, `"P16 5"`, `"Local input 5"`), written into the user-out slot its card block reads, naming every other destination that slot feeds; refused for a track whose card block is not user-out |
+| `set-send-tap STRIP BUS TAP` | where a strip's send to a mix-bus pair taps the signal (`IN/LC`, `<-EQ`, `EQ->`, `PRE`, `POST`, `GRP`), on the odd bus's line the pair shares, mirrored to a stereo-linked strip |
 | `set-routing KEY` | a routing bank's blocks by label, checked against the console's vocabulary; `switch REC\|PLAY` |
 | `set-bus-link BUS on\|off` | links or unlinks a stereo mix-bus pair the way the desk's link key does — on link the even bus takes the odd bus's sends and strip settings (not its name) and the matrix-send pans spread; on unlink only the link and pans move — and names the outputs either bus feeds |
+| `swap-strips A B`, `move-strip FROM --to TO`, `reorder-strips FROM:TO…` | channel strips to new positions: every line of a strip travels, and the direct-out taps, channel links and user-assign controls that name a moved channel follow it, each rewrite listed. All-or-nothing, and refused when a linked pair would split or reverse, a key source names a moving channel (not yet desk-verified as a channel), or an automix group would cross channels 1–8; scenes only, not snippets or shows |
 | `port-iem` | one scene's output routing onto another |
 
 ## Carry things between scenes
@@ -92,7 +96,7 @@ mirror and take no `--no-link`. The rest address a slot, a channel, an output, a
 | Command | Does |
 |---|---|
 | `transplant SRC DST` | copies chosen lines from one scene into another and touches nothing else: `--bus N` a whole monitor mix (the bus strip and every send into it, both sides of a pair), `--path GLOB` any lines, `--ch N --scope S` a channel's sections with the head amp re-mapped |
-| `extract-preset` / `apply-preset` | a channel's sections as a `.chn`, loaded onto any channel of any scene; `extract-preset --all` writes one per named channel, regenerating a preset folder from a scene |
+| `extract-preset` / `apply-preset` | a channel's sections as a `.chn`, loaded onto any channel of any scene, in the scopes a preset header flags present unless `--scope` names them; `extract-preset --all` writes one per named channel, regenerating a preset folder from a scene |
 | `extract-fx` / `apply-fx` | an effect slot as a `.efx`, loaded into any slot |
 | `extract-routing` / `apply-routing` | the routing banks as a `.rou`, loaded whole or per bank |
 
@@ -119,10 +123,11 @@ filter, and a bus mix is the bus and its sends and nothing else.
 `band-setup TEMPLATE PLAN.json -o OUT.scn [--snippet OUT.snp]` applies one JSON plan:
 title, channel names, presets, head amps, faders and mutes, per-channel low cut / EQ /
 compressor / gate / pan / source, DCA membership, monitor-mix copies and send trims, FX
-slots, routing banks, every output bank. Every value is validated against the console's
+slots, routing banks, every output bank, USB card record tracks by source. Every value is validated against the console's
 vocabulary before a line is written, and the result is verified to differ from the
-template only in the paths the plan named. `--snippet` writes the same change as a
-snippet. Every section, and the rules a plan must satisfy, are in
+template only in the paths the plan named and the sends a stereo-linked pair mirrors
+them to; every changed path is printed by strip, a mirror marked `(mirrored)`. `--snippet`
+writes the same change as a snippet. Every section, and the rules a plan must satisfy, are in
 [band-plan.md](band-plan.md); start from [`config/example-plan.json`](../config/example-plan.json).
 
 `show-build -o DIR --name NAME --scene … --snippet … --cue "1 Opener scene=0 snippet=1"`
@@ -133,9 +138,10 @@ writes a show — the index plus its companion files — in the shape X32-Edit i
 | Command | Checks |
 |---|---|
 | `preflight SCENE --config rig.json [--stage stage.json]` | the scene against the documented rig: outputs, monitor skeleton, routing, links, send taps and presence, groups; `FAIL` exits 1. The config's sections are in [preflight-config.md](preflight-config.md) |
-| `preflight SCENE --regenerate rig.json` | nothing: writes the config SCENE satisfies — every section the scene holds, stable enough that `git diff` on a tracked copy shows what moved on the desk. The console's jack count is not in a scene, so `monitor.physical_outputs` and `require_reachable` are not written ([generating one](preflight-config.md#generating-one)) |
+| `preflight SCENE --regenerate rig.json` | nothing: writes the config SCENE satisfies — every section the scene holds, stable enough that `git diff` on a tracked copy shows what moved on the desk. The console's jack count is not in a scene, so `monitor.physical_outputs` and `require_reachable` are written only when `--console MODEL` names the console ([generating one](preflight-config.md#generating-one)) |
 | `ports --stage` | the jack, device and wearer each output feeds, from the [stage sidecar](stage-sidecar.md) |
 | `audit DIR` | a library's structural invariants |
+| `show FILE.shw --check` | a show's cue list: every cue's scene and snippet slot is in the index, and every slot's companion file is beside the `.shw`, has its kind's shape and, for a snippet, the header the index copies; `FAIL` exits 1 |
 
 ## The live desk (read-only)
 
@@ -164,5 +170,5 @@ load is a deliberate act with a confirm step, a push is not.
 
 - Push edits to the desk over OSC (shelved on purpose; the read side is complete).
 - Write DP48 personal-monitor presets, or the MIDI fields of a cue (written as none).
-- Name the graphic EQs' bands with certainty: they read as the standard ISO series and
-  are refused for writing.
+- Write the TrueEQ graphic EQs (`TEQ`, `TEQ2`): they decode for reading only. `GEQ` and
+  `GEQ2` bands write, verified on a console.

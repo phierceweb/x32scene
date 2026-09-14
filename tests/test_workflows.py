@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -16,10 +17,22 @@ def unpinned(text: str) -> list[str]:
     return [r for r in refs if not r.startswith("./") and not _PINNED.match(r)]
 
 
+def workflow_files(directory: Path) -> list[Path]:
+    return sorted([*directory.glob("*.yml"), *directory.glob("*.yaml")])
+
+
+class WorkflowFilesTest(unittest.TestCase):
+    def test_an_unpinned_yaml_workflow_is_caught(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "release.yaml").write_text("      - uses: actions/checkout@v4\n")
+            found = {p.name: unpinned(p.read_text()) for p in workflow_files(Path(tmp))}
+        self.assertEqual(found, {"release.yaml": ["actions/checkout@v4"]})
+
+
 @unittest.skipUnless(WORKFLOWS.is_dir(), "workflows ship only in the repository")
 class WorkflowPinTest(unittest.TestCase):
     def test_every_action_is_pinned_to_a_sha(self):
-        files = sorted(WORKFLOWS.glob("*.yml"))
+        files = workflow_files(WORKFLOWS)
         self.assertTrue(files)
         for path in files:
             with self.subTest(workflow=path.name):

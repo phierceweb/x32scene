@@ -11,7 +11,7 @@ Do not confuse it with the two other JSON documents this tool reads. This one an
 and is a separate file passed with `--stage`.
 
 `ports --config` and `report --config` read the same file, for `monitor.physical_outputs`
-alone. Start from [`config/example-preflight.json`](../config/example-preflight.json), or
+alone; `--console MODEL` gives them the same count from the [console model](#console-models). Start from [`config/example-preflight.json`](../config/example-preflight.json), or
 write a complete one from a scene with `preflight SCENE --regenerate rig.json` — see
 [generating one](#generating-one).
 
@@ -49,7 +49,8 @@ Three rules govern the whole document:
   Record gains drift by design, so they are compared against `gain_tolerance_db`.
 
 A section keyed by number rejects a non-numeric key, a key out of range, and `"9"` beside
-`"09"` — each as its own `FAIL` rather than an arbitrary last-wins.
+`"09"` — each as its own `FAIL` rather than an arbitrary last-wins. A key repeated inside
+one object, at any depth, is refused before anything is checked: exit 1, naming the key.
 
 ## Top-level keys
 
@@ -109,7 +110,7 @@ the check that catches a record patch someone re-pointed between gigs.
 
 | Key | Meaning |
 |---|---|
-| `physical_outputs` | 1–16 — how many `/outputs/main` have a rear jack on **this** console (8 = X32 Rack, 16 = full-size). The file cannot say, so the config must |
+| `physical_outputs` | 0–16 — how many `/outputs/main` have a rear jack on **this** console ([console models](#console-models) lists the counts). The file cannot say, so the config must, or `--console` names the model |
 | `stereo_pairs` | banks (`main`, `aux`) where an odd output carrying an odd bus must be followed by its partner |
 | `require_reachable` | every virtual output with a source must leave the console via an AES50/card block or a user-out slot |
 | `require_live_senders` | every bus that feeds an output must have at least one sender ON above −∞ |
@@ -117,6 +118,35 @@ the check that catches a record patch someone re-pointed between gigs.
 `require_reachable` and `require_live_senders` are the two checks that catch a silently dead
 monitor mix: a bus routed to an output that has no way off the desk, and a bus whose
 senders are all down.
+
+### Console models
+
+`--console MODEL`, or `X32SCENE_CONSOLE`, names the console instead of declaring
+`physical_outputs`. MODEL is the string `/xinfo` reports (`x32scene desk` prints it) or the
+product name, in any case: `X32RACK`, `"X32 Rack"`, `x32-rack`. Outputs 1 to N of
+`/outputs/main` are the jacks; the rest are virtual, and on a console with 0 all 16 are.
+
+| `/xinfo` model | Product | Main output jacks | Source |
+|---|---|---|---|
+| `X32` | X32 | 16 | [X32 user manual](https://cdn-media.empowertribe.com/e452c7959c0d4002908c23044a9558a7/8849399545886.pdf): 8, Specifications ("XLR outputs 16"); 7.4.2, Routing Screen: Analog Out Tab (the 16 rear-panel XLR outputs); [product page](https://www.behringer.com/en/products/0603-ACE) |
+| `X32P` | X32 Producer | 8 | [X32 Producer user manual](https://cdn-media.empowertribe.com/2cfef5bd1a124d4a876562b55dc81806/8849385750558.pdf): 8, Specifications ("XLR outputs 8"); 7.4.2, Routing Screen: Analog Out Tab (the 8 rear-panel XLR outputs); [product page](https://www.behringer.com/en/products/0603-ADP) |
+| `X32C` | X32 Compact | 8 | [X32 Compact user manual](https://cdn-media.empowertribe.com/13241f187345464c84d59367d5ea4e54/8849797021726.pdf): 8, Specifications ("XLR outputs 8"); 2.6, Rear Panel Connections ("Outputs 1-8"); [product page](https://www.behringer.com/en/products/0603-AAB) ("8 XLR outputs"). Its 7.4.2 says 16, against the rest of the manual |
+| `X32RACK` | X32 Rack | 8 | [X32 Rack user manual](https://cdn-media.empowertribe.com/1cac2faf617a4c548ffd4dc893ec4ebb/8849854726174.pdf): 8, Specifications ("XLR outputs 8"); 7.4.2, Routing Screen: Analog Out Tab (the 8 rear-panel XLR outputs); [product page](https://www.behringer.com/en/products/0604-AAA) |
+| `M32` | M32 | 16 | [M32 user manual](https://cdn-media.empowertribe.com/5a30d52258104865a4392b99550ee1f9/M32_M_EN.pdf): 4.1, Technical Specifications ("XLR Outputs 16"); 2.3, Routing, out 1-16 tab (the 16 rear-panel XLR outputs); 3.3, XLR OUT 1-16; [product page](https://www.midasconsoles.com/en/products/0603-aeo) |
+| `X32CORE` | X32 Core | 0 | [X32 Core quick start guide](https://cdn-media.empowertribe.com/8644a6909189458f864c7b62b3f9e62e/8850227920926.pdf): no XLR output among its connectors |
+| `M32C` | M32C | 0 | [M32C quick start guide](https://cdn-media.empowertribe.com/bfa1b15e166944dfbc932e8e19b3ecda/M32C_QSG_WW.pdf): the block diagram marks OUT 1-16 virtual |
+| `M32R` | M32R | 8 | [M32R user manual](https://cdn-media.empowertribe.com/ad242ce7708f42028722ed6823d14fda/M32R_M_EN.pdf): 4.1, Technical Specifications ("XLR Outputs 8"); 2.3, Routing, out 1-16 tab (the 8 rear-panel XLR outputs); 3.3, XLR OUT 1-8; [product page](https://www.midasconsoles.com/en/products/0603-AEP) |
+
+An unknown name is refused, listing the models. A count is added to `MAIN_JACKS` in
+`services/console_models.py` only with its manual source.
+
+- `preflight --regenerate` writes `physical_outputs` from the model, and
+  `require_reachable` `true` when the scene passes it, `false` otherwise.
+- `preflight` uses the model's count for a config that declares no `physical_outputs`.
+- `ports` and `report` label physical and virtual outputs from it.
+
+A config that declares `physical_outputs` and a model with another count is refused in one
+line, before anything is checked or printed.
 
 ## `outputs`
 
@@ -240,7 +270,8 @@ writes the config `scene.scn` satisfies instead of checking it. Checking the sam
 against the result reports nothing but the line-shape findings no config turns off, and the
 `checked:` line names every section the file holds; a section the scene has nothing to
 declare for is left out. A snippet, preset or show file is refused, since the config
-describes a whole console. The file is stable — keys sorted (numbered keys by number),
+describes a whole console, and so is any file with no channel strips, such as a JSON file
+passed as the scene. The file is stable — keys sorted (numbered keys by number),
 two-space indent, one trailing newline — so regenerating from an unchanged scene changes
 only the date in `_comment`, and `git diff` on a tracked copy shows what moved on the desk.
 
@@ -255,13 +286,14 @@ It is a full snapshot, not a curated one:
 | `links` | every pair, the four link preferences, and `require_send_symmetry` |
 | `sends` | per odd bus the tap with the fewest `except` rules that fit; per bus every sender in `present` or `absent` |
 | `groups` | every DCA's name and members, every mute group's members, the engaged groups |
-| `monitor` | `stereo_pairs` and `require_live_senders` |
+| `monitor` | `stereo_pairs` and `require_live_senders`; with a console model, also `physical_outputs` and `require_reachable` |
 
 What it cannot write:
 
-- **`monitor.physical_outputs` and `require_reachable`.** A scene does not record how many
-  rear jacks the console has, and reachability is judged against that count. Neither
-  survives a regenerate, so a rig that relies on them adds them back after each one.
+- **`monitor.physical_outputs` and `require_reachable`, without a console model.** A scene
+  does not record how many rear jacks the console has, and reachability is judged against
+  that count. Name the model with `--console` or `X32SCENE_CONSOLE` and both are written
+  ([console models](#console-models)); without one, neither is.
 - **The [stage sidecar](stage-sidecar.md).** Cabling is not in the file.
 - **A value its check could not verify.** A policy — `stereo_pairs`,
   `require_live_senders`, `require_send_symmetry` — is written `true` only when every line

@@ -186,9 +186,12 @@ class CliTest(unittest.TestCase):
             shutil.copy(SCENE, work)
             with open(work, encoding="utf-8", newline="") as fh:
                 before = fh.read()
-            rc = main(["set-eq", work, "1", "1", "--gain", "3",
-                       "-o", os.path.join(d, "WORK.SCN")])
+            err = io.StringIO()
+            with contextlib.redirect_stderr(err):
+                rc = main(["set-eq", work, "1", "1", "--gain", "3",
+                           "-o", os.path.join(d, "WORK.SCN"), "--force"])
             self.assertEqual(rc, 1)
+            self.assertIn("would overwrite the input", err.getvalue())
             with open(work, encoding="utf-8", newline="") as fh:
                 self.assertEqual(fh.read(), before)
 

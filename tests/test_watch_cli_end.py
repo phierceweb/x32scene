@@ -6,13 +6,13 @@ import errno
 import json
 import os
 import stat
+import time
 import unittest
 from unittest import mock
 
 from tests.test_watch_cli import EQ_UP, MIX_DOWN, MIX_START, REF_TEXT, WatchCliBase, WatchConsole
 from x32scene.model import Scene
 from x32scene.services import osc as O
-from x32scene.services import watch as W
 from x32scene.services.snippets import make_snippet
 
 BUSLINK_REF = REF_TEXT + "/config/buslink OFF OFF OFF OFF OFF OFF OFF OFF\n"
@@ -23,7 +23,9 @@ class WatchEndTest(WatchCliBase):
     def test_ctrl_c_reads_back_a_change_still_in_its_debounce_window(self):
         out_snp = os.path.join(self.tmp, "late.snp")
         console = WatchConsole(script=[(0.2, MIX_DOWN, ["/ch/01/mix/fader"]), (0.02, "INTERRUPT")])
-        rc, out, err = self.watch(console, "--snippet", out_snp)
+        started = time.monotonic()
+        rc, out, err = self.watch(console, "--snippet", out_snp, "--seconds", "20")
+        self.assertLess(time.monotonic() - started, 3)
         self.assertEqual(rc, 0)
         self.assertNotIn("Traceback", err)
         self.assertIn("1 change(s) logged", out)
@@ -112,7 +114,7 @@ class LinkFailureTest(WatchCliBase):
     and the snippet."""
 
     def fail_second_read_back(self, *argv):
-        real_send = W.UdpTransport.send
+        real_send = O.UdpTransport.send
         sent = {"node": 0}
 
         def send(link, addr, args=()):
@@ -124,7 +126,7 @@ class LinkFailureTest(WatchCliBase):
 
         console = WatchConsole(script=[(0.2, MIX_DOWN, ["/ch/01/mix/fader"]),
                                        (0.6, EQ_UP, ["/ch/01/eq/1/g"])])
-        with mock.patch.object(W.UdpTransport, "send", send):
+        with mock.patch.object(O.UdpTransport, "send", send):
             return self.watch(console, "--seconds", "5", *argv)
 
     def test_the_summary_and_snippet_survive_and_the_exit_is_1(self):

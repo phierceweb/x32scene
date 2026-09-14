@@ -46,12 +46,17 @@ sc = Scene.load("scene.scn")        # or Scene.parse(text)
 line = sc.get("/ch/01/mix")         # Line | None — the path is the index
 line.args                           # ['ON', '+6.5', 'ON', '+0', 'OFF', '-oo']
 line.set_arg(1, "-3.0")             # marks the line dirty; only dirty lines are rebuilt
-sc.save("out.scn")                  # atomic write, LF endings
+sc.save("out.scn")                  # atomic write, LF endings; OSError names out.scn
 ```
 
 `Scene.find(prefix)` returns every line whose path starts with a **prefix** — `"/headamp/"`,
 `"/ch/01/"`. It is not a glob; a trailing `*` matches nothing. `Line.dirty` says whether a
 line has been changed — `band_swap` counts them to report how much a plan moved.
+
+`Line.padded_fields()` gives the values with the whitespace the desk wrote in front of each;
+`model.put_field` replaces one and `Line.set_fields` writes them back, leaving the rest of
+the line's spacing, trailing spaces included, as it was. `set_fields` raises ValueError when
+a replaced value would change how the line splits into tokens.
 
 Address a line by its **exact path**. `/outputs/main/01` and `/outputs/main/01/delay` share
 a prefix, and a startswith match over `/ch/01/mix` also catches all sixteen of its sends.
@@ -82,19 +87,24 @@ One concern per module. The ones a script reaches for first:
 | `transforms` | names, faders, mutes, pan, head amps, output taps |
 | `stagebox` | channels moved onto AES50 stage-box inputs, head amps travelling with them |
 | `channelfx` | EQ bands, low cut, compressor, gate — the per-strip processing |
-| `routing`, `routing_edit` | resolve a channel to its jack, the outputs a bus feeds; set inputs, outputs and routing banks |
-| `iem` | monitor mixes: one send, a whole mix copied, pair-aware targets |
+| `routing`, `routing_edit` | resolve a channel to its jack, the outputs a bus feeds; set inputs, outputs, routing banks and a card record track's source (`set_record`, `record_slot`, `encode_out_source`), and name every destination a user-out slot feeds (`user_out_readers`, `record_row`) |
+| `iem` | monitor mixes: one send, a whole mix copied, pair-aware targets; `set_send_tap(sc, strip, bus, tap, linked=None)` writes a send's tap point on the odd bus's line and returns every path written |
+| `buses` | `channel_names(sc)` and `bus_names(sc)` by number; `bus_rows(sc) -> list[BusRow]`, each mix bus's name, its pair's link, the FX slot and type it feeds, and its sends counted by tap |
 | `buslink` | link or unlink a stereo bus pair as the desk does: `set_bus_link(sc, bus, on) -> BusLinkEdit`; `relinked_pairs(a, b, paths)` for the pairs whose link differs that `paths` carry a line of |
+| `stripmove` | reorder channel strips: `permute_channels(sc, {old: new}) -> StripMove` (the moves, each `RemappedRef(path, field, before, after)`, the changed paths), all-or-nothing with a ValueError naming every refusal; `swap_mapping(a, b)` and `move_mapping(frm, to)` build a mapping; `unexpected_changes(before, after, move)` is the check it runs before writing |
 | `transplant` | carry chosen lines from one scene into another |
-| `presets` | `.chn` extract/apply, with the head-amp index remapped |
+| `presets` | `.chn` extract/apply, with the head-amp index remapped; `header_scopes(text)` the scopes a header's flags select (None when headerless or the header has no flag mask), `preset_selects(text, scopes) -> Callable[[str], bool]` the predicate an apply writes a bare preset path by (`selects("/eq/1")`), `unflagged_scopes(text, scopes)` what an apply skips |
 | `preset_library` | a folder of `.chn` against a scene: `check_library(sc, dir) -> list[PresetCheck]`; `extract_library(sc) -> (presets, unnamed, shared)` for one preset per named channel, skipping every channel on a shared file name |
 | `fx` | effect types, sources and parameters by name |
 | `snippets` | build a `.snp` from a delta, with the header masks derived from the body |
 | `diff` | `diff(a, b) -> list[Change]` |
+| `show`, `show_check` | `read_show(text) -> Show`, `build_show(...)` for a `.shw` and its companions; `check_show(show, stem, read) -> list[Finding]` fails a file with no `show` line (`Show.has_show_line`), checks the cues and each `companion(stem, entry)` file, with `read(name)` raising FileNotFoundError for an absent one |
+| `audit` | a scene library: `load_library(dir) -> (scenes, errors)`, `check_invariants(lib)`, and each change down the chronology in `routing_drift(lib)` and `record_patch_drift(lib)` |
 | `preflight`, `stage` | check a scene against a config and a sidecar |
-| `preflight_regen` | the config a scene satisfies: `regenerate(sc, source, generated) -> dict`; `dumps(doc)` is the stable file text |
+| `preflight_regen` | the config a scene satisfies: `regenerate(sc, source, generated, console=None) -> dict`, with `monitor.physical_outputs` and `require_reachable` only when `console` names a model; `dumps(doc)` is the stable file text |
+| `console_models` | `console_model(name)` for the `/xinfo` model string (`X32RACK` or `"X32 Rack"`, any case) and `main_jacks(name)` for how many `/outputs/main` have a rear jack (0 on X32 Core and M32C); ValueError for an unknown model |
 | `osc`, `desk`, `meters` | the read-only live layer |
-| `watch` | changes on the running desk as they happen: `subscribe(transport)` before pulling `start` returns a `Subscription` to pass as `pull_scene_like(..., between=)`, which renews `/xremote` and keeps what the desk pushes meanwhile; `Watch(reference, start).run(transport, backlog=sub.backlog)` yields each `Changed`, dated by the push that reported it; `flush(transport)` reads back what an interrupted run left waiting; `summary()` is the net change of the paths that answered and the paths left `unanswered`; transport and clock are injectable |
+| `watch` | changes on the running desk as they happen: `subscribe(transport)` before pulling `start` returns a `Subscription` to pass as `pull_scene_like(..., between=)`, which renews `/xremote` and keeps what the desk pushes meanwhile; `Watch(reference, start).run(transport, backlog=sub.backlog, pulled=asked)` yields each `Changed`, dated by the push that reported it, where `asked` is the dict `pull_scene_like(..., asked=)` filled with when it first asked for each path, so a push the start already holds dates nothing; `flush(transport)` reads back what an interrupted run left waiting; `summary()` is the net change of the paths that answered and the paths left `unanswered`; transport and clock are injectable |
 
 Two conventions run through all of them:
 
@@ -117,7 +127,11 @@ report["lines_changed"]
 ```
 
 `run` validates, applies, verifies against the template and saves — raising rather than
-writing a scene the plan did not describe. To inspect before saving, call `apply_plan` and
+writing a scene the plan did not describe. Its report lists the `changed` paths, and in
+`mirrored` those a stereo-linked pair wrote without the plan naming them
+(`mirrored_paths`), and in `record` one row per record track: its source before and
+after, its user-out slot, and `also_feeds`, every other destination that slot feeds
+(`routing_edit.record_row`). To inspect before saving, call `apply_plan` and
 `verify` yourself.
 
 ## What the library does not do

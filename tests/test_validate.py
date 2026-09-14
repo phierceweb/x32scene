@@ -86,6 +86,13 @@ class CatchesBrokenFilesTest(unittest.TestCase):
         f = V.findings(Scene.parse("hello world\n"), "chn")
         self.assertEqual([x.area for x in f], ["body"])
 
+    def test_a_chn_with_two_head_amps(self):
+        one = "/eq ON\n/headamp/000 +27.0 OFF\n"
+        self.assertEqual(V.findings(Scene.parse(one), "chn"), [])
+        [f] = V.findings(Scene.parse(one + "/headamp/001 +20.0 ON\n"), "chn")
+        self.assertEqual((f.severity, f.area), ("FAIL", "body"))
+        self.assertIn("2 head-amp lines", f.message)
+
     def test_an_unpadded_header_on_a_kind_that_pads(self):
         f = V.findings(Scene.parse('#4.0# "Short"\n/ch/01/eq ON\n'), "snp")
         self.assertEqual([x.area for x in f], ["header"])

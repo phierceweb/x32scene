@@ -1,13 +1,15 @@
 """Routing edits: the input/output routing banks, a channel's source, an output's source
-and tap, and routing presets (`.rou`) out and in. ``routing.py`` is the read side."""
+and tap, a card record track's source, and routing presets (`.rou`) out and in.
+``routing.py`` is the read side."""
 
 from __future__ import annotations
 
 from ..model import HEADER_WIDTH, Scene, check_token
 from ..tables import (
-    OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, SOURCE_DOMAINS, decode_source, decode_tap,
-    routing_block_names, routing_vocab,
+    OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, SOURCE_DOMAINS, decode_out_source, decode_source,
+    decode_tap, routing_block_names, routing_vocab,
 )
+from .routing import record_map, user_out_readers
 
 ROUTING_PRESET_KEYS = ("IN", "AES50A", "AES50B", "CARD")   # what the console's library holds
 _SOURCE_KINDS = {"off": 0, "local": 1, "an": 1, "local input": 1, "aes50-a": 33, "a": 33,
@@ -36,15 +38,17 @@ def set_routing(scene: Scene, key: str, blocks: dict[str, str]) -> list[str]:
     return list(blocks)
 
 
-def set_routswitch(scene: Scene, mode: str) -> None:
-    """``/config/routing REC|PLAY``: which input bank set is live."""
-    if mode not in ("REC", "PLAY"):
+def set_routswitch(scene: Scene, mode: str) -> str:
+    """``/config/routing REC|PLAY``, in either case: which input bank set is live. Returns
+    the spelling written."""
+    if mode.upper() not in ("REC", "PLAY"):
         raise ValueError(f"routing switch is REC or PLAY, not {mode!r}")
     ln = scene.get("/config/routing")
     if ln is None:
         raise KeyError("no /config/routing")
-    ln.args = [mode]
+    ln.args = [mode.upper()]
     ln.rebuild()
+    return ln.args[0]
 
 
 def encode_input_source(text: str | int) -> int:
@@ -120,9 +124,9 @@ def set_output(scene: Scene, bank: str, n: int, *, src: str | int | None = None,
     if src is not None:
         ln.args[0] = str(encode_tap(src))
     if pos is not None:
-        if pos not in OUTPUT_POS:
+        if pos.upper() not in OUTPUT_POS:
             raise ValueError(f"tap point must be one of {', '.join(OUTPUT_POS)}, got {pos!r}")
-        ln.args[1] = pos
+        ln.args[1] = pos.upper()
     if invert is not None:
         if nfields < 3:
             raise ValueError(f"{bank} outputs carry no polarity field")
@@ -130,6 +134,75 @@ def set_output(scene: Scene, bank: str, n: int, *, src: str | int | None = None,
     ln.rebuild()
     words = f"{decode_tap(int(ln.args[0]))} {ln.args[1]}"
     return words + (f" invert {ln.args[2].lower()}" if nfields >= 3 else "")
+
+
+_OUT_SOURCE_BY_NAME = {decode_out_source(n).lower(): n for n in range(209)}
+_OUT_KINDS = {"output": (169, 16), "out": (169, 16), "p16": (185, 16), "aux out": (201, 6)}
+
+
+def encode_out_source(text: str | int) -> int:
+    """A user-out source number (0-208) from the words ``record-map`` prints
+    (``"Output 9"``, ``"P16 5"``, ``"Aux Out 2"``, ``"Monitor L"``), the words
+    ``encode_input_source`` takes, or a bare number."""
+    if isinstance(text, bool):
+        raise ValueError(f"user-out source must be a name or a number, got {text!r}")
+    if isinstance(text, int) or str(text).strip().isdigit():
+        n = int(text)
+        if not 0 <= n <= 208:
+            raise ValueError(f"user-out source number must be 0-208, got {n}")
+        return n
+    key = " ".join(str(text).lower().split())
+    if key in _OUT_SOURCE_BY_NAME:
+        return _OUT_SOURCE_BY_NAME[key]
+    kind, _, num = key.rpartition(" ")
+    if kind in _OUT_KINDS and num.isdigit():
+        base, size = _OUT_KINDS[kind]
+        if not 1 <= int(num) <= size:
+            raise ValueError(f"{kind} sources run 1-{size}, got {num}")
+        return base + int(num) - 1
+    if kind in _SOURCE_KINDS and num.isdigit():
+        return encode_input_source(key)
+    raise ValueError(f"unknown user-out source {text!r}; use the words `record-map` prints "
+                     "(Local input 5, Card 7, Output 9, P16 5, Aux Out 2, Monitor L), "
+                     "local/aes50-a/aes50-b/card/aux N, or 0-208")
+
+
+def record_slot(scene: Scene, track: int) -> int:
+    """The user-out slot (1-48) card record track ``track`` (1-32) reads through its
+    ``/config/routing/CARD`` block; a block that is not UOUT has no slot and is refused."""
+    if isinstance(track, bool) or not isinstance(track, int) or not 1 <= track <= 32:
+        raise ValueError(f"record track must be 1-32, got {track!r}")
+    card = scene.get("/config/routing/CARD")
+    if card is None:
+        raise KeyError("no /config/routing/CARD")
+    b = (track - 1) // 8
+    card.require(b + 1)
+    tok, label = card.args[b], routing_block_names("CARD")[b]
+    if tok.rstrip("0123456789-") != "UOUT":
+        raise ValueError(f"track {track}: CARD block {label} is {tok}, not a UOUT block, so no "
+                         f"user-out slot feeds it; set-routing CARD {label}=UOUT… re-patches it")
+    return int(tok[4:].split("-")[0]) + (track - 1) % 8
+
+
+def set_record(scene: Scene, track: int, source: str | int) -> str:
+    """Point card record track ``track`` at ``source`` by writing the user-out slot its UOUT
+    block reads; returns the source in the words ``record-map`` prints."""
+    num = encode_out_source(source)
+    slot = record_slot(scene, track)
+    ln = scene.get("/config/userrout/out")
+    if ln is None:
+        raise KeyError("no /config/userrout/out")
+    ln.set_arg(slot - 1, str(num))
+    return decode_out_source(num)
+
+
+def record_row(scene: Scene, track: int, before: str) -> dict:
+    """Card record track ``track`` once written: its source ``before`` and after, its user-out
+    slot, and every other destination that slot feeds (``user_out_readers``)."""
+    slot = record_slot(scene, track)
+    return {"track": track, "before": before, "after": dict(record_map(scene))[track],
+            "slot": slot, "also_feeds": [r for r in user_out_readers(scene, slot)
+                                         if r != f"CARD track {track}"]}
 
 
 def extract_routing(scene: Scene, name: str) -> str:

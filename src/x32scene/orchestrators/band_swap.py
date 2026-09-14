@@ -27,13 +27,15 @@ Plan format::
       "routing":  {"switch": "REC", "IN": {"1-8": "A1-8"}, "preset": "Routing/Local.rou",
                    "banks": ["CARD"]},
       "output_patch": {"main": {"9": {"src": "bus 12", "pos": "PRE+M"}},
-                       "p16":  {"1": {"src": "direct out ch 5"}}}
+                       "p16":  {"1": {"src": "direct out ch 5"}}},
+      "record":   {"5": "Output 9", "17": "local 1"}   // card record track <- source
     }
 
 Within a channel a preset applies first, then the plan's own values, so a named EQ band
 wins over the preset's. ``fx``: a ``preset`` or ``type`` resets the slot's parameters to
 the console's defaults before ``params``. ``routing``: the ``preset`` banks land first,
-then named blocks. Every value is checked against the console's own vocabulary before a
+then named blocks. ``record`` runs after ``routing``, so a track resolves through the plan's
+own CARD blocks. Every value is checked against the console's own vocabulary before a
 line is written.
 
 An ``iem_sends`` record names a channel number or any send strip ("/auxin/05",
@@ -61,11 +63,11 @@ from ..services import transforms as T
 from ..services.diff import diff
 from ..services.groups import set_dca
 from ..services.jsonfile import read_json
-from ..services.presets import apply_preset
-from . import _sections
+from ..services.presets import apply_preset, preset_selects, unflagged_scopes
+from . import _sections, _sections_record
 from ._schema import _send_strip, validate_plan
-from ..services.routing import channel_headamp_index
-from ..services.scopes import SCOPES, scope_of
+from ..services.routing import channel_headamp_index, record_map
+from ..services.snippets import MIX_FIELD
 from ..tables import SEND_STRIPS
 
 
@@ -131,20 +133,28 @@ def _preset_text(plan: dict, spec: dict) -> str:
         return p.read_text(encoding="utf-8")
     except OSError as e:
         raise ValueError(f"preset {p}: {e.strerror}") from e
+    except UnicodeDecodeError as e:
+        raise ValueError(f"preset {p}: not a console text file (byte {e.start} is not UTF-8)"
+                         ) from None
 
 
 def apply_plan(scene: Scene, plan: dict) -> dict:
     """Apply a band-swap plan in place. Raises KeyError on channels the scene lacks."""
     validate_plan(plan)
+    recorded = dict(record_map(scene)) if plan.get("record") else None
     if "title" in plan:
         T.retitle_scene(scene, plan["title"])
+    skipped: dict[int, list[str]] = {}
     for ch_s, spec in sorted(plan.get("channels", {}).items(), key=lambda kv: int(kv[0])):
         ch = int(ch_s)
         if scene.get(f"/ch/{ch:02d}/config") is None:
             raise KeyError(f"channel {ch} not in scene")
         # preset first: a full-scope preset carries /config, and the plan's name must win
         if "preset" in spec:
-            apply_preset(scene, ch, _preset_text(plan, spec), spec.get("scopes"))
+            text = _preset_text(plan, spec)
+            apply_preset(scene, ch, text, spec.get("scopes"))
+            if unflagged := unflagged_scopes(text, spec.get("scopes")):
+                skipped[ch] = unflagged
         if "name" in spec:
             T.rename_channel(scene, ch, spec["name"])
         if "gain_db" in spec or "phantom" in spec:
@@ -185,7 +195,9 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
     _sections.apply_fx(scene, plan)
     _sections.apply_routing(scene, plan)
     _sections.apply_output_patch(scene, plan)
-    return {"lines_changed": sum(1 for ln in scene.lines if ln.dirty)}
+    record = _sections_record.apply_record(scene, plan, recorded)
+    return {"lines_changed": sum(1 for ln in scene.lines if ln.dirty), "preset_skipped": skipped,
+            "record": record}
 
 
 def allowed_paths(template: Scene, plan: dict) -> set[str]:
@@ -205,18 +217,20 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
             allowed.add(f"/ch/{ch:02d}/mix")
         allowed.update(_sections.allowed_channel_proc(ch, spec))
         if "preset" in spec:
-            sel = set(spec.get("scopes") or SCOPES)
-            for raw in _preset_text(plan, spec).splitlines():
+            text = _preset_text(plan, spec)
+            selects = preset_selects(text, spec.get("scopes"))
+            for raw in text.splitlines():
                 if not raw or raw.startswith("#"):
                     continue
                 bare = Line.parse(raw).path   # the parser apply_preset uses, so both agree
                 if bare.startswith("/headamp"):
-                    if "ha" in sel:
+                    if selects(bare):
                         idx = channel_headamp_index(template, ch)
                         if idx is not None:
                             allowed.add(f"/headamp/{idx:03d}")
-                elif scope_of(bare) in sel:
-                    allowed.add(f"/ch/{ch:02d}{bare}")
+                elif selects(bare):
+                    split = bare.startswith("/mix/") and bare[len("/mix/"):] in MIX_FIELD
+                    allowed.add(f"/ch/{ch:02d}{'/mix' if split else bare}")
     if plan.get("dca"):
         allowed.update(f"/ch/{ch:02d}/grp" for ch in range(1, 33))
     for cp in plan.get("iem_copy", []):
@@ -226,16 +240,33 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
     allowed.update(f"{path}/mix/{bus:02d}" for path, bus in _send_targets(template, plan))
     allowed.update(f"/outputs/main/{int(out_s):02d}" for out_s in plan.get("outputs", {}))
     allowed.update(_sections.allowed_sections(plan))
+    allowed.update(_sections_record.allowed_record(plan))
     return allowed
+
+
+def mirrored_paths(template: Scene, plan: dict) -> set[str]:
+    """Send paths the plan writes only because the console mirrors a stereo-linked pair:
+    no ``iem_sends`` record, ``iem_copy`` destination or other key names them."""
+    mirrors, named = set(), set()
+    for (path, bus), (_, rec) in _send_targets(template, plan).items():
+        (named if (path, bus) == rec else mirrors).add(f"{path}/mix/{bus:02d}")
+    for cp in plan.get("iem_copy", []):
+        dst = int(cp["dst"])
+        for bus in I.copy_iem_dst_buses(template, int(cp["src"]), dst):
+            (named if bus == dst else mirrors).update(f"{s}/mix/{bus:02d}" for s in SEND_STRIPS)
+    rest = {k: v for k, v in plan.items() if k not in ("iem_sends", "iem_copy")}
+    return mirrors - named - allowed_paths(template, rest)
 
 
 def verify(template: Scene, edited: Scene, plan: dict) -> dict:
     """Diff the edited scene against the template, flagging out-of-plan changes and any
-    send line whose field count no longer matches its bus."""
+    send line whose field count no longer matches its bus. ``mirrored`` lists the changed
+    paths :func:`mirrored_paths` names."""
     changes = [c.path for c in diff(template, edited)]
-    allowed = allowed_paths(template, plan)
+    allowed, mirrored = allowed_paths(template, plan), mirrored_paths(template, plan)
     return {"changed": changes,
             "unexpected": [p for p in changes if p not in allowed],
+            "mirrored": [p for p in changes if p in mirrored],
             "malformed": I.send_shape_errors(edited, changes)}
 
 

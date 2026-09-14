@@ -1,0 +1,2 @@
+# The suite reads docs/, config/ and .github/, so it runs from a repository checkout.
+prune tests

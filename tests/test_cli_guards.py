@@ -63,6 +63,17 @@ class OverwriteGuardTest(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("would overwrite the input", err.getvalue())
 
+    def test_force_never_unlocks_a_hardlink_to_an_input(self):
+        scene_copy = os.path.join(self.dir, "in.scn")
+        shutil.copy(SCENE, scene_copy)
+        os.link(scene_copy, self.out)
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), contextlib.redirect_stdout(io.StringIO()):
+            rc = main(["set-fader", scene_copy, "/ch/01", "-3.0", "-o", self.out, "--force"])
+        self.assertEqual(rc, 1)
+        self.assertIn("would overwrite the input", err.getvalue())
+        self.assertTrue(os.path.samefile(scene_copy, self.out))
+
     def test_every_writer_offers_force(self):
         """A new output-writing subcommand must not ship without the guard's flag."""
         from x32scene._parsers import _build_parser

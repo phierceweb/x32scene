@@ -77,7 +77,7 @@ class DescribeTest(unittest.TestCase):
         self.assertEqual(d.group, "/ch/02")
         self.assertEqual(d.label, 'ch 02 "Kick Sub"')
         self.assertEqual(d.what, "headamp 001")
-        self.assertEqual(d.fields, [("gain", "+26.0", "+22.0")])
+        self.assertEqual(d.fields, [("gain", "+27.0", "+23.5")])
 
     def test_strip_line_change_lists_only_the_changed_fields(self):
         d = D.describe(self.b, self.by_path["/ch/07/mix"])
@@ -143,7 +143,7 @@ class DiffByStripViewTest(unittest.TestCase):
             _views.cmd_diff_by_strip(a, b)
         out = buf.getvalue()
         self.assertIn('ch 02 "Kick Sub"', out)
-        self.assertIn("gain +26.0 -> +22.0", out)
+        self.assertIn("gain +27.0 -> +23.5", out)
         self.assertIn("block 2 OUT9-16 -> UOUT9-16", out)
 
     def test_cli_flag_and_json_fields(self):

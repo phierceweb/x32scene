@@ -20,7 +20,7 @@ are patching by hand.
 
 ## Inputs: a channel does not name its jack
 
-`/ch/NN/config "Name" colour icon SRC` ends with a source **slot** (1–32), not a physical
+`/ch/NN/config "Name" icon colour SRC` ends with a source **slot** (1–32), not a physical
 input. How a slot becomes a jack depends on the matching **8-wide block** in
 `/config/routing/IN`:
 
@@ -127,6 +127,14 @@ enumeration, which is wider than the input one and is *not* interchangeable with
 [format.md](format.md#output-sources)). That decoded list, in order, is what your DAW
 receives.
 
+`set-record SCENE TRACK SRC -o OUT` patches one track by number: it finds the track's CARD
+block, refuses a block that is not `UOUTk` (a direct block such as `AN1-8` has no slot to
+write), and writes SRC into the user-out slot that block reads. SRC takes the words
+`record-map` prints, so a track can be copied from one scene's map into another. **A
+user-out slot is one signal wherever it is read**: when an AES50 or XLR block also reads
+that slot, those channels change with the track, and `set-record` names them. The
+band-setup plan's [`record`](band-plan.md#record) section does the same from a file.
+
 Worth knowing when reading an old file: **the record patch is not constant across a rig's
 history.** A library can contain scenes that record raw inputs and scenes that record the
 mix buses instead, depending on when they were saved. `x32scene audit` prints the chronology
@@ -136,8 +144,8 @@ so you can see where a patch changed.
 
 `set-routing KEY BLOCK=TOKEN …` edits one bank's blocks, `set-input CH "aes50-a 3"` points a
 channel at a source, `set-output BANK N --src "bus 12" --pos PRE+M` re-patches an output,
-and `extract-routing` / `apply-routing` move the input banks as a routing preset. All of
-them write a new file; load it and re-walk the outputs, because a routing change is a
+`set-record TRACK "Output 9"` re-patches a card record track, and `extract-routing` /
+`apply-routing` move the input banks as a routing preset. All of them write a new file; load it and re-walk the outputs, because a routing change is a
 re-patch of what physically reaches each jack.
 
 ## Troubleshooting "the signal isn't arriving"

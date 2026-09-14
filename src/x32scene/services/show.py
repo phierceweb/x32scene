@@ -28,21 +28,28 @@ class Show:
     name: str
     writer: str
     entries: list[ShowEntry]
+    has_show_line: bool = False     # False for an empty, header-only or non-show file
 
     def of(self, kind: str) -> list[ShowEntry]:
         return [e for e in self.entries if e.kind == kind]
+
+
+def _is_int(tok: str) -> bool:
+    return tok.removeprefix("-").isdigit()
 
 
 def read_show(text: str) -> Show:
     """Parse a ``.shw``: the ``show`` line, then ``scene/NNN``, ``snippet/NNN`` and
     ``cue/NNN`` lines. A scene or snippet line decodes like that file's own header."""
     name = writer = ""
+    has_show_line = False
     entries: list[ShowEntry] = []
     for raw in text.split("\n"):
         ln = Line.parse(raw)
         if not ln.path or ln.path.startswith("#"):
             continue
         if ln.path == "show":
+            has_show_line = True
             name = ln.args[0].strip('"') if ln.args else ""
             writer = ln.args[-1].strip('"') if len(ln.args) > 1 else ""
             continue
@@ -53,7 +60,8 @@ def read_show(text: str) -> Show:
         if kind in ("scene", "snippet"):
             decoded = decode_header("#4.0# " + " ".join(ln.args)) or {}
             decoded.pop("version", None)
-        if kind == "cue" and len(ln.args) >= 5:
+        if kind == "cue" and len(ln.args) >= 5 and all(
+                _is_int(a) for a in (ln.args[3], ln.args[4])):
             numb, scene, snippet = ln.args[0], ln.args[3], ln.args[4]
             decoded = {"name": ln.args[1].strip('"'),
                        "number": (f"{int(numb) // 100}.{int(numb) // 10 % 10}.{int(numb) % 10}"
@@ -62,7 +70,7 @@ def read_show(text: str) -> Show:
                        "scene": None if scene == "-1" else int(scene),
                        "snippet": None if snippet == "-1" else int(snippet)}
         entries.append(ShowEntry(kind, int(idx), ln.args, decoded))
-    return Show(name, writer, entries)
+    return Show(name, writer, entries, has_show_line)
 
 
 # ---- writing a show ----------------------------------------------------------------

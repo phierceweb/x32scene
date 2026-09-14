@@ -14,71 +14,65 @@ from pf_core.exceptions import FlowException, InvalidInputError
 from pf_core.log import get_logger, setup_logging
 
 from . import _json
+from . import _json_views
 from . import _views
 from . import _views_ports as _ports
 from . import _views_desk as _vdesk
 from . import _views_report as _report
+from ._cli_console import config_jacks
 from ._cli_edits import EDIT_COMMANDS, apply_edit, parse_edit, run_edit
-from ._cli_files import clean, load_checked, read_checked, refuse_overwrite, reset_warnings
+from ._cli_files import clean, load_checked, read_checked, refuse_overwrite, start_run
+from ._cli_library import run_audit, run_history
+from ._cli_pull import run_pull
 from ._cli_live import run_watch
+from ._cli_strips import STRIP_COMMANDS, run_strips
 from ._cli_preflight import run_preflight
+from ._cli_show import run_show
 from ._cli_presets import run_presets_diff
-from ._parsers import _build_parser
+from ._parsers import DESCRIPTION, _build_parser
 from .model import Scene
-from .services import audit as _audit
 from .services import buslink as _buslink
 from .services import desk as _desk
 from .services import headers as _headers
 from .services import matrix as _matrix
 from .services import meters as _meters
-from .services import show as _show
 from .services import snippets as _snippets
 from .services import osc as _osc
-from .services import preflight as _preflight
 from .services import stage as _stage
 from .services import transplant as _transplant
 from .services.diff import diff as _diff
 
 
-_VIEWS = {
-    "info": _views.cmd_info,
-    "console": _vdesk.cmd_console,
-    "buses": _views.cmd_buses,
-    "inputs": _views.cmd_inputs,
-    "record-map": _views.cmd_record_map,
-    "fx": _views.cmd_fx,
-    "dca": _views.cmd_dca,
-    "explain": _views.cmd_explain,
-}
-
-_JSON_DOCS = {
-    "console": _json.console_doc,
-    "inputs": _json.inputs_doc,
-    "record-map": _json.record_map_doc,
-    "fx": _json.fx_doc,
-    "dca": _json.groups_doc,
+_SCENE_VIEWS = {
+    "info": (_views.cmd_info, _json_views.info_doc),
+    "console": (_vdesk.cmd_console, _json.console_doc),
+    "buses": (_views.cmd_buses, _json_views.buses_doc),
+    "inputs": (_views.cmd_inputs, _json.inputs_doc),
+    "record-map": (_views.cmd_record_map, _json.record_map_doc),
+    "fx": (_views.cmd_fx, _json.fx_doc),
+    "dca": (_views.cmd_dca, _json.groups_doc),
+    "explain": (_views.cmd_explain, _json_views.explain_doc),
 }
 
 def _run(argv: list[str] | None = None) -> int:
-    if argv and argv[0] == "set-fader":
+    if argv and "set-fader" in argv[:3]:
         # argparse reads a positional "-oo" as "-o o"; let the documented alias through
         argv = ["oo" if a == "-oo" else a for a in argv]
-    args = _build_parser(__doc__).parse_args(argv)
+    args = _build_parser(DESCRIPTION).parse_args(argv)
+    start_run(args.kind)
     if args.cmd == "audit" and not args.dir:
         raise InvalidInputError("no scene directory: pass DIR or set X32SCENE_CORPUS")
     if args.cmd in ("pull", "live-diff", "desk", "meters", "watch") and not args.ip:
         raise InvalidInputError("no console IP: pass --ip or set X32SCENE_IP")
     if args.cmd in EDIT_COMMANDS:
         return run_edit(args)
+    if args.cmd in STRIP_COMMANDS:
+        return run_strips(args)
     if args.cmd == "watch":
         return run_watch(args)
 
     if args.cmd == "audit":
-        lib, errors = _audit.load_library(args.dir)
-        if not lib and not errors:
-            raise InvalidInputError(f"no .scn files found in {args.dir}")
-        print(_audit.report(lib, args.dir, errors))
-        return 1 if errors or _audit.check_invariants(lib) else 0
+        return run_audit(args)
     if args.cmd == "presets-diff":
         return run_presets_diff(args)
     if args.cmd == "preflight":
@@ -107,27 +101,10 @@ def _run(argv: list[str] | None = None) -> int:
             _vdesk.cmd_desk(info)
         return 0
     if args.cmd in ("pull", "live-diff"):
-        if args.cmd == "pull":
-            refuse_overwrite(args.out, args.reference, force=args.force)
-        ref = load_checked(args.reference if args.cmd == "pull" else args.scene)
-        try:
-            live, unanswered = _osc.pull_scene_like(ref, args.ip, timeout=args.timeout)
-        except _osc.OscError as e:
-            print(f"pull failed: {e}", file=sys.stderr)
-            return 2
-        if unanswered:
-            head = ", ".join(unanswered[:8]) + (" …" if len(unanswered) > 8 else "")
-            print(f"unanswered paths ({len(unanswered)}): {head}", file=sys.stderr)
-        if args.cmd == "pull":
-            live.save(args.out)
-            print(f"pulled {len(live.lines)} line(s) from {args.ip}; wrote {args.out}")
-        else:
-            _views.cmd_diff(ref, live)
-        return 0
+        return run_pull(args)
     if args.cmd == "ports":
+        physical = config_jacks(args)
         sc = load_checked(args.scene)
-        physical = (_preflight.physical_outputs(_preflight.load_expected(args.config))
-                    if args.config else None)
         stage = _stage.load_stage(args.stage) if args.stage else None
         if args.json:
             _json.dump(_json.ports_doc(sc, args.bank, stage))
@@ -151,8 +128,7 @@ def _run(argv: list[str] | None = None) -> int:
             _views.cmd_diff(a, b)
         return 0
     if args.cmd == "report":
-        physical = (_preflight.physical_outputs(_preflight.load_expected(args.config))
-                    if args.config else None)
+        physical = config_jacks(args)
         stage = _stage.load_stage(args.stage) if args.stage else None
         _report.cmd_report(load_checked(args.scene), physical, stage)
         return 0
@@ -168,18 +144,7 @@ def _run(argv: list[str] | None = None) -> int:
             _report.cmd_iem_matrix(m)
         return 0
     if args.cmd == "history":
-        if not args.dir:
-            raise InvalidInputError("no scene directory: pass --dir or set X32SCENE_CORPUS")
-        lib, errors = _audit.load_library(args.dir)
-        if not lib and not errors:
-            raise InvalidInputError(f"no .scn files found in {args.dir}")
-        for err in errors:
-            print(f"skipped {err}", file=sys.stderr)
-        if args.json:
-            _json.dump(_json.history_doc(lib, args.paths))
-        else:
-            _views.cmd_history(lib, args.paths)
-        return 0
+        return run_history(args)
     if args.cmd == "snippet":
         absolute = len(args.scenes) == 1 and not args.edit and (args.bus or args.only)
         if len(args.scenes) != (1 if args.edit or absolute else 2):
@@ -237,20 +202,13 @@ def _run(argv: list[str] | None = None) -> int:
             _views.cmd_header(doc)
         return 0
     if args.cmd == "show":
-        show = _show.read_show(read_checked(args.file))
-        if args.json:
-            _json.dump(_json.show_doc(show))
-        else:
-            _views.cmd_show(show)
-        return 0
-    if args.cmd in _JSON_DOCS:
-        sc = load_checked(args.scene)
-        if args.json:
-            _json.dump(_JSON_DOCS[args.cmd](sc))
-        else:
-            _VIEWS[args.cmd](sc)
-        return 0
-    _VIEWS[args.cmd](load_checked(args.scene))
+        return run_show(args)
+    view, doc = _SCENE_VIEWS[args.cmd]
+    sc = load_checked(args.scene)
+    if args.json:
+        _json.dump(doc(sc))
+    else:
+        view(sc)
     return 0
 
 
@@ -258,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
     """CLI entry point: pf-core logging + exception boundary. Console stays quiet
     (runs log at debug); set ``LOG_FILE=path`` for a JSON-lines audit trail."""
     setup_logging(app_logger_name="x32scene")
-    reset_warnings()
+    start_run()
     log = get_logger("x32scene")
     argv = list(sys.argv[1:] if argv is None else argv)
     log.debug("invoke", argv=argv)

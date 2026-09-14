@@ -39,7 +39,7 @@ class ReportTest(unittest.TestCase):
 
     def test_channel_row_carries_source_gain_phantom_processing_and_groups(self):
         row = next(ln for ln in self.out.splitlines() if ln.startswith("| 01 |"))
-        self.assertIn("| Kick | Local input 1 | +27.0 | off |", row)
+        self.assertIn("| Kick | Local input 1 | +27.5 | off |", row)
         cells = [c.strip() for c in row.strip("|").split("|")]
         self.assertRegex(cells[5], r"^(off|\d+ Hz)$")     # low cut
         self.assertIn(cells[6], ("on", "off"))            # gate

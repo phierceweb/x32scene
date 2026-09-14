@@ -76,9 +76,7 @@ def decode_fx(code: str) -> str:
 
 
 
-# ISO 1/3-octave center frequencies, 20 Hz-20 kHz, 31 bands — GEQ/GEQ2's band count and
-# range endpoints are console-manual-confirmed; individual band labels are the standard
-# ISO series, not console-verified one-by-one.
+# The 31 ISO 1/3-octave centres in par order; verified on a console for GEQ and GEQ2.
 GEQ_BAND_LABELS = (
     "20", "25", "31.5", "40", "50", "63", "80", "100", "125", "160",
     "200", "250", "315", "400", "500", "630", "800", "1000", "1250", "1600",

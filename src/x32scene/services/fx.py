@@ -1,8 +1,8 @@
 """FX rack read/edit.
 
 ``FX_PARAMS`` holds the parameter order for every effect type, each corroborated against a
-line a console wrote; those read and write. The graphic EQs (GEQ, GEQ2, TEQ, TEQ2) decode for
-reading only — the band labels are the standard ISO series, not desk-verified.
+line a console wrote; those read and write. The graphic EQs carry 31 ISO bands plus a master
+per side; GEQ and GEQ2 write (band order desk-verified), TEQ and TEQ2 read only.
 """
 
 from __future__ import annotations
@@ -18,10 +18,9 @@ from ..tables_fx import (
 FX_SOURCES = ("INS", *[f"MIX{n}" for n in range(1, 17)], "M/C")
 
 
-# read-only: GEQ/GEQ2 band names, computed rather than listed in FX_PARAMS so
-# set_fx_param keeps refusing them.
 _GEQ_NAMES = {"GEQ": geq_param_names(dual=False), "GEQ2": geq_param_names(dual=True),
               "TEQ": geq_param_names(dual=False), "TEQ2": geq_param_names(dual=True)}
+_GEQ_WRITABLE = frozenset({"GEQ", "GEQ2"})
 
 
 @dataclass
@@ -60,7 +59,7 @@ def set_fx_param(scene: Scene, slot: int, param: str, raw_value: str) -> None:
     if not tline or not tline.args:
         raise KeyError(f"no /fx/{slot}")
     code = tline.args[0]
-    names = FX_PARAMS.get(code)
+    names = FX_PARAMS.get(code) or (_GEQ_NAMES.get(code) if code in _GEQ_WRITABLE else None)
     if not names:
         why = "read-only (band labels not desk-verified)" if code in _GEQ_NAMES else "unknown"
         raise ValueError(f"FX type {code!r} param layout {why} — refusing to write")
@@ -107,6 +106,8 @@ def format_like(default: str, value: float | int | str) -> str:
         tok = f"{value:{sign}.{len(default.split('.')[1])}f}"
     else:
         tok = f"{value:{sign}.0f}"
+    if tok.startswith("-") and float(tok) == 0:
+        return format_like(default, 0)
     return tok.replace("+0.", "0.") if sign and tok.startswith("+0.") and float(value) == 0 else tok
 
 
@@ -139,19 +140,23 @@ def set_fx_source(scene: Scene, slot: int, left: str, right: str | None = None) 
     ln.rebuild()
 
 
-def set_fx_params(scene: Scene, slot: int, values: dict[str, float | int | str]) -> None:
-    """Set parameters by name with values formatted like the desk's defaults."""
+def set_fx_params(scene: Scene, slot: int, values: dict[str, float | int | str]) -> dict[str, str]:
+    """Set parameters by name with values formatted like the desk's defaults; returns each
+    name's token as written."""
     tline = scene.get(f"/fx/{slot}")
     if not tline or not tline.args:
         raise KeyError(f"no /fx/{slot}")
     code = tline.args[0]
     defaults = fx_defaults(code)
     names = param_names(code)
+    written = {}
     for name, value in values.items():
         if name not in names:
             raise ValueError(f"{name!r} is not a {code} parameter; "
                              f"see `x32scene fx-types {code}`")
-        set_fx_param(scene, slot, name, format_like(defaults[names.index(name)], value))
+        written[name] = format_like(defaults[names.index(name)], value)
+        set_fx_param(scene, slot, name, written[name])
+    return written
 
 
 def extract_fx(scene: Scene, slot: int, name: str) -> str:

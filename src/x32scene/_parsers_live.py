@@ -8,6 +8,8 @@ import sys
 
 from pf_core.utils.env import resolve_float, resolve_str
 
+from ._parsers_edit import _choice
+
 
 def _bounded(v: float, default: float = 0.5) -> float:
     """The same bounds as the flag, for a value that came from the environment: argparse's
@@ -65,7 +67,7 @@ def _add_live(sub) -> None:
     s = sub.add_parser("meters", help="what the desk is hearing: each slot's peak over a "
                                       "short window (read-only)")
     s.add_argument("what", nargs="?", default="inputs",
-                   choices=("inputs", "buses", "outputs", "sends", "fx", "monitor", "recorder"))
+                   **_choice("inputs", "buses", "outputs", "sends", "fx", "monitor", "recorder"))
     s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None))
     s.add_argument("--seconds", type=_meter_seconds, default=1.0,
                    help="window to watch (default 1.0)")
@@ -87,6 +89,8 @@ def _add_live(sub) -> None:
     s = sub.add_parser("live-diff",
                        help="diff the running desk against a saved scene (what got twiddled)")
     s.add_argument("scene")
+    s.add_argument("--json", action="store_true",
+                   help="the changes and the unanswered paths; warnings stay on stderr")
     s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None),
                    help="console IP (or set X32SCENE_IP)")
     s.add_argument("--timeout", type=_timeout, default=timeout_default, help=timeout_help)
