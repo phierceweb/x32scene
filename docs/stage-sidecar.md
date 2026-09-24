@@ -35,13 +35,13 @@ walking every beltpack remain the ground truth, as
 {
   "outputs": {
     "main": {
-      "9":  {"jack": "Box A out 1", "box": "Stagebox A", "device": "IEM TX 1",
-             "wearer": "Drums", "bus": 3, "confirmed": "2026-09-04"},
-      "10": {"jack": "Box A out 2", "box": "Stagebox A", "device": "IEM TX 1",
-             "wearer": "Drums", "bus": 4}
+      "9":  {"jack": "Box A out 9", "box": "Stagebox A", "device": "IEM TX 1",
+             "wearer": "Bass", "bus": 7, "confirmed": "2026-09-04"},
+      "10": {"jack": "Box A out 10", "box": "Stagebox A", "device": "IEM TX 1",
+             "wearer": "Bass", "bus": 8}
     },
     "aux": {
-      "1":  {"jack": "Aux out 1", "device": "Headphone amp", "wearer": "Bass", "bus": 7,
+      "1":  {"jack": "Aux out 1", "device": "Headphone amp", "wearer": "Guest", "bus": 11,
              "notes": "wired feed — confirm at soundcheck"}
     }
   }

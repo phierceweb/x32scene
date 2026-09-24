@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from ..model import Line
 from ..tables_fx import FX_DISPLAY_TYPE, decode_fx
-from .osc import (X32_PORT, OscError, decode_message, desk_address, encode_message,
+from .osc import (GIVE_UP, X32_PORT, OscError, decode_message, desk_address, encode_message,
                   pull_lines)
 
 _STAT = ["selidx", "chfaderbank", "grpfaderbank", "sendsonfader", "solo", "usbmounted",
@@ -64,9 +64,8 @@ def xinfo(ip: str, *, port: int = X32_PORT, timeout: float = 1.0) -> tuple[str, 
     return tuple(str(a) for a in args[:4])   # type: ignore[return-value]
 
 
-def _node_values(ip: str, paths: list[str], **kw) -> dict[str, str]:
-    kw.setdefault("fail_fast", 3)
-    lines, _ = pull_lines(ip, paths, **kw)
+def _node_values(ip: str, paths: list[str], *, confirm: bool = True, **kw) -> dict[str, str]:
+    lines, _ = pull_lines(ip, paths, fail_fast=3, confirm=confirm, **kw)
     out = {}
     for ln in lines:
         path, _, rest = ln.partition(" ")
@@ -106,7 +105,9 @@ def read_desk(ip: str, *, port: int = X32_PORT, timeout: float = 0.6,
               library: bool = True) -> DeskInfo:
     info = DeskInfo(ip)
     _, info.name, info.model, info.firmware = xinfo(ip, port=port, timeout=max(timeout, 1.0))
-    info.stat = _node_values(ip, [f"-stat/{p}" for p in _STAT], port=port, timeout=timeout)
+    # /xinfo has answered, so three silent status paths mean a device that answers no /node
+    info.stat = _node_values(ip, [f"-stat/{p}" for p in _STAT], port=port, timeout=timeout,
+                             confirm=False)
     info.prefs = _node_values(ip, [f"-prefs/{p}" for p in _PREFS], port=port, timeout=timeout)
     show = _node_values(ip, ["-show/showfile/show"], port=port, timeout=timeout)
     info.show = show.get("-show/showfile/show", "")
@@ -116,8 +117,8 @@ def read_desk(ip: str, *, port: int = X32_PORT, timeout: float = 0.6,
              + [f"-show/showfile/snippet/{n:03d}" for n in range(100)]
              + [f"-show/showfile/cue/{n:03d}" for n in range(100)]
              + [f"-libs/{k}/{n:03d}" for k in LIB_KINDS for n in range(1, 101)])
-    # without this a desk that answers /xinfo but no /node is queried for every slot
-    lines, _ = pull_lines(ip, paths, port=port, timeout=timeout, fail_fast=3)
+    lines, _ = pull_lines(ip, paths, port=port, timeout=timeout, fail_fast=3,
+                          give_up=GIVE_UP)
     for ln in lines:
         parsed = Line.parse(ln)
         path, args = parsed.path, parsed.args

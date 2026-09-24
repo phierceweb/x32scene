@@ -14,7 +14,7 @@ from x32scene.services.osc import (
 
 CANNED = {
     "ch/01/config": '/ch/01/config "Kick" 2 YEi 1',
-    "ch/01/eq/1": "/ch/01/eq/1 PEQ 36.0 +0.00 1.0",
+    "ch/01/eq/1": "/ch/01/eq/1 PEQ 52.6 +4.75 1.6",
     "ch/01/dyn": "/ch/01/dyn OFF COMP RMS LOG -21.5 10 3 0.00 84 0.32  10 POST 0 100 OFF",
 }
 
@@ -102,9 +102,16 @@ class FakeConsoleTest(unittest.TestCase):
 
     def test_fail_fast_when_nothing_answers(self):
         from x32scene.services.osc import OscError
-        with self.assertRaises(OscError):
-            pull_lines("127.0.0.1", ["ch/99/a", "ch/99/b", "ch/99/c", "ch/01/config"],
-                       port=self.console.port, timeout=0.2, retries=0, fail_fast=3)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as silent:
+            silent.bind(("127.0.0.1", 0))
+            with self.assertRaises(OscError):
+                pull_lines("127.0.0.1", ["ch/99/a", "ch/99/b", "ch/99/c", "ch/01/config"],
+                           port=silent.getsockname()[1], timeout=0.2, retries=0, fail_fast=3)
+
+    def test_a_desk_lacking_the_first_paths_is_read_on(self):
+        lines, missing = pull_lines("127.0.0.1", ["ch/99/a", "ch/99/b", "ch/99/c", "ch/01/config"],
+                                    port=self.console.port, timeout=0.2, retries=0, fail_fast=3)
+        self.assertEqual((lines, missing), ([CANNED["ch/01/config"]], ["ch/99/a", "ch/99/b", "ch/99/c"]))
 
     def test_between_is_called_for_every_query(self):
         calls = []

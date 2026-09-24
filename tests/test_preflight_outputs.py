@@ -39,12 +39,12 @@ class OutputShapeTest(unittest.TestCase):
 
 class OutputPinTest(unittest.TestCase):
     def test_bus_and_src_forms_pass_on_the_fixture(self):
-        exp = {"outputs": {"main": {"1": {"bus": 1, "pos": "POST", "invert": False},
-                                    "7": {"src": 1, "pos": "POST"}},
-                           "aux": {"5": {"bus": 9}},
-                           "p16": {"1": {"src": 26, "pos": "PRE"}},
+        exp = {"outputs": {"main": {"3": {"bus": 1, "pos": "POST", "invert": False},
+                                    "1": {"src": 1, "pos": "POST"}},
+                           "aux": {"1": {"bus": 11}},
+                           "p16": {"1": {"src": 42, "pos": "PRE"}},
                            "aes": {"2": {"src": 2}},
-                           "rec": {"1": {"src": 1, "pos": "<-EQ"}}}}
+                           "rec": {"1": {"src": 1, "pos": "POST"}}}}
         self.assertEqual(preflight(mini_scene(), exp), [])
 
     def test_repointed_output_fails_naming_both(self):
@@ -55,7 +55,7 @@ class OutputPinTest(unittest.TestCase):
 
     def test_raw_src_mismatch_fails(self):
         exp = {"outputs": {"p16": {"1": {"src": 28}}}}
-        one_fail(preflight(mini_scene(), exp), "out p16 01", "src 26", "expected 28")
+        one_fail(preflight(mini_scene(), exp), "out p16 01", "src 42", "expected 28")
 
     def test_src_and_bus_together_is_a_config_fail(self):
         exp = {"outputs": {"main": {"1": {"src": 4, "bus": 1}}}}
@@ -95,7 +95,7 @@ class OutputPinTest(unittest.TestCase):
         one_fail(preflight(mini_scene(), exp), "bus must be a whole number")
 
     def test_base_line_helper_returns_verbatim_fixture_line(self):
-        self.assertEqual(line("/outputs/rec/01"), "/outputs/rec/01 1 <-EQ")
+        self.assertEqual(line("/outputs/rec/01"), "/outputs/rec/01 1 POST")
 
 
 if __name__ == "__main__":

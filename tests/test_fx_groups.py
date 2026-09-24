@@ -21,8 +21,8 @@ class FxTest(unittest.TestCase):
         slots = {f.slot: f for f in FX.read_fx(self.sc)}
         self.assertEqual(slots[1].name, "Plate Reverb")
         self.assertEqual(slots[1].source, "MIX13")
-        self.assertEqual(slots[1].params["PreDelay"], "32")
-        self.assertEqual(slots[1].params["Decay"], "2.11")
+        self.assertEqual(slots[1].params["PreDelay"], "18")
+        self.assertEqual(slots[1].params["Decay"], "1.62")
 
     def test_set_fx_param(self):
         FX.set_fx_param(self.sc, 1, "Decay", "3.50")
@@ -44,7 +44,7 @@ class FxTest(unittest.TestCase):
     def test_read_fx_decodes_exciter(self):
         slots = {f.slot: f for f in FX.read_fx(self.sc)}
         self.assertEqual(slots[5].code, "EXC")
-        self.assertEqual(slots[5].params["Tune"], "3k31")
+        self.assertEqual(slots[5].params["Tune"], "4k50")
         self.assertEqual(slots[5].params["Peak"], "28")
         self.assertEqual(slots[5].params["Solo"], "OFF")
 

@@ -138,14 +138,14 @@ class TransformTest(unittest.TestCase):
         self.assertEqual(self.work.get("/ch/01/mix/01").args[1], "+3.5")
 
     def test_set_iem_send_same_level_is_noop(self):
-        # fixture already holds +2.8; unsigned formatting would rebuild the line
-        I.set_iem_send(self.work, 1, 1, level_db=2.8)
+        # fixture already holds +2.3; unsigned formatting would rebuild the line
+        I.set_iem_send(self.work, 17, 7, level_db=2.3)
         self.assertEqual(changed_paths(self.base, self.work), [])
 
     def test_set_iem_send_zero_is_unsigned_and_noop(self):
         # send-level zero is written UNSIGNED ('0.0') by the console, unlike headamp
         # gain ('+0.0') — the sign convention is per-field
-        I.set_iem_send(self.work, 1, 11, level_db=0.0)  # fixture line already at 0.0
+        I.set_iem_send(self.work, 19, 1, level_db=0.0)  # fixture line already at 0.0
         self.assertEqual(changed_paths(self.base, self.work), [])
         I.set_iem_send(self.work, 1, 1, level_db=0.0)
         self.assertEqual(self.work.get("/ch/01/mix/01").args[1], "0.0")

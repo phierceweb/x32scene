@@ -34,6 +34,11 @@ class Show:
         return [e for e in self.entries if e.kind == kind]
 
 
+# the MIDI command a cue sends on recall: type, channel, two parameters (program; controller
+# and value; note and velocity)
+MIDI_TYPES = {0: "none", 1: "program change", 2: "control change", 3: "note"}
+
+
 def _is_int(tok: str) -> bool:
     return tok.removeprefix("-").isdigit()
 
@@ -69,6 +74,11 @@ def read_show(text: str) -> Show:
                        "skip": ln.args[2] == "1",
                        "scene": None if scene == "-1" else int(scene),
                        "snippet": None if snippet == "-1" else int(snippet)}
+            if len(ln.args) >= 9 and all(_is_int(a) for a in ln.args[5:9]):
+                kind_no = int(ln.args[5])
+                decoded["midi"] = {"type": MIDI_TYPES.get(kind_no, str(kind_no)),
+                                   "channel": int(ln.args[6]),
+                                   "params": [int(ln.args[7]), int(ln.args[8])]}
         entries.append(ShowEntry(kind, int(idx), ln.args, decoded))
     return Show(name, writer, entries, has_show_line)
 

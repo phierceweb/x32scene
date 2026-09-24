@@ -1,7 +1,7 @@
 """Strip reorder: the moves themselves, the mapping check, stereo links and the verify gate.
 
 Fixture facts the cases lean on: ch05 "Rack 1" and ch07 "Rack 3" are unlinked; channel pairs
-11/12, 15/16, 27/28 and 31/32 are linked; p16 03 and 05 tap channels 5 and 7 (30, 32).
+11/12, 15/16, 27/28 and 31/32 are linked; p16 07 and 09 tap channels 5 and 7 (30, 32).
 """
 
 import os
@@ -154,10 +154,10 @@ class VerifyTest(unittest.TestCase):
     def test_a_moved_line_or_reference_field_beyond_the_report_is_flagged(self):
         base, sc = _load(), _load()
         move = SM.permute_channels(sc, {5: 7, 7: 5})
-        sc.get("/outputs/p16/03").set_arg(1, "POST")
+        sc.get("/outputs/p16/07").set_arg(1, "POST")
         sc.get("/ch/07/mix/01").set_arg(1, "-3.0")
         self.assertEqual(SM.unexpected_changes(base, sc, move),
-                         ["/ch/07/mix/01", "/outputs/p16/03"])
+                         ["/ch/07/mix/01", "/outputs/p16/07"])
 
     def test_a_reported_reference_that_did_not_change_is_flagged(self):
         base, sc = _load(), _load()

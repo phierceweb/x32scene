@@ -50,7 +50,7 @@ class SceneViewsJsonTest(unittest.TestCase):
         self.assertEqual(set(rows[0]), {"bus", "name", "linked", "fx", "sends"})
         self.assertEqual((rows[0]["name"], rows[0]["linked"]), ("Guitar L", True))
         self.assertEqual(rows[1]["linked"], True)
-        self.assertEqual(rows[0]["sends"]["PRE"], 40)
+        self.assertEqual(rows[0]["sends"]["PRE"], 47)
         self.assertEqual(rows[1]["sends"], {"PRE": 0, "POST": 0})
         _, text, _ = run(["buses", SCENE])
         self.assertTrue(any(r["fx"] for r in rows))

@@ -21,11 +21,11 @@ FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 SCENE = os.path.join(FIX, "example.scn")
 CONFIG = os.path.join(os.path.dirname(__file__), "..", "config", "example-preflight.json")
 STAGE = os.path.join(os.path.dirname(__file__), "..", "config", "example-stage.json")
-ENTRY = {"jack": "Box A out 1", "box": "Stagebox A", "device": "IEM TX 1", "wearer": "Drums",
-         "bus": 3}
-SIDE = {"outputs": {"main": {"9": ENTRY, "10": {**ENTRY, "jack": "Box A out 2", "bus": 4}},
+ENTRY = {"jack": "Box A out 9", "box": "Stagebox A", "device": "IEM TX 1", "wearer": "Bass",
+         "bus": 7}
+SIDE = {"outputs": {"main": {"9": ENTRY, "10": {**ENTRY, "jack": "Box A out 10", "bus": 8}},
                     "aux": {"1": {"jack": "Aux out 1", "device": "Headphone amp",
-                                  "wearer": "Bass", "bus": 7}}}}
+                                  "wearer": "Guest", "bus": 11}}}}
 
 
 def doc(**outputs):
@@ -51,7 +51,7 @@ class ValidateTest(unittest.TestCase):
     def test_example_sidecar_loads(self):
         d = S.load_stage(STAGE)
         self.assertIn(("main", 9), S.stage_entries(d))
-        self.assertEqual(S.stage_entries(d)[("aux", 1)]["wearer"], "Bass")
+        self.assertEqual(S.stage_entries(d)[("aux", 1)]["wearer"], "Guest")
 
     def test_rejections_name_the_problem(self):
         cases = [
@@ -94,13 +94,13 @@ class StageCheckTest(unittest.TestCase):
 
     def test_documented_output_carrying_nothing_fails(self):
         sc = mini_scene({"/outputs/main/09": "/outputs/main/09 0 POST OFF"})
-        f = one_fail(preflight(sc, {}, stage=SIDE), "stage main 09", "Drums", "carries nothing")
+        f = one_fail(preflight(sc, {}, stage=SIDE), "stage main 09", "Bass", "carries nothing")
         self.assertEqual(f.path, "/outputs/main/09")
 
     def test_repointed_output_fails_against_the_documented_bus(self):
         sc = mini_scene({"/outputs/main/09": "/outputs/main/09 4 POST OFF"})
-        one_fail(preflight(sc, {}, stage=SIDE), "stage main 09", "Bus 1", "documented as bus 3",
-                 "Drums")
+        one_fail(preflight(sc, {}, stage=SIDE), "stage main 09", "Bus 1", "documented as bus 7",
+                 "Bass")
 
     def test_sidecar_and_config_disagreeing_is_a_finding(self):
         exp = {"outputs": {"main": {"9": {"bus": 4}}}}
@@ -119,8 +119,8 @@ class StageCheckTest(unittest.TestCase):
 class PortsRenderTest(unittest.TestCase):
     def test_ports_with_sidecar_names_jack_and_wearer(self):
         out = render(cmd_ports, Scene.load(SCENE), 8, bank="main", stage=SIDE)
-        self.assertIn("Box A out 1", out)
-        self.assertIn("Drums", out)
+        self.assertIn("Box A out 9", out)
+        self.assertIn("Bass", out)
         self.assertIn("unconfirmed", out)
 
     def test_ports_all_banks(self):
@@ -154,7 +154,7 @@ class StageCliTest(unittest.TestCase):
         with contextlib.redirect_stdout(buf):
             self.assertEqual(main(["ports", SCENE, "--bank", "rec", "--json", "--stage", STAGE]), 0)
         d = json.loads(buf.getvalue())
-        self.assertEqual((d["outputs"][0]["bank"], d["outputs"][0]["pos"]), ("rec", "<-EQ"))
+        self.assertEqual((d["outputs"][0]["bank"], d["outputs"][0]["pos"]), ("rec", "POST"))
         self.assertIsNone(d["outputs"][0]["stage"])
 
     def test_malformed_sidecar_is_one_stderr_line(self):

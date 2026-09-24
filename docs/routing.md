@@ -37,6 +37,8 @@ There are two kinds of block:
 
 A block carries its own range offset, so `UIN9-16` sitting in bank 0 maps slot 1 to
 `userrout/in` index 8, not index 0. Getting this wrong shifts every channel by eight.
+A hand-edited token the console does not write at that block (`UIN`, `UIN0-7`, `A0-7`)
+names no source: its slots read `?` in `inputs`, and `move-inputs` refuses them.
 
 Once you have a source *number*, the head-amp index is `number − 1` for sources 1–128.
 Card, Aux and OFF sources have no head amp.
@@ -48,7 +50,10 @@ Every destination — AES50-A, AES50-B, the USB card, the rear XLR bank — does
 banks. AES50-A and AES50-B carry six 8-channel blocks, the card four, and `/config/routing/IN`
 four plus a fifth block for the aux bank. The rear XLR bank (`/config/routing/OUT`) is the odd
 one out: four blocks of **four**, with their own vocabulary, and `OUT1-4 OUT5-8 OUT9-12
-OUT13-16` on every console seen — it is the outputs themselves, not a way off the desk.
+OUT13-16` on every console seen — it is the outputs themselves, not a way off the desk. A
+block patched otherwise moves which main output a jack carries (`OUT9-12` on jacks 1-4), or
+gives the jack an input or a user-out slot; `ports`, `report` and `require_reachable` follow
+it.
 
 | Source bank | What it is | Hops |
 |---|---|---|
@@ -82,21 +87,21 @@ scattered card and AES sources" expressible at all — no fixed bank of eight ca
 So: use the direct `OUT` layer when a whole 8-block lines up, and the user layer when you
 need per-channel freedom. The cost is the two-place indirection.
 
-### Reading a real block list
+### Reading a block list
 
 From [`tests/fixtures/example.scn`](../tests/fixtures/example.scn):
 
 ```
-/config/routing/AES50A UOUT1-8 OUT9-16 UOUT17-24 UOUT25-32 UOUT33-40 UOUT41-48
-/config/routing/AES50B UOUT1-8 UOUT9-16 OUT1-8 UOUT41-48 UOUT41-48 UOUT41-48
+/config/routing/AES50A OUT1-8 OUT9-16 P161-8 P169-16 AUX/CR AUX/TB
+/config/routing/AES50B UOUT1-8 UOUT9-16 UOUT17-24 UOUT33-40 UOUT41-48 UOUT41-48
 ```
 
 Two things to notice, both typical of real rigs:
 
-- **Block 2 of AES50-A is `OUT9-16`, breaking an otherwise all-`UOUT` pattern.** On many
-  consoles outputs 9–16 have no rear jack, so a card block is their only way out of the
-  desk. A block like this is load-bearing — it is not an inconsistency to tidy up.
-- **AES50-B repeats `UOUT41-48` across blocks 4–6.** Repeated blocks on an output-only or
+- **Block 2 of AES50-A is `OUT9-16`.** On many consoles outputs 9–16 have no rear jack, so
+  a block like this is their only way out of the desk. It is load-bearing — not an
+  inconsistency to tidy up.
+- **AES50-B repeats `UOUT41-48` in blocks 5–6.** Repeated blocks on an output-only or
   partly-unused port are placeholder filler, not a working patch. Harmless, but they make a
   patch look more deliberate than it is.
 
@@ -125,15 +130,20 @@ One page tells you everything, and either stage box carries the same feeds.
 For a `UOUTk` block, the source is `/config/userrout/out[k−1]` — decoded with the **output**
 enumeration, which is wider than the input one and is *not* interchangeable with it (see
 [format.md](format.md#output-sources)). That decoded list, in order, is what your DAW
-receives.
+receives. A hand-edited `UOUT` token the console does not write (`UOUT`, `UOUT0-7`) names
+no slot: its eight tracks read `?` in `record-map` and its `--json`, and no reader counts a
+signal through it.
 
 `set-record SCENE TRACK SRC -o OUT` patches one track by number: it finds the track's CARD
 block, refuses a block that is not `UOUTk` (a direct block such as `AN1-8` has no slot to
-write), and writes SRC into the user-out slot that block reads. SRC takes the words
-`record-map` prints, so a track can be copied from one scene's map into another. **A
-user-out slot is one signal wherever it is read**: when an AES50 or XLR block also reads
-that slot, those channels change with the track, and `set-record` names them. The
-band-setup plan's [`record`](band-plan.md#record) section does the same from a file.
+write) or is a hand-edited `UOUT` token outside `UOUT1-8` … `UOUT41-48`, and writes SRC
+into the user-out slot that block reads. SRC takes the words `record-map` prints, so a
+track can be copied from one scene's map into another. **A user-out slot is one signal
+wherever it is read**: when an AES50, card or XLR-out block also reads that slot, those
+channels change with the track, and `set-record` names them. It names an
+`XLR-out routing N` position of `/config/routing/OUT`, a rear jack only up to the console's
+jack count, which `ports --console` labels. The band-setup plan's
+[`record`](band-plan.md#record) section does the same from a file.
 
 Worth knowing when reading an old file: **the record patch is not constant across a rig's
 history.** A library can contain scenes that record raw inputs and scenes that record the

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 from ..model import Scene
 from ..tables import (AUX_BANK_USB, OUTPUT_BANKS, decode_out_source, decode_source,
-                      tap_to_bus, userrout_out_to_output)
+                      routing_block_names, routing_vocab, tap_to_bus, userrout_out_to_output)
 
 
 def userrout(scene: Scene, which: str) -> list[int]:
@@ -40,14 +40,36 @@ def _block(tok: str) -> tuple[str, int]:
     return prefix, (int(digits) if digits else 1)
 
 
+def uout_start(key: str, *, block: int, tok: str) -> int | None:
+    """The first user-out slot of a UOUT token at 0-based block ``block`` of
+    ``/config/routing/<key>``; None for another token, or a UOUT one the console does not
+    write there (``UOUT``, ``UOUT0-7``)."""
+    names = routing_block_names(key)
+    if (not tok.startswith("UOUT") or block >= len(names)
+            or tok not in routing_vocab(key, names[block])):
+        return None
+    return int(tok[4:].split("-")[0])
+
+
 def _in_blocks(scene: Scene) -> list[str]:
     return routing_blocks(scene, "IN")
+
+
+def unwritten_in_block(scene: Scene, slot: int) -> str | None:
+    """The ``/config/routing/IN`` token input ``slot`` reads through when the console does
+    not write it at that block (``UIN``, ``UIN0-7``, ``A0-7``): such a slot has no source.
+    None for a written token, or a block the line does not reach."""
+    blocks, b = _in_blocks(scene), (slot - 1) // 8
+    if not 1 <= slot <= 40 or b >= len(blocks):
+        return None
+    tok = blocks[b]
+    return None if tok in routing_vocab("IN", routing_block_names("IN")[b]) else tok
 
 
 def uin_in_index(scene: Scene, slot: int) -> int | None:
     """0-based /config/userrout/in index feeding ``slot``, honoring the UIN block's own
     range (``UIN9-16`` on bank 0 maps slot 1 -> index 8). None for a non-UIN block."""
-    if not 1 <= slot <= 40:
+    if not 1 <= slot <= 40 or unwritten_in_block(scene, slot) is not None:
         return None
     blocks = _in_blocks(scene)
     b = (slot - 1) // 8
@@ -81,7 +103,7 @@ def resolve_in_slot_number(scene: Scene, slot: int) -> int:
     Slots 1-32 are the channel banks; 33-40 the aux/USB bank. Offset blocks
     (``A17-24``, ``UIN9-16``) are honored.
     """
-    if not 1 <= slot <= 40:
+    if not 1 <= slot <= 40 or unwritten_in_block(scene, slot) is not None:
         return 0
     idx = uin_in_index(scene, slot)
     if idx is not None:
@@ -98,6 +120,8 @@ def resolve_in_slot(scene: Scene, slot: int) -> str:
     bank's USB player, which no routed-input number names."""
     if slot in AUX_BANK_USB:
         return AUX_BANK_USB[slot]
+    if unwritten_in_block(scene, slot) is not None:
+        return "?"
     return decode_source(resolve_in_slot_number(scene, slot))
 
 
@@ -141,13 +165,15 @@ def record_map(scene: Scene) -> list[tuple[int, str]]:
     tracks: list[tuple[int, str]] = []
     blocks = list(card.args) if card else ["UOUT1-8", "UOUT9-16", "UOUT17-24", "UOUT25-32"]
     track_no = 1
-    for block in blocks:
+    for b, block in enumerate(blocks):
         prefix = block.rstrip("0123456789-")
         start = int("".join(c for c in block.split("-")[0] if c.isdigit()) or "1")
+        first = uout_start("CARD", block=b, tok=block)
         for off in range(8):
             k = start + off
             if prefix == "UOUT":
-                src = decode_out_source(uout[k - 1]) if k - 1 < len(uout) else "?"
+                slot = None if first is None else first + off
+                src = decode_out_source(uout[slot - 1]) if slot and slot <= len(uout) else "?"
             elif prefix == "CARD":
                 src = f"USB Card {k}"
             else:  # direct block: the factory-default card patch
@@ -177,20 +203,10 @@ def outputs_from_buses(scene: Scene, buses: Iterable[int]) -> list[tuple[str, in
 
 
 def output_aes_mirrors(scene: Scene) -> dict[int, list[str]]:
-    """Where each main output is mirrored on AES50: {output_num: ['AES50-A 9', ...]}.
-
-    A ``/config/routing/AES50A|B`` token 'OUT9-16' means those 8 AES50 channels carry
-    output signals 9-16.
-    """
-    mirrors: dict[int, list[str]] = {}
-    for port in ("A", "B"):
-        for b, tok in enumerate(routing_blocks(scene, f"AES50{port}")):
-            prefix, out_start = _block(tok)
-            if prefix != "OUT":
-                continue
-            for off in range(8):
-                mirrors.setdefault(out_start + off, []).append(f"AES50-{port} {8 * b + 1 + off}")
-    return mirrors
+    """Where each main output leaves on AES50, the stage-box part of :func:`output_reach`:
+    ``{output: ['AES50-A 9', 'AES50-B 3 via user-out 3']}``."""
+    return {out: aes for out, paths in output_reach(scene).items()
+            if (aes := [p for p in paths if p.startswith("AES50")])}
 
 
 _REACH_DESTS = {"AES50A": "AES50-A", "AES50B": "AES50-B", "CARD": "CARD"}
@@ -213,26 +229,55 @@ def output_reach(scene: Scene) -> dict[int, list[str]]:
                 ch = 8 * b + 1 + off
                 if prefix == "OUT":
                     reach.setdefault(start + off, []).append(f"{label} {ch}")
-                elif prefix == "UOUT":
-                    k = start - 1 + off
+                elif (first := uout_start(dest, block=b, tok=tok)) is not None:
+                    k = first - 1 + off
                     o = userrout_out_to_output(uout[k]) if k < len(uout) else None
                     if o:
                         reach.setdefault(o, []).append(f"{label} {ch} via user-out {k + 1}")
     return reach
 
 
-_READER_LABELS = {"AES50A": "AES50-A", "AES50B": "AES50-B", "CARD": "CARD track", "OUT": "XLR out"}
+_OUT_IN_ORDER = ["OUT1-4", "OUT5-8", "OUT9-12", "OUT13-16"]
+
+
+def jack_outputs(scene: Scene, jacks: int) -> dict[int, int]:
+    """``{main output: the first rear XLR jack (1..jacks) carrying it}`` through
+    ``/config/routing/OUT``: an ``OUTk`` block directly, a ``UOUTk`` block through the
+    user-out slot that names the output. An absent line reads as the in-order patch."""
+    blocks, names = routing_blocks(scene, "OUT") or _OUT_IN_ORDER, routing_block_names("OUT")
+    uout = userrout(scene, "out")
+    carried: dict[int, int] = {}
+    for jack in range(1, min(jacks, 4 * len(blocks)) + 1):
+        b, off = (jack - 1) // 4, (jack - 1) % 4
+        tok = blocks[b]
+        if tok not in routing_vocab("OUT", names[b]):
+            continue
+        if tok.startswith("OUT"):
+            out: int | None = _block(tok)[1] + off
+        elif (first := uout_start("OUT", block=b, tok=tok)) is not None:
+            k = first - 1 + off
+            out = userrout_out_to_output(uout[k]) if k < len(uout) else None
+        else:
+            out = None
+        if out:
+            carried.setdefault(out, jack)
+    return carried
+
+
+# an OUT position is a rear jack only up to the console's jack count, which no scene records
+_READER_LABELS = {"AES50A": "AES50-A", "AES50B": "AES50-B", "CARD": "CARD track",
+                  "OUT": "XLR-out routing"}
 
 
 def user_out_readers(scene: Scene, slot: int) -> list[str]:
     """Every destination channel a UOUT block fills from user-out ``slot`` (1-48):
-    ``['AES50-A 5', 'CARD track 5', 'XLR out 5']``."""
+    ``['AES50-A 5', 'CARD track 5', 'XLR-out routing 5']``."""
     out = []
     for key, label in _READER_LABELS.items():
         width = 4 if key == "OUT" else 8
         for b, tok in enumerate(routing_blocks(scene, key)):
-            prefix, start = _block(tok)
-            if prefix == "UOUT" and start <= slot < start + width:
+            start = uout_start(key, block=b, tok=tok)
+            if start is not None and start <= slot < start + width:
                 out.append(f"{label} {width * b + 1 + slot - start}")
     return out
 

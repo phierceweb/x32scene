@@ -57,7 +57,7 @@ class MatrixTest(unittest.TestCase):
         m = M.iem_matrix(self.sc)
         rows = {r.strip: r for r in m.rows}
         self.assertEqual(rows["/ch/01"].label, "ch01 Kick")
-        self.assertEqual(rows["/ch/01"].cells[1].level, "+2.8")
+        self.assertEqual(rows["/ch/01"].cells[1].level, "-7.9")
         self.assertIsNone(rows["/ch/05"].cells[1].level)     # OFF in bus 1
         self.assertFalse(any(c.asym for r in m.rows for c in r.cells.values()))
 
@@ -71,7 +71,7 @@ class MatrixTest(unittest.TestCase):
         self.sc.get("/ch/30/mix/02").set_arg(1, "-17.0")
         m = M.iem_matrix(self.sc, [1])
         cell = {r.strip: r for r in m.rows}["/ch/30"].cells[1]
-        self.assertEqual((cell.level, cell.asym), ("-18.0", True))
+        self.assertEqual((cell.level, cell.asym), ("-14.4", True))
 
     def test_compare_marks_the_moved_cells(self):
         b = Scene.load(EXAMPLE)
@@ -79,7 +79,7 @@ class MatrixTest(unittest.TestCase):
         m = M.compare(self.sc, b, [9])
         self.assertTrue(m.compare)
         cell = {r.strip: r for r in m.rows}["/ch/23"].cells[9]
-        self.assertEqual((cell.before, cell.level, cell.changed), ("0.0", "-11.0", True))
+        self.assertEqual((cell.before, cell.level, cell.changed), ("+0.3", "-11.0", True))
         self.assertEqual(sum(c.changed for r in m.rows for c in r.cells.values()), 1)
 
     def test_compare_rows_are_the_union_of_live_senders(self):
@@ -87,7 +87,7 @@ class MatrixTest(unittest.TestCase):
         b.get("/ch/05/mix/01").set_arg(0, "ON")          # newly live in b
         m = M.compare(self.sc, b, [1])
         cell = {r.strip: r for r in m.rows}["/ch/05"].cells[1]
-        self.assertEqual((cell.before, cell.level, cell.changed), (None, "-5.0", True))
+        self.assertEqual((cell.before, cell.level, cell.changed), (None, "-3.4", True))
 
 
 class MatrixViewTest(unittest.TestCase):
@@ -97,14 +97,14 @@ class MatrixViewTest(unittest.TestCase):
         out = render(cmd_iem_matrix, M.iem_matrix(sc))
         self.assertIn("1/2 Guitar L", out)
         self.assertIn("ch01 Kick", out)
-        self.assertIn("+2.8", out)
-        self.assertIn("-18.0*", out)
+        self.assertIn("-7.9", out)
+        self.assertIn("-14.4*", out)
 
     def test_renders_deltas(self):
         a, b = Scene.load(EXAMPLE), Scene.load(EXAMPLE)
         b.get("/ch/23/mix/09").set_arg(1, "-11.0")
         out = render(cmd_iem_matrix, M.compare(a, b, [9]))
-        self.assertIn("0.0>-11.0", out)
+        self.assertIn("+0.3>-11.0", out)
 
 
 class MatrixCliTest(unittest.TestCase):
@@ -124,7 +124,7 @@ class MatrixCliTest(unittest.TestCase):
         doc = json.loads(buf.getvalue())
         self.assertEqual(doc["columns"][0], {"bus": 1, "buses": [1, 2], "label": "1/2 Guitar L"})
         row = next(r for r in doc["rows"] if r["strip"] == "/ch/01")
-        self.assertEqual(row["cells"]["1"]["level"], "+2.8")
+        self.assertEqual(row["cells"]["1"]["level"], "-7.9")
 
 
 if __name__ == "__main__":

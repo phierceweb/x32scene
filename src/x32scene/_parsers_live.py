@@ -79,7 +79,9 @@ def _add_live(sub) -> None:
     s.add_argument("reference", help="scene whose paths define what to watch")
     s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None),
                    help="console IP (or set X32SCENE_IP)")
-    s.add_argument("--timeout", type=_timeout, default=timeout_default, help=timeout_help)
+    s.add_argument("--timeout", type=_timeout, default=timeout_default,
+                   help="the least a read-back waits, up to four times this as the measured "
+                        "round trip needs (or set X32SCENE_TIMEOUT)")
     s.add_argument("--seconds", type=_watch_seconds, default=None,
                    help="stop after this long, up to 43200 (default: until Ctrl-C)")
     s.add_argument("--snippet", metavar="OUT.snp",

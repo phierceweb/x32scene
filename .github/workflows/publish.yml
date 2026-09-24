@@ -48,7 +48,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
       - run: python -m pf_core.guards
-      - run: pytest -q
+      - run: pytest -q -n auto
 
   publish:
     needs: [build, test]

@@ -7,7 +7,7 @@ from tests.test_watch import MIX_DOWN, MIX_OFF, REF_TEXT, ScriptedDesk, run
 from x32scene.model import Scene
 from x32scene.services import watch as W
 
-MIX_START = "/ch/01/mix ON  +6.5 ON +0 OFF   -oo"
+MIX_START = "/ch/01/mix ON  -4.8 ON +0 OFF   -oo"
 T0 = 1_700_000_000.0
 
 

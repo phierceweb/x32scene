@@ -1,8 +1,8 @@
 """Stage-box moves: the batch service and the `move-inputs` command over it.
 
-Fixture facts the cases lean on: ch1 is Local 1 (/headamp/000 +27.5 OFF); ch17-28 are
-AES50-A 1-12 through user-in slots 17-28; AES50-A 13 and up feed no channel (13 and 14
-sit at +23.0 OFF); ch31 is Card 1.
+Fixture facts the cases lean on: ch1 is Local 1 (/headamp/000 +22.5 OFF); ch17-24 read
+AES50-A 1-8 directly and ch25-28 AES50-A 9-12 through user-in slots 25-28; AES50-A 13 and
+up feed no channel (13 sits at +20.5 OFF, 14 at +26.0 OFF); ch31 is Card 1.
 """
 
 import contextlib
@@ -39,30 +39,30 @@ class StageboxBatchTest(unittest.TestCase):
         cfg.set_arg(len(cfg.args) - 1, str(slot))
 
     def test_chained_moves_carry_each_channels_own_head_amp(self):
-        # ch1 lands on A1 in the same batch that moves ch17 off A1
-        T.move_inputs_to_stagebox(self.sc, {1: 1, 17: 13}, port="A")
-        self.assertEqual(_ha(self.sc, 32), _ha(self.base, 0))
-        self.assertEqual(_ha(self.sc, 44), _ha(self.base, 32))
+        # ch1 lands on A9 in the same batch that moves ch25 off A9
+        T.move_inputs_to_stagebox(self.sc, {1: 9, 25: 13}, port="A")
+        self.assertEqual(_ha(self.sc, 40), _ha(self.base, 0))
+        self.assertEqual(_ha(self.sc, 44), _ha(self.base, 40))
 
     def test_swapped_moves_exchange_head_amps(self):
-        T.move_inputs_to_stagebox(self.sc, {17: 2, 18: 1}, port="A")
-        self.assertEqual(_ha(self.sc, 33), _ha(self.base, 32))
-        self.assertEqual(_ha(self.sc, 32), _ha(self.base, 33))
+        T.move_inputs_to_stagebox(self.sc, {25: 10, 26: 9}, port="A")
+        self.assertEqual(_ha(self.sc, 41), _ha(self.base, 40))
+        self.assertEqual(_ha(self.sc, 40), _ha(self.base, 41))
         uin = self.sc.get("/config/userrout/in").args
-        self.assertEqual(uin[16:18], ["34", "33"])
+        self.assertEqual(uin[24:26], ["42", "41"])
 
     def test_batch_reports_each_move(self):
         moves = SB.move_to_stagebox(self.sc, [(1, 13), (31, 14)], port="A")
         self.assertEqual([(m.ch, m.old_source, m.new_source) for m in moves],
                          [(1, 1, 45), (31, 129, 46)])
-        self.assertEqual((moves[0].headamp, moves[0].carried), (("+27.5", "OFF"), True))
+        self.assertEqual((moves[0].headamp, moves[0].carried), (("+22.5", "OFF"), True))
         # a card source has no head amp: the destination keeps its own
-        self.assertEqual((moves[1].headamp, moves[1].carried), (("+23.0", "OFF"), False))
+        self.assertEqual((moves[1].headamp, moves[1].carried), (("+26.0", "OFF"), False))
         self.assertEqual(_ha(self.sc, 45), _ha(self.base, 45))
 
     def test_no_gain_reports_the_destination_as_it_stays(self):
         moves = SB.move_to_stagebox(self.sc, [(1, 13)], port="A", move_gain=False)
-        self.assertEqual((moves[0].headamp, moves[0].carried), (("+23.0", "OFF"), False))
+        self.assertEqual((moves[0].headamp, moves[0].carried), (("+20.5", "OFF"), False))
         self.assertEqual(_changed(self.base, self.sc), {"/config/userrout/in"})
 
     def test_port_b_numbers_from_81(self):
@@ -110,7 +110,8 @@ class StageboxBatchTest(unittest.TestCase):
         self.assertEqual(_changed(self.base, self.sc), {"/config/userrout/in"})
 
     def test_an_aux_in_reader_is_not_offered_as_a_move(self):
-        self.sc.get("/config/routing/IN").set_arg(4, "A1-4")   # auxin01 reads AES50-A 1
+        self.sc.get("/config/routing/IN").set_arg(2, "UIN17-24")  # ch17 reads A1 via slot 17
+        self.sc.get("/config/routing/IN").set_arg(4, "A1-4")      # auxin01 reads AES50-A 1
         self.sc.get("/auxin/01/config").set_arg(3, "33")
         with self.assertRaises(ValueError) as ctx:
             SB.move_to_stagebox(self.sc, [(17, 13), (1, 1)], port="A")
@@ -127,7 +128,7 @@ class StageboxBatchTest(unittest.TestCase):
         self.assertNotIn("too", msg)
 
     def test_a_movable_reader_is_offered_as_a_move(self):
-        self._refused([(1, 2)], "move ch18 too")
+        self._refused([(1, 10)], "move ch26 too")
 
     def test_an_unknown_channel_is_a_key_error_leaving_the_scene(self):
         before = self.sc.dump()
@@ -181,8 +182,8 @@ class MoveInputsCliTest(unittest.TestCase):
         return path
 
     def test_a_head_amp_line_short_of_fields_still_reports(self):
-        for old, new, flags in (("/headamp/000 +27.5 OFF", "/headamp/000 +27.5", ()),
-                                ("/headamp/044 +23.0 OFF", "/headamp/044", ("--no-gain",))):
+        for old, new, flags in (("/headamp/000 +22.5 OFF", "/headamp/000 +22.5", ()),
+                                ("/headamp/044 +20.5 OFF", "/headamp/044", ("--no-gain",))):
             with self.subTest(line=new):
                 scene = self._variant(old, new)
                 rc, out, err = self._run("1:13", "--to", "A", *flags, scene=scene)
@@ -191,7 +192,7 @@ class MoveInputsCliTest(unittest.TestCase):
                 os.remove(self.out)
 
     def test_a_missing_old_head_amp_line_is_not_reported_as_no_gain(self):
-        scene = self._variant("/headamp/000 +27.5 OFF", None)
+        scene = self._variant("/headamp/000 +22.5 OFF", None)
         rc, out, _ = self._run("1:13", "--to", "A", scene=scene)
         self.assertEqual(rc, 0)
         kick = next(ln for ln in out.splitlines() if "ch01" in ln)
@@ -199,13 +200,13 @@ class MoveInputsCliTest(unittest.TestCase):
         self.assertNotIn("not carried", kick)
 
     def test_output_differs_only_in_user_in_and_the_affected_head_amps(self):
-        rc, _, _ = self._run("1:13", "17:14", "--to", "A")
+        rc, _, _ = self._run("1:13", "25:14", "--to", "A")
         self.assertEqual(rc, 0)
         after = Scene.load(self.out)
         self.assertEqual(_changed(self.base, after),
                          {"/config/userrout/in", "/headamp/044", "/headamp/045"})
         self.assertEqual(_ha(after, 44), _ha(self.base, 0))
-        self.assertEqual(_ha(after, 45), _ha(self.base, 32))
+        self.assertEqual(_ha(after, 45), _ha(self.base, 40))
 
     def test_no_gain_touches_only_user_in(self):
         rc, _, _ = self._run("1:13", "--to", "B", "--no-gain")
@@ -221,7 +222,7 @@ class MoveInputsCliTest(unittest.TestCase):
         kick = next(ln for ln in lines if "ch01" in ln)
         self.assertIn("Kick", kick)
         self.assertIn("Local input 1 -> AES50-A input 13", kick)
-        self.assertIn("+27.5 dB, phantom OFF", kick)
+        self.assertIn("+22.5 dB, phantom OFF", kick)
         daw = next(ln for ln in lines if "ch31" in ln)
         self.assertIn("USB Card (DAW) 1 -> AES50-A input 14", daw)
         self.assertIn("no head amp", daw)

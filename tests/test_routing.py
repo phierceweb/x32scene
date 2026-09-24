@@ -32,17 +32,17 @@ class RoutingTest(unittest.TestCase):
 
     def test_loopback_detection_finds_daw_channels(self):
         chs = {cs.ch for cs in R.card_sourced_channels(self.sc)}
-        self.assertTrue({29, 30, 31, 32}.issubset(chs))
+        self.assertEqual(chs, {30, 31, 32})
 
     def test_routing_blocks_and_userrout_are_public(self):
         self.assertEqual(R.routing_blocks(self.sc, "OUT"), ["OUT1-4", "OUT5-8", "OUT9-12", "OUT13-16"])
         self.assertEqual(R.routing_blocks(self.sc, "NOPE"), [])
         self.assertEqual(len(R.userrout(self.sc, "out")), 48)
-        self.assertEqual(R.userrout(self.sc, "in")[28], 157)
+        self.assertEqual(R.userrout(self.sc, "in")[29], 160)
 
     def test_output_sources_per_bank(self):
         self.assertEqual(R.output_sources(self.sc, "rec"), {1: 1, 2: 2})
-        self.assertEqual(R.output_sources(self.sc, "main")[9], 6)
+        self.assertEqual(R.output_sources(self.sc, "main")[9], 10)
 
     def test_output_reach_follows_both_indirections(self):
         # example.scn reaches virtual outs 9-16 through the AES50-A OUT9-16 block;
@@ -64,7 +64,8 @@ class RoutingTest(unittest.TestCase):
     def test_output_aes_mirrors(self):
         m = R.output_aes_mirrors(self.sc)
         self.assertEqual(m[9], ["AES50-A 9"])    # virtual out 9 -> AES50-A 9 (stagebox)
-        self.assertEqual(m[1], ["AES50-B 17"])   # physical out 1 also mirrored to AES50-B 17
+        # physical out 1 also leaves on AES50-A 1, and on AES50-B 31 through user-out 39
+        self.assertEqual(m[1], ["AES50-A 1", "AES50-B 31 via user-out 39"])
 
     def test_resolve_honors_offset_uin_blocks(self):
         # UIN blocks may sit on any bank (e.g. 'UIN9-16 UIN1-8 ...' is a legal console

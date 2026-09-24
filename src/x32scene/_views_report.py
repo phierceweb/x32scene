@@ -105,10 +105,11 @@ def _buses(scene: Scene) -> None:
 
 def _outputs(scene: Scene, physical: int | None, stage: dict | None) -> None:
     rows = []
-    for r in ports_rows(scene, "all", stage):
+    for r in ports_rows(scene, "all", stage, physical=physical):
         out = f"{r['bank']} {r['n']:02d}"
-        if physical is not None and r["bank"] == "main":
-            out += " (XLR)" if r["n"] <= physical else " (virtual)"
+        if r["physical"] is not None:
+            out += ((f" (XLR jack {r['jack']})" if r["jack"] != r["n"] else " (XLR)")
+                    if r["physical"] else " (virtual)")
         where = ""
         if r["stage"]:
             e = r["stage"]

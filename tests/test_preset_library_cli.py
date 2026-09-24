@@ -240,7 +240,7 @@ class PresetsDiffTest(unittest.TestCase):
         rc, out, _ = _run(["presets-diff", self.dir, drifted])
         self.assertEqual(rc, 1)
         self.assertIn("DRIFT (1 path)", out)
-        self.assertIn("/eq/1  PEQ 36.0 +0.00 1.0 -> PEQ 36.0 +3.00 1.0", out)
+        self.assertIn("/eq/1  PEQ 52.6 +4.75 1.6 -> PEQ 52.6 +3.00 1.6", out)
         self.assertIn("1 DRIFT", out.splitlines()[-1])
 
     def test_json_mirrors_the_report(self):
@@ -250,7 +250,7 @@ class PresetsDiffTest(unittest.TestCase):
         self.assertEqual(sum(doc["counts"].values()), 31)
         row = next(p for p in doc["presets"] if p["file"] == "Kick.chn")
         self.assertEqual(set(row), {"file", "status", "name", "channels", "compared",
-                                    "drift", "uncompared", "reason"})
+                                    "drift", "uncompared", "skipped", "reason"})
 
     def test_an_unreadable_preset_warns_and_exits_one(self):
         with open(os.path.join(self.dir, "Broken.chn"), "w") as fh:

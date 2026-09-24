@@ -1,7 +1,7 @@
 """Command-line interface for the X32 scene toolkit (argparse).
 
-Read-only display commands live in _views.py and the file-writing edit commands in
-_cli_edits.py; this module is dispatch plus the exception boundary. Invoked as
+Read-only display commands live in _views.py and the file-writing commands in the _cli_*
+modules; this module is dispatch plus the exception boundary. Invoked as
 `x32scene <subcommand>` (or `python -m x32scene.cli`).
 """
 
@@ -20,26 +20,24 @@ from . import _views_ports as _ports
 from . import _views_desk as _vdesk
 from . import _views_report as _report
 from ._cli_console import config_jacks
-from ._cli_edits import EDIT_COMMANDS, apply_edit, parse_edit, run_edit
-from ._cli_files import clean, load_checked, read_checked, refuse_overwrite, start_run
+from ._cli_edits import EDIT_COMMANDS, run_edit
+from ._cli_files import clean, load_checked, read_checked, start_run
 from ._cli_library import run_audit, run_history
+from ._cli_outputs import refuse_unwritable_outputs
 from ._cli_pull import run_pull
+from ._cli_snippet import run_snippet
 from ._cli_live import run_watch
 from ._cli_strips import STRIP_COMMANDS, run_strips
 from ._cli_preflight import run_preflight
 from ._cli_show import run_show
 from ._cli_presets import run_presets_diff
 from ._parsers import DESCRIPTION, _build_parser
-from .model import Scene
-from .services import buslink as _buslink
 from .services import desk as _desk
 from .services import headers as _headers
 from .services import matrix as _matrix
 from .services import meters as _meters
-from .services import snippets as _snippets
 from .services import osc as _osc
 from .services import stage as _stage
-from .services import transplant as _transplant
 from .services.diff import diff as _diff
 
 
@@ -54,6 +52,7 @@ _SCENE_VIEWS = {
     "explain": (_views.cmd_explain, _json_views.explain_doc),
 }
 
+
 def _run(argv: list[str] | None = None) -> int:
     if argv and "set-fader" in argv[:3]:
         # argparse reads a positional "-oo" as "-o o"; let the documented alias through
@@ -64,6 +63,7 @@ def _run(argv: list[str] | None = None) -> int:
         raise InvalidInputError("no scene directory: pass DIR or set X32SCENE_CORPUS")
     if args.cmd in ("pull", "live-diff", "desk", "meters", "watch") and not args.ip:
         raise InvalidInputError("no console IP: pass --ip or set X32SCENE_IP")
+    refuse_unwritable_outputs(args)
     if args.cmd in EDIT_COMMANDS:
         return run_edit(args)
     if args.cmd in STRIP_COMMANDS:
@@ -107,7 +107,7 @@ def _run(argv: list[str] | None = None) -> int:
         sc = load_checked(args.scene)
         stage = _stage.load_stage(args.stage) if args.stage else None
         if args.json:
-            _json.dump(_json.ports_doc(sc, args.bank, stage))
+            _json.dump(_json.ports_doc(sc, args.bank, stage, physical=physical))
         else:
             _ports.cmd_ports(sc, physical, bank=args.bank, stage=stage)
         return 0
@@ -146,40 +146,7 @@ def _run(argv: list[str] | None = None) -> int:
     if args.cmd == "history":
         return run_history(args)
     if args.cmd == "snippet":
-        absolute = len(args.scenes) == 1 and not args.edit and (args.bus or args.only)
-        if len(args.scenes) != (1 if args.edit or absolute else 2):
-            raise InvalidInputError("snippet takes two scenes (a delta), one scene with --edit, "
-                                    "or one scene with --bus/--only (those lines as they are)")
-        # an --edit can name a preset to load: an input the arguments do not reveal, so
-        # every edit is parsed before the guard runs
-        edits = [parse_edit(text, args.scenes[0]) for text in args.edit]
-        presets = [e.preset for e in edits if getattr(e, "preset", None)]
-        refuse_overwrite(args.out, *args.scenes, *presets, force=args.force)
-        name = args.name or os.path.splitext(os.path.basename(args.out))[0]
-        base = load_checked(args.scenes[0])
-        if absolute:
-            base = Scene([base.lines[0]], True)   # every selected line, not just what moved
-        if args.edit:
-            edited = Scene.load(args.scenes[0])   # same file as base, already checked
-            for parsed in edits:
-                print(apply_edit(edited, parsed))
-        else:
-            edited = load_checked(args.scenes[-1])
-        only = None
-        if args.bus or args.only:
-            keep = set()
-            for bus in args.bus:
-                keep.update(_transplant.bus_mix_paths(edited, bus))
-            keep.update(_transplant.glob_paths(edited, args.only))
-            only = keep.__contains__
-        snip = _snippets.make_snippet(base, edited, name, only)
-        if len(snip.scene.lines) == 1:
-            raise InvalidInputError("no changes to write")
-        snip.scene.save(args.out)
-        _views.cmd_snippet(snip, args.out)
-        _views.warn_relinked(
-            _buslink.relinked_pairs(base, edited, [ln.path for ln in snip.scene.lines]))
-        return 0
+        return run_snippet(args)
     if args.cmd == "vocab":
         if args.json:
             _json.dump(_json.vocab_doc(args.what, args.key))

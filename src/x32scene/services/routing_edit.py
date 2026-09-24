@@ -9,7 +9,7 @@ from ..tables import (
     OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, SOURCE_DOMAINS, decode_out_source, decode_source,
     decode_tap, routing_block_names, routing_vocab,
 )
-from .routing import record_map, user_out_readers
+from .routing import record_map, uout_start, user_out_readers
 
 ROUTING_PRESET_KEYS = ("IN", "AES50A", "AES50B", "CARD")   # what the console's library holds
 _SOURCE_KINDS = {"off": 0, "local": 1, "an": 1, "local input": 1, "aes50-a": 33, "a": 33,
@@ -167,9 +167,10 @@ def encode_out_source(text: str | int) -> int:
                      "local/aes50-a/aes50-b/card/aux N, or 0-208")
 
 
-def record_slot(scene: Scene, track: int) -> int:
+def record_slot(scene: Scene, track: int, *, fix: str | None = None) -> int:
     """The user-out slot (1-48) card record track ``track`` (1-32) reads through its
-    ``/config/routing/CARD`` block; a block that is not UOUT has no slot and is refused."""
+    ``/config/routing/CARD`` block; a block that is not UOUT has no slot and is refused,
+    the refusal ending with ``fix`` when given, else the set-routing that re-patches it."""
     if isinstance(track, bool) or not isinstance(track, int) or not 1 <= track <= 32:
         raise ValueError(f"record track must be 1-32, got {track!r}")
     card = scene.get("/config/routing/CARD")
@@ -178,10 +179,15 @@ def record_slot(scene: Scene, track: int) -> int:
     b = (track - 1) // 8
     card.require(b + 1)
     tok, label = card.args[b], routing_block_names("CARD")[b]
+    fix = fix or f"set-routing CARD {label}=UOUT… re-patches it"
     if tok.rstrip("0123456789-") != "UOUT":
         raise ValueError(f"track {track}: CARD block {label} is {tok}, not a UOUT block, so no "
-                         f"user-out slot feeds it; set-routing CARD {label}=UOUT… re-patches it")
-    return int(tok[4:].split("-")[0]) + (track - 1) % 8
+                         f"user-out slot feeds it; {fix}")
+    start = uout_start("CARD", block=b, tok=tok)
+    if start is None:
+        raise ValueError(f"track {track}: CARD block {label} is {tok!r}, not a UOUT token the "
+                         f"console writes (UOUT1-8 … UOUT41-48); {fix}")
+    return start + (track - 1) % 8
 
 
 def set_record(scene: Scene, track: int, source: str | int) -> str:

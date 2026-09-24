@@ -101,7 +101,7 @@ def _add_edits(sub, _out, _strip_arg) -> None:
     s.add_argument("--gain", type=float)
     s.add_argument("--q", type=float)
     s.add_argument("--no-link", action="store_true", help=nolink_help)
-    # knobs: the flags _require_a_knob demands at least one of (flag -> args dest)
+    # knobs: the flags require_a_knob demands at least one of (flag -> args dest)
     s.set_defaults(knobs={"--type": "type", "--freq": "freq", "--gain": "gain", "--q": "q"})
     s = sub.add_parser("set-comp", help="set the compressor: threshold, ratio, makeup, attack, release")
     s.add_argument("scene")

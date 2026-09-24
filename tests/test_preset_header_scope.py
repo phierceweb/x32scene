@@ -45,6 +45,7 @@ class ApplyFromHeaderTest(unittest.TestCase):
     def setUp(self):
         self.dst = Scene.load(EXAMPLE)
         self.eq_before = self.dst.get("/ch/20/eq/2").args
+        self.gate_before = self.dst.get("/ch/20/gate").args
 
     def test_header_flags_limit_the_default_scope(self):
         self.assertGreater(apply_preset(self.dst, 20, gate_only_header_over_gate_and_eq()), 0)
@@ -56,7 +57,8 @@ class ApplyFromHeaderTest(unittest.TestCase):
         apply_preset(self.dst, 20, gate_only_header_over_gate_and_eq(), ["eq"])
         kick = Scene.load(EXAMPLE)
         self.assertEqual(self.dst.get("/ch/20/eq/2").args, kick.get("/ch/01/eq/2").args)
-        self.assertEqual(self.dst.get("/ch/20/gate").args[0], "ON")
+        self.assertNotEqual(self.gate_before, kick.get("/ch/01/gate").args)
+        self.assertEqual(self.dst.get("/ch/20/gate").args, self.gate_before)
 
     def test_headerless_preset_applies_every_scope_it_carries(self):
         body = extract_preset(Scene.load(EXAMPLE), 1, ["gate", "eq"])

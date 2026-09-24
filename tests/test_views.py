@@ -49,8 +49,8 @@ class ViewTest(unittest.TestCase):
     def test_ports_p16_bank_names_the_direct_outs(self):
         from x32scene._views_ports import cmd_ports
         out = render(lambda: cmd_ports(self.sc, bank="p16"))
-        self.assertIn("p16 01 -> Direct Out Ch 1", out)
-        self.assertIn("p16 16 -> Direct Out Ch 26", out)
+        self.assertIn("p16 01 -> Direct Out Ch 17", out)
+        self.assertIn("p16 16 -> Direct Out Ch 11", out)
 
     def test_ports_without_a_jack_count_labels_nothing_physical(self):
         # the console model is not in the file: no count declared, no physical/virtual claim
@@ -68,13 +68,13 @@ class ViewTest(unittest.TestCase):
     def test_buses_tallies_an_unlinked_even_bus_with_the_odd_line_tap(self):
         """An even send line carries only on/level; its tap is on the sender's odd line."""
         text = self.sc.dump()
-        for old, new in (("/ch/03/mix/14 ON -19.5", "/ch/03/mix/14 OFF -19.5"),
-                         ("/ch/02/mix/13 ON   -oo +0 PRE 0", "/ch/02/mix/13 ON   -oo +0 POST 0")):
+        for old, new in (("/ch/03/mix/14 ON -11.9", "/ch/03/mix/14 OFF -11.9"),
+                         ("/ch/02/mix/13 ON   -oo +0 POST 0", "/ch/02/mix/13 ON   -oo +0 PRE 0")):
             self.assertEqual(text.count(old + "\n"), 1)
             text = text.replace(old + "\n", new + "\n")
         rows = {ln.split()[0]: ln for ln in render(_views.cmd_buses, Scene.parse(text)).splitlines()}
-        self.assertTrue(rows["bus13"].endswith("sends[PRE:29 POST:19]"), rows["bus13"])
-        self.assertTrue(rows["bus14"].endswith("sends[PRE:28 POST:19]"), rows["bus14"])
+        self.assertTrue(rows["bus13"].endswith("sends[PRE:1 POST:47]"), rows["bus13"])
+        self.assertTrue(rows["bus14"].endswith("sends[PRE:1 POST:46]"), rows["bus14"])
         self.assertTrue(rows["bus02"].endswith("sends[]"), rows["bus02"])   # linked: on bus01
 
     def test_record_map_lists_tracks_and_loopback(self):

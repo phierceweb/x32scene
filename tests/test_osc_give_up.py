@@ -62,7 +62,8 @@ class GiveUpTest(unittest.TestCase):
             with self.assertRaises(OscError) as cm:
                 pull_lines("127.0.0.1", PATHS, port=desk.port, timeout=0.05, retries=0,
                            give_up=4)
-            self.assertLessEqual(desk.queries, 3 + 4 + 1)
+            # answered, the run of misses, the last answered path again, /xinfo for the wording
+            self.assertLessEqual(desk.queries, 3 + 4 + 1 + 1)
         self.assertIn("4 queries in a row", str(cm.exception))
         self.assertIn("desk off or unreachable", str(cm.exception))
 

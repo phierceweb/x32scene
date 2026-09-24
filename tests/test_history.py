@@ -22,8 +22,8 @@ class HistoryTest(unittest.TestCase):
         lib = [("one", a), ("two", b), ("three", Scene.load(EXAMPLE))]
         h = history(lib, "/outputs/main/05")
         self.assertEqual([n for n, _ in h], ["one", "two", "three"])
-        self.assertEqual(h[0][1], "/outputs/main/05 14 POST OFF")
-        self.assertEqual(h[1][1], "/outputs/main/05 8 POST OFF")
+        self.assertEqual(h[0][1], "/outputs/main/05 6 POST OFF")
+        self.assertEqual(h[1][1], "/outputs/main/05 1 POST OFF")
         self.assertEqual(h[2][1], h[0][1])
 
     def test_unchanged_line_is_one_entry(self):
@@ -53,7 +53,7 @@ class HistoryCliTest(unittest.TestCase):
             out = buf.getvalue()
             self.assertEqual(rc, 0)
             self.assertLess(out.index("2025-01-10"), out.index("2025-03-02"))
-            self.assertIn("src 14 (Bus 11) -> 8 (Bus 5)", out)
+            self.assertIn("src 6 (Bus 3) -> 1 (Main L)", out)
             self.assertIn("block 2 OUT9-16 -> UOUT9-16", out)
 
     def test_cli_json(self):

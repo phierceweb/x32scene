@@ -3,19 +3,19 @@
   "outputs": {
     "main": {
       "9": {
-        "jack": "Box A out 1",
+        "jack": "Box A out 9",
         "box": "Stagebox A",
         "device": "IEM TX 1",
-        "wearer": "Drums",
-        "bus": 3,
+        "wearer": "Bass",
+        "bus": 7,
         "confirmed": "2026-09-04"
       },
       "10": {
-        "jack": "Box A out 2",
+        "jack": "Box A out 10",
         "box": "Stagebox A",
         "device": "IEM TX 1",
-        "wearer": "Drums",
-        "bus": 4,
+        "wearer": "Bass",
+        "bus": 8,
         "confirmed": "2026-09-04"
       }
     },
@@ -23,8 +23,8 @@
       "1": {
         "jack": "Aux out 1",
         "device": "Headphone amp",
-        "wearer": "Bass",
-        "bus": 7,
+        "wearer": "Guest",
+        "bus": 11,
         "notes": "wired feed — confirm at soundcheck"
       }
     }

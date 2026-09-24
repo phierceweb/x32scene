@@ -15,15 +15,17 @@ from dataclasses import dataclass, field
 
 from ..model import HEADER_RE, Scene, read_file
 from . import validate
-from .presets import extract_preset, preset_selects
+from .presets import extract_preset, mirrored_sends, preset_selects, unflagged_scopes
 from .routing import channel_headamp_index
 from .snippets import MIX_FIELD
 
-MATCH, DRIFT, NO_CHANNEL, AMBIGUOUS, UNREADABLE = (
-    "MATCH", "DRIFT", "NO CHANNEL", "AMBIGUOUS", "UNREADABLE")
-STATUSES = (MATCH, DRIFT, NO_CHANNEL, AMBIGUOUS, UNREADABLE)
+MATCH, DRIFT, NOTHING_COMPARED, NO_CHANNEL, AMBIGUOUS, UNREADABLE = (
+    "MATCH", "DRIFT", "NOTHING COMPARED", "NO CHANNEL", "AMBIGUOUS", "UNREADABLE")
+STATUSES = (MATCH, DRIFT, NOTHING_COMPARED, NO_CHANNEL, AMBIGUOUS, UNREADABLE)
 
 _ILLEGAL = re.compile(r'[/\\:*?"<>|]')
+_DEVICE = re.compile(r"(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9¹²³]|LPT[1-9¹²³]) *(?:\.|$)",
+                     re.IGNORECASE)
 
 
 @dataclass
@@ -38,7 +40,8 @@ class Drift:
 @dataclass
 class PresetCheck:
     """One preset file's verdict. ``channels`` holds the match, or every candidate when
-    AMBIGUOUS; ``uncompared`` the paths that had nothing to compare against."""
+    AMBIGUOUS; ``uncompared`` the paths that had nothing to compare against; ``skipped``
+    the scopes the header leaves out (:func:`~.presets.unflagged_scopes`)."""
 
     file: str
     status: str
@@ -47,6 +50,7 @@ class PresetCheck:
     compared: int = 0
     drift: list[Drift] = field(default_factory=list)
     uncompared: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
     reason: str = ""
 
 
@@ -100,12 +104,27 @@ def _scene_tokens(scene: Scene, ch: int, path: str) -> list[str] | None:
     return None if target is None else list(target.args)
 
 
-def _compare(scene: Scene, ch: int, preset: Scene, selects: Callable[[str], bool]) -> PresetCheck:
+def _tally(res: PresetCheck, path: str, want: list[str], have: list[str] | None) -> None:
+    res.compared += 1
+    if want != have:
+        res.drift.append(Drift(path, want, have))
+
+
+def _compare(scene: Scene, ch: int, preset: Scene, selects: Callable[[str], bool],
+             mirrors: list[tuple[str, str]]) -> PresetCheck:
+    """``mirrors`` is :func:`~.presets.mirrored_sends`: those sends are compared on the on
+    and level an apply gives them, a partner bus the preset has no line for included; the
+    partner channel's sends are not compared."""
     res = PresetCheck("", MATCH)
+    own = f"/ch/{ch:02d}"
+    took = {path[len(own):]: src for path, src in mirrors if path.startswith(own + "/")}
+    by_path = {ln.path: ln for ln in preset.lines}
     for ln in preset.lines:
         if not ln.path or HEADER_RE.match(ln.path) or not selects(ln.path):
             continue
         path, want = ln.path, list(ln.args)
+        if path in took:
+            want[:2] = by_path[took.pop(path)].args[:2]
         if path.startswith("/headamp"):
             idx = channel_headamp_index(scene, ch)
             if idx is None:
@@ -120,10 +139,14 @@ def _compare(scene: Scene, ch: int, preset: Scene, selects: Callable[[str], bool
             # the source slot is never compared: apply_preset keeps the target's, and the
             # desk leaves it out of a preset it writes
             want, have = want[:len(have) - 1], have[:-1]
-        res.compared += 1
-        if want != have:
-            res.drift.append(Drift(path, want, have))
-    res.status = DRIFT if res.drift else MATCH
+        elif (have and 2 <= len(want) < len(have) and path.startswith("/mix/")
+              and path[len("/mix/"):].isdigit()):
+            have = have[:len(want)]   # a send line short of its bus's fields leaves the rest
+        _tally(res, path, want, have)
+    for path, src in took.items():
+        want = list(by_path[src].args[:2])
+        _tally(res, path, want, _scene_tokens(scene, ch, path)[:len(want)])
+    res.status = DRIFT if res.drift else MATCH if res.compared else NOTHING_COMPARED
     return res
 
 
@@ -133,8 +156,10 @@ def check_preset(scene: Scene, file: str, text: str,
 
     The name is the preset's own ``/config`` scribble, or the ``file`` stem when that is
     missing or empty. Without ``scopes``, a header's section flags choose what is compared,
-    as they choose what an apply writes. Never raises for a malformed preset: it comes back
-    UNREADABLE.
+    as they choose what an apply writes, a send on a stereo-linked bus pair included; a
+    preset with nothing to compare is NOTHING_COMPARED. Never raises for a malformed preset:
+    it comes back UNREADABLE. A scene with no ``/config/buslink`` compares each send on its
+    own bus.
     """
     try:
         preset = Scene.parse(text)
@@ -150,11 +175,12 @@ def check_preset(scene: Scene, file: str, text: str,
     channels = match_channels(scene, name, stem=from_file)
     if len(channels) != 1:
         return PresetCheck(file, AMBIGUOUS if channels else NO_CHANNEL, name, channels)
-    res = _compare(scene, channels[0], preset, preset_selects(text, scopes))
+    linked = scene.get("/config/buslink") is not None
+    res = _compare(scene, channels[0], preset, preset_selects(text, scopes),
+                   mirrored_sends(scene, channels[0], text, scopes) if linked else [])
     res.file, res.name, res.channels = file, name, channels
+    res.skipped = unflagged_scopes(text, scopes)
     return res
-
-
 
 
 def check_library(scene: Scene, directory: str, scopes: list[str] | None = None, *,
@@ -181,12 +207,14 @@ def check_library(scene: Scene, directory: str, scopes: list[str] | None = None,
 
 
 def _stem(name: str) -> str:
-    return re.sub(r"^\.", "_", _ILLEGAL.sub("_", name.strip()))
+    stem = re.sub(r"^\.", "_", _ILLEGAL.sub("_", name.strip()))
+    return "_" + stem if _DEVICE.match(stem) else stem
 
 
 def preset_filename(name: str) -> str:
     """The file a preset named ``name`` is written as: characters macOS or Windows refuse
-    in a file name become ``_``, and so does a leading ``.``, which would hide the file."""
+    in a file name become ``_``, and so does a leading ``.``, which would hide the file. A
+    Windows device name (``AUX``, ``CON.x``, ``nul .``, ``CONIN$``, ``COM¹``) gains a leading ``_``."""
     return _stem(name) + ".chn"
 
 

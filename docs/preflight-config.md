@@ -110,9 +110,9 @@ the check that catches a record patch someone re-pointed between gigs.
 
 | Key | Meaning |
 |---|---|
-| `physical_outputs` | 0–16 — how many `/outputs/main` have a rear jack on **this** console ([console models](#console-models) lists the counts). The file cannot say, so the config must, or `--console` names the model |
+| `physical_outputs` | 0–16 — how many rear XLR output jacks **this** console has; which main outputs they carry follows `/config/routing/OUT` (in order by default, so jack N carries main N) ([console models](#console-models) lists the counts). The file cannot say, so the config must, or `--console` names the model. A whole number: `8.0`, `true` or `"8"` is a FAIL here and the same one-line error in `ports` and `report`, with or without `--console` |
 | `stereo_pairs` | banks (`main`, `aux`) where an odd output carrying an odd bus must be followed by its partner |
-| `require_reachable` | every virtual output with a source must leave the console via an AES50/card block or a user-out slot |
+| `require_reachable` | every main output with a source that no rear jack carries must leave the console via an AES50/card block or a user-out slot |
 | `require_live_senders` | every bus that feeds an output must have at least one sender ON above −∞ |
 
 `require_reachable` and `require_live_senders` are the two checks that catch a silently dead
@@ -142,7 +142,8 @@ An unknown name is refused, listing the models. A count is added to `MAIN_JACKS`
 
 - `preflight --regenerate` writes `physical_outputs` from the model, and
   `require_reachable` `true` when the scene passes it, `false` otherwise.
-- `preflight` uses the model's count for a config that declares no `physical_outputs`.
+- `preflight` fills the model's count into a `monitor` section that declares no
+  `physical_outputs`, and its `checked` counts the filled key.
 - `ports` and `report` label physical and virtual outputs from it.
 
 A config that declares `physical_outputs` and a model with another count is refused in one
@@ -270,7 +271,8 @@ writes the config `scene.scn` satisfies instead of checking it. Checking the sam
 against the result reports nothing but the line-shape findings no config turns off, and the
 `checked:` line names every section the file holds; a section the scene has nothing to
 declare for is left out. A snippet, preset or show file is refused, since the config
-describes a whole console, and so is any file with no channel strips, such as a JSON file
+describes a whole console, whether its name or its header says so (a snippet renamed
+`.scn` is still a snippet), and so is any file with no channel strips, such as a JSON file
 passed as the scene. The file is stable — keys sorted (numbered keys by number),
 two-space indent, one trailing newline — so regenerating from an unchanged scene changes
 only the date in `_comment`, and `git diff` on a tracked copy shows what moved on the desk.

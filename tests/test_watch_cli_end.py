@@ -86,7 +86,7 @@ class UnansweredTest(WatchCliBase):
         self.assertEqual(rc, 0)
         with open(out_snp) as fh:
             self.assertEqual(fh.read(), make_snippet(Scene.parse(REF_TEXT), Scene.parse(
-                REF_TEXT.replace("/ch/01/eq/1 PEQ 36.0 +0.00 1.0", EQ_UP)), "part").scene.dump())
+                REF_TEXT.replace("/ch/01/eq/1 PEQ 52.6 +4.75 1.6", EQ_UP)), "part").scene.dump())
         self.assertIn("1 changed path(s):", out)
         self.assertIn("the snippet may be incomplete: 1 path(s) did not answer\n", out)
 
@@ -106,7 +106,7 @@ class UnansweredTest(WatchCliBase):
                       summary)
         with open(out_snp) as fh:
             self.assertEqual(fh.read(), make_snippet(Scene.parse(REF_TEXT), Scene.parse(
-                REF_TEXT.replace("/ch/01/eq/1 PEQ 36.0 +0.00 1.0", EQ_UP)), "stale").scene.dump())
+                REF_TEXT.replace("/ch/01/eq/1 PEQ 52.6 +4.75 1.6", EQ_UP)), "stale").scene.dump())
 
 
 class LinkFailureTest(WatchCliBase):

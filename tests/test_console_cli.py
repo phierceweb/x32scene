@@ -94,7 +94,7 @@ class ConsoleCliTest(unittest.TestCase):
         self.assertIn("require_reachable needs physical_outputs", text)
         rc, text, err = run("preflight", SCENE, "--config", cfg, "--console", "X32RACK")
         self.assertEqual(rc, 0, text + err)
-        self.assertIn("checked: monitor(1)", text)
+        self.assertIn("checked: monitor(2)", text)
 
     def test_preflight_takes_the_model_from_the_environment(self):
         cfg = self._config(REACH)

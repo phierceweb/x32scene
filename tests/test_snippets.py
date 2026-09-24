@@ -80,9 +80,9 @@ class ClassifyTest(unittest.TestCase):
 
 class SplitTest(unittest.TestCase):
     def test_main_mix_line_splits_keeping_padding(self):
-        ln = Line.parse("/ch/01/mix ON  +6.5 ON +0 OFF   -oo")
+        ln = Line.parse("/ch/01/mix ON  -4.8 ON +0 OFF   -oo")
         self.assertEqual(snippet_lines(ln), [
-            "/ch/01/mix/fader  +6.5", "/ch/01/mix/pan +0", "/ch/01/mix/on ON",
+            "/ch/01/mix/fader  -4.8", "/ch/01/mix/pan +0", "/ch/01/mix/on ON",
             "/ch/01/mix/st ON", "/ch/01/mix/mono OFF", "/ch/01/mix/mlevel   -oo"])
 
     def test_short_families(self):

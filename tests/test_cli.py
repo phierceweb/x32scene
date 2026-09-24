@@ -54,7 +54,7 @@ class CliTest(unittest.TestCase):
     def test_iem_view_includes_auxin_and_fxrtn_sends(self):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            self.assertEqual(main(["iem", SCENE, "3"]), 0)
+            self.assertEqual(main(["iem", SCENE, "1"]), 0)
         out = buf.getvalue()
         self.assertIn("/fxrtn/01", out)
         self.assertIn("Bluetooth L", out)   # /auxin/05's scribble name

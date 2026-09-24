@@ -19,7 +19,7 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
       - run: python -m pf_core.guards
-      - run: pytest -v
+      - run: pytest -v -n auto
 
   package:
     runs-on: ubuntu-latest

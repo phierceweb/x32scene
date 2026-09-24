@@ -4,13 +4,10 @@ happens. Read-only — the only messages sent are ``/xremote`` and ``/node``.
 After ``/xremote`` the desk pushes one message per changed leaf (``/ch/29/mix/fader``) for
 ten seconds. Each leaf marks the reference node that owns it dirty; a dirty node is asked
 for its whole scene-format line with ``/node`` at most once per debounce window, and a
-change is reported when that line differs from the last one reported for the node. A node
-whose read-back gets no answer is kept as unanswered, asked again at the end, and reported.
-
-A reply names no query, so each query is tagged with how many leaves its node had when it
-was sent. A reply settles a line only when every query it could be answering carries one
-count, and no earlier query is still out behind a reply that settled it differently;
-otherwise the node is asked again once every query still out is past ``LATE``.
+change is reported when that line differs from the last one reported for the node. A
+read-back with no reply within the retry interval is asked once more; a node silent to both
+is kept as unanswered, asked again at the end, and reported. The retry interval and which
+read-back a reply answers are ``watch_readback``'s.
 """
 
 from __future__ import annotations
@@ -23,11 +20,11 @@ from typing import Protocol
 from ..model import Line, Scene
 from .diff import Change, diff
 from .osc import node_line
+from .watch_readback import LATE as LATE, Readbacks, RoundTrip
 
 RENEW = 8.0        # /xremote lapses after 10 s
 DEBOUNCE = 0.15
 MAX_WAIT = 0.5     # a blocked recv delays a Ctrl-C by up to this long on some platforms
-LATE = 6           # reply timeouts after which a query's reply is taken as lost
 
 
 class Transport(Protocol):
@@ -93,10 +90,13 @@ def subscribe(transport: Transport, *, clock: Callable[[], float] = time.monoton
 
 class Watch:
     """One watch session. ``reference`` names the nodes a leaf may belong to; ``start`` is
-    the desk's state for them, and only nodes it holds are queried."""
+    the desk's state for them, and only nodes it holds are queried. ``reply_timeout`` is the
+    retry interval's floor; ``round_trips``, from ``pull_scene_like(..., round_trips=)``,
+    starts it from what the start pull measured."""
 
     def __init__(self, reference: Scene, start: Scene, *, debounce: float = DEBOUNCE,
-                 renew: float = RENEW, reply_timeout: float = 0.5):
+                 renew: float = RENEW, reply_timeout: float = 0.5,
+                 round_trips: Sequence[float | None] = ()):
         self._nodes = {ln.path for ln in reference.lines if ln.path.startswith("/")}
         self._start_scene = start
         self._start = {ln.path: ln.raw for ln in start.lines if ln.path.startswith("/")}
@@ -104,12 +104,12 @@ class Watch:
         self._dirty: dict[str, float] = {}               # node -> first leaf since its query
         self._since: dict[str, float] = {}   # node -> wall time of its first leaf since queried
         self._asked: dict[str, float] = {}   # node -> that time, for the query now out
-        self._pending: dict[str, tuple[float, int]] = {}  # node -> (next ask due, tries)
+        self._pending: dict[str, tuple[float, int, float]] = {}  # node -> (due, tries, its timer)
         self._seq: dict[str, int] = {}                        # node -> leaves seen
-        self._out: dict[str, list[tuple[float, int]]] = {}   # node -> unanswered (sent, seq)
-        self._settled: dict[str, float] = {}  # node -> when a reply settled it with queries still out
-        self._debounce, self._renew, self._reply_timeout = debounce, renew, reply_timeout
-        self._late = LATE * reply_timeout
+        self._debounce, self._renew = debounce, renew
+        self._timer = RoundTrip(reply_timeout)
+        self._timer.seed(round_trips)
+        self._readbacks = Readbacks(self._timer)
         self._touched: set[str] = set()
         self._unanswered: set[str] = set()
         self.logged = 0
@@ -143,7 +143,7 @@ class Watch:
                 transport.send("/xremote")
                 renewed = now
             self._ask(transport, now, self._debounce)
-            wake = [renewed + self._renew, *(due for due, _ in self._pending.values()),
+            wake = [renewed + self._renew, *(p[0] for p in self._pending.values()),
                     *(max(t + self._debounce, self._pending.get(n, (0.0,))[0])
                       for n, t in self._dirty.items())]
             if end is not None:
@@ -163,18 +163,23 @@ class Watch:
               wall: Callable[[], float] = time.time) -> Iterator[Changed]:
         """Read back every node a leaf marked that has not been read since, and every node
         still unanswered, without waiting out a debounce — call it after an interrupted
-        ``run``. Pushes arriving now are past the end and dropped. Bounded by two reply
-        timeouts; a node still unread then stays unanswered."""
-        deadline = clock() + 2 * self._reply_timeout
+        ``run``. Pushes arriving now are past the end and dropped. Bounded by two round-trip
+        estimates, and a read-back still out waits one at most; a node still unread then
+        stays unanswered."""
+        start = clock()
+        deadline = start + 2 * self._timer.estimate
+        for node, (due, tries, sent_with) in self._pending.items():
+            if tries:
+                self._pending[node] = (min(due, start + self._timer.estimate), tries, sent_with)
         for node in self._unanswered - self._pending.keys():
-            self._dirty.setdefault(node, clock())
+            self._dirty.setdefault(node, start)
         try:
             while self._dirty or self._pending:
                 now = clock()
                 if now >= deadline:
                     break
-                self._ask(transport, now, 0.0)
-                wake = [deadline, *(due for due, _ in self._pending.values())]
+                self._ask(transport, now, 0.0, end=True)
+                wake = [deadline, *(p[0] for p in self._pending.values())]
                 msg = transport.recv(min(max(min(wake) - now, 0.001), MAX_WAIT))
                 if msg is not None and msg[0] in ("node", "/node"):
                     changed = self._reply(msg[1], clock(), wall())
@@ -195,52 +200,51 @@ class Watch:
         if node not in self._dirty:
             self._dirty[node] = now
 
-    def _ask(self, transport: Transport, now: float, debounce: float) -> None:
+    def _ask(self, transport: Transport, now: float, debounce: float, *,
+             end: bool = False) -> None:
         for node, since in list(self._dirty.items()):
-            if now - since >= debounce and now >= self._pending.get(node, (now,))[0]:
+            due, tries, sent_with = self._pending.get(node, (now, 0, 0.0))
+            if now - since >= debounce and now >= due:
+                if tries:
+                    self._timer.timed_out(sent_with)
                 del self._dirty[node]
                 if node in self._since:
                     self._asked[node] = self._since.pop(node)
-                self._query(transport, node, now, 1)
-        for node, (due, tries) in list(self._pending.items()):
+                self._query(transport, node, now, 1, end=end)
+        for node, (due, tries, sent_with) in list(self._pending.items()):
             if now >= due:
+                if tries:
+                    self._timer.timed_out(sent_with)
                 if tries > 1:
                     del self._pending[node]
                     self._unanswered.add(node)
                 else:
                     if node in self._since:   # the retry reads these leaves; an unsettled date stays
                         self._asked.setdefault(node, self._since.pop(node))
-                    self._query(transport, node, now, tries + 1)
+                    self._query(transport, node, now, tries + 1, end=end)
 
-    def _query(self, transport: Transport, node: str, now: float, tries: int) -> None:
-        self._pending[node] = (now + self._reply_timeout, tries)  # first: a failed send stays pending
-        self._outstanding(node, now).append((now, self._seq.get(node, 0)))
+    def _query(self, transport: Transport, node: str, now: float, tries: int, *,
+               end: bool = False) -> None:
+        # the end read-back waits out the round trip, not a back-off that loss can cause
+        timer = self._timer.estimate if end else self._timer.rto
+        self._pending[node] = (now + timer, tries, timer)  # first: a failed send stays pending
+        self._readbacks.sent(node, now, self._seq.get(node, 0))
         transport.send("/node", [node.lstrip("/")])
-
-    def _outstanding(self, node: str, now: float) -> list[tuple[float, int]]:
-        out = self._out[node] = [q for q in self._out.get(node, ()) if now - q[0] < self._late]
-        return out
 
     def _reply(self, args: list, now: float, at: float) -> Changed | None:
         line = node_line(args)
         path = None if line is None else line.split(" ", 1)[0]
         if path not in self._lines:
             return None
-        out = self._outstanding(path, now)
-        if not out:
+        settles, again = self._readbacks.credit(path, line, self._lines[path], now)
+        if again is not None:
+            self._pending[path] = (again, 0, 0.0)
+        if not settles:
+            if again is None and line != self._lines[path]:
+                # after a reply later than its lapse, each reply answers the read-back before
+                # the one it is credited to, and the last answers nothing asked for
+                self._dirty.setdefault(path, now)
             return None
-        settled = self._settled.get(path)
-        disputed = (settled is not None and line != self._lines[path]
-                    and any(t < settled for t, _ in out))
-        if len({seq for _, seq in out}) > 1 or disputed:
-            # past every query now out, or a re-ask during a ride starts the ambiguity over
-            self._pending[path] = (max(t for t, _ in out) + self._late, 0)
-            return None
-        out.remove(min(out))   # the oldest, so what stays outstanding lapses last
-        if out:
-            self._settled[path] = now
-        else:
-            self._settled.pop(path, None)
         self._pending.pop(path, None)
         self._unanswered.discard(path)
         at = self._asked.pop(path, at)

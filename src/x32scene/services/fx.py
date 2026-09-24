@@ -11,8 +11,8 @@ from dataclasses import dataclass
 
 from ..model import HEADER_WIDTH, Scene, check_token
 from ..tables_fx import (
-    FX_DEFAULTS, FX_DISPLAY_TYPE, FX_PARAMS, FX_SIDE_RACK_TYPES, FX_TYPES, decode_fx,
-    geq_param_names,
+    FX_DEFAULTS, FX_DISPLAY_TYPE, FX_PARAMS, FX_SIDE_RACK_TYPES, FX_TYPES, GEQ_GAIN_DB,
+    decode_fx, geq_param_names,
 )
 
 FX_SOURCES = ("INS", *[f"MIX{n}" for n in range(1, 17)], "M/C")
@@ -51,9 +51,33 @@ def read_fx(scene: Scene) -> list[FxSlot]:
     return out
 
 
+def _refuse_unwritable(code: str) -> None:
+    if code in _GEQ_NAMES:
+        alt = "GEQ2" if code == "TEQ2" else "GEQ"
+        raise ValueError(f"{code} ({decode_fx(code)}) parameters cannot be written: its band "
+                         f"order is not desk-verified. Set them on the desk, or switch the "
+                         f"slot to {alt} (`set-fx --type {alt}`)")
+    raise ValueError(f"{code!r} is not a known FX type, so its parameters cannot be written; "
+                     "see `x32scene fx-types`")
+
+
+def _check_range(code: str, param: str, tok: str) -> None:
+    """Refuse a graphic-EQ gain the desk would not take; other types' ranges are not checked."""
+    if code not in _GEQ_NAMES:
+        return
+    lo, hi = GEQ_GAIN_DB
+    try:
+        ok = lo <= float(tok) <= hi
+    except ValueError:
+        ok = False
+    if not ok:
+        raise ValueError(f"{code} {param!r} = {tok!r}: a graphic-EQ gain runs {lo} to {hi} dB")
+
+
 def set_fx_param(scene: Scene, slot: int, param: str, raw_value: str) -> None:
     """Set one FX parameter by name. raw_value is the exact X32 token (e.g. '5k06', '+10',
     '30') — FX params have type-specific formats, so the caller supplies the literal token.
+    A graphic-EQ gain outside ``GEQ_GAIN_DB`` raises ValueError.
     """
     tline = scene.get(f"/fx/{slot}")
     if not tline or not tline.args:
@@ -61,12 +85,12 @@ def set_fx_param(scene: Scene, slot: int, param: str, raw_value: str) -> None:
     code = tline.args[0]
     names = FX_PARAMS.get(code) or (_GEQ_NAMES.get(code) if code in _GEQ_WRITABLE else None)
     if not names:
-        why = "read-only (band labels not desk-verified)" if code in _GEQ_NAMES else "unknown"
-        raise ValueError(f"FX type {code!r} param layout {why} — refusing to write")
+        _refuse_unwritable(code)
     try:
         i = names.index(param)
     except ValueError:
         raise ValueError(f"{param!r} not in {code} params {names}") from None
+    _check_range(code, param, raw_value)
     par = scene.get(f"/fx/{slot}/par")
     if par is None:
         raise KeyError(f"no /fx/{slot}/par")
@@ -142,11 +166,13 @@ def set_fx_source(scene: Scene, slot: int, left: str, right: str | None = None) 
 
 def set_fx_params(scene: Scene, slot: int, values: dict[str, float | int | str]) -> dict[str, str]:
     """Set parameters by name with values formatted like the desk's defaults; returns each
-    name's token as written."""
+    name's token as written. Every value is checked before any is written."""
     tline = scene.get(f"/fx/{slot}")
     if not tline or not tline.args:
         raise KeyError(f"no /fx/{slot}")
     code = tline.args[0]
+    if code not in FX_TYPES or code in _GEQ_NAMES and code not in _GEQ_WRITABLE:
+        _refuse_unwritable(code)
     defaults = fx_defaults(code)
     names = param_names(code)
     written = {}
@@ -155,7 +181,9 @@ def set_fx_params(scene: Scene, slot: int, values: dict[str, float | int | str])
             raise ValueError(f"{name!r} is not a {code} parameter; "
                              f"see `x32scene fx-types {code}`")
         written[name] = format_like(defaults[names.index(name)], value)
-        set_fx_param(scene, slot, name, written[name])
+        _check_range(code, name, written[name])
+    for name, tok in written.items():
+        set_fx_param(scene, slot, name, tok)
     return written
 
 

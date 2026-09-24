@@ -25,13 +25,13 @@ from x32scene.services.snippets import make_snippet
 
 REF_TEXT = ('#4.0# "REF" "" %000000000 1\n'
             '/ch/01/config "Kick" 2 YEi 1\n'
-            "/ch/01/eq/1 PEQ 36.0 +0.00 1.0\n"
-            "/ch/01/mix ON  +6.5 ON +0 OFF   -oo\n"
-            "/ch/01/mix/01 ON  +2.8 +0 PRE 0\n"
+            "/ch/01/eq/1 PEQ 52.6 +4.75 1.6\n"
+            "/ch/01/mix ON  -4.8 ON +0 OFF   -oo\n"
+            "/ch/01/mix/01 ON  -7.9 +0 PRE 0\n"
             "/ch/02/mix ON  -oo ON +0 OFF   -oo\n")
-MIX_START = "/ch/01/mix ON  +6.5 ON +0 OFF   -oo"
+MIX_START = "/ch/01/mix ON  -4.8 ON +0 OFF   -oo"
 MIX_DOWN = "/ch/01/mix ON -10.0 ON +0 OFF   -oo"
-EQ_UP = "/ch/01/eq/1 PEQ 36.0 +3.00 1.0"
+EQ_UP = "/ch/01/eq/1 PEQ 52.6 +7.75 1.6"
 
 
 class WatchConsole(threading.Thread):
@@ -135,7 +135,7 @@ class WatchTextTest(WatchCliBase):
         logged = [ln for ln in out.splitlines() if re.match(r"^\d\d:\d\d:\d\d\.\d{3}  ", ln)]
         self.assertEqual(len(logged), 1, out)
         self.assertRegex(logged[0], r'^\d\d:\d\d:\d\d\.\d{3}  /ch/01/mix  ch 01 "Kick"  '
-                                    r"fader \+6\.5 -> -10\.0$")
+                                    r"fader -4\.8 -> -10\.0$")
         self.assertIn("1 change(s) logged", out)
         self.assertIn("2 message(s) ignored", out)
         self.assertIn("1 changed path(s):", out)
@@ -149,7 +149,7 @@ class WatchTextTest(WatchCliBase):
         self.assertEqual(rc, 0)
         self.assertNotIn("Traceback", err)
         self.assertIn("1 change(s) logged", out)
-        self.assertIn("gain +0.00 -> +3.00", out.split("summary")[1])
+        self.assertIn("gain +4.75 -> +7.75", out.split("summary")[1])
 
     def test_a_silent_desk_fails_the_start_snapshot(self):
         rc, out, err = self.watch(WatchConsole(answer=False), "--seconds", "1")
@@ -176,7 +176,7 @@ class WatchJsonTest(WatchCliBase):
         self.assertRegex(first["time"], r"^\d\d:\d\d:\d\d\.\d{3}$")
         self.assertEqual((first["path"], first["before"], first["after"]),
                          ("/ch/01/mix", MIX_START, MIX_DOWN))
-        self.assertEqual(first["fields"], [{"name": "fader", "before": "+6.5", "after": "-10.0"}])
+        self.assertEqual(first["fields"], [{"name": "fader", "before": "-4.8", "after": "-10.0"}])
         summary = docs[-1]
         self.assertEqual((summary["logged"], summary["transient"], summary["ignored"]), (3, 1, 0))
         self.assertEqual(summary["unanswered"], [])
@@ -193,7 +193,7 @@ class WatchSnippetTest(WatchCliBase):
         self.assertEqual(rc, 0)
         start = Scene.parse(REF_TEXT)
         end = Scene.parse(REF_TEXT.replace(MIX_START, MIX_DOWN).replace(
-            "/ch/01/eq/1 PEQ 36.0 +0.00 1.0", EQ_UP))
+            "/ch/01/eq/1 PEQ 52.6 +4.75 1.6", EQ_UP))
         with open(out_snp) as fh:
             self.assertEqual(fh.read(), make_snippet(start, end, "rehearsal").scene.dump())
         self.assertIn(f"wrote {out_snp}", out)
@@ -218,7 +218,7 @@ class WatchSnippetTest(WatchCliBase):
         rc, _, _ = self.watch(console, "--seconds", "1", "--snippet", out_snp, "--force")
         self.assertEqual(rc, 0)
         with open(out_snp) as fh:
-            self.assertIn("/ch/01/eq/1 PEQ 36.0 +3.00 1.0", fh.read())
+            self.assertIn("/ch/01/eq/1 PEQ 52.6 +7.75 1.6", fh.read())
 
     def test_no_net_change_writes_nothing_and_says_so(self):
         out_snp = os.path.join(self.tmp, "none.snp")

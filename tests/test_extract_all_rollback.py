@@ -144,7 +144,7 @@ class WriteRaceTest(unittest.TestCase):
 
     def _write(self, replaceable=()):
         from x32scene._cli_files import write_all
-        write_all([(self.a, b"new-A"), (self.b, b"new-B")], self.dir, replaceable)
+        write_all([(self.a, b"new-A"), (self.b, b"new-B")], replaceable)
 
     def _left(self):
         return sorted(n for n in os.listdir(self.dir) if n.startswith(".x32scene-"))

@@ -14,7 +14,7 @@ from collections.abc import Collection
 from pf_core.exceptions import InvalidInputError
 from pf_core.utils.io import atomic_write_bytes
 
-from .model import Scene, read_file
+from .model import CR_ENDINGS, Scene, read_file
 from .services import validate as _validate
 
 _warned: set[str] = set()   # one shape warning per file per run, however often it loads
@@ -120,32 +120,40 @@ def refuse_overwrite_all(outs: list[str], *inputs: str, force: bool = False) -> 
                                 f"pass --force to overwrite: {', '.join(names)}")
 
 
-def write_all(files: list[tuple[str, bytes]], directory: str,
-              replaceable: Collection[str] = ()) -> None:
-    """Every file or none: each is written in full to a staging folder inside ``directory``
-    before any target is replaced; every name the filesystem refuses is named at once. Only a
-    file in ``replaceable`` is replaced: anything else found at a target refuses the batch."""
+def write_all(files: list[tuple[str, bytes]], replaceable: Collection[str] = ()) -> None:
+    """Every file or none: each is written in full to a staging folder beside its target, so
+    no rename crosses a volume, before any target is replaced; every name the filesystem
+    refuses is named at once. Only a file in ``replaceable`` is replaced: anything else found
+    at a target refuses the batch."""
+    stages: dict[str, str] = {}   # target folder -> its staging folder
     try:
-        stage = tempfile.mkdtemp(prefix=".x32scene-", dir=directory)
-    except OSError as e:
-        raise InvalidInputError(f"{directory}: {e.strerror or e}; nothing written") from None
-    try:
-        refused = []
-        for path, data in files:
+        for folder in dict.fromkeys(os.path.dirname(path) or "." for path, _ in files):
             try:
-                atomic_write_bytes(os.path.join(stage, os.path.basename(path)), data)
+                stages[folder] = tempfile.mkdtemp(prefix=".x32scene-", dir=folder)
             except OSError as e:
-                refused.append(f"{os.path.basename(path)} ({e.strerror or e})")
+                raise InvalidInputError(f"{folder}: {e.strerror or e}; nothing written") from None
+        staged = [os.path.join(stages[os.path.dirname(path) or "."], os.path.basename(path))
+                  for path, _ in files]
+        refused = []
+        for (path, data), new in zip(files, staged, strict=True):
+            try:
+                atomic_write_bytes(new, data)
+            except OSError as e:
+                shown = os.path.basename(path) if len(stages) == 1 else path
+                refused.append(f"{shown} ({e.strerror or e})")
         if refused:
-            raise InvalidInputError(f"{len(refused)} file(s) could not be written in "
-                                    f"{directory}, nothing written: {', '.join(refused)}")
-        _replace_all([path for path, _ in files], stage, set(replaceable))
+            where = f" in {next(iter(stages))}" if len(stages) == 1 else ""
+            raise InvalidInputError(f"{len(refused)} file(s) could not be written{where}, "
+                                    f"nothing written: {', '.join(refused)}")
+        _replace_all([path for path, _ in files], staged, set(replaceable))
     except BaseException:
-        aside = os.path.join(stage, _ASIDE)
-        if not (os.path.isdir(aside) and os.listdir(aside)):   # an original not put back
-            shutil.rmtree(stage, ignore_errors=True)
+        for stage in stages.values():
+            aside = os.path.join(stage, _ASIDE)
+            if not (os.path.isdir(aside) and os.listdir(aside)):   # an original not put back
+                shutil.rmtree(stage, ignore_errors=True)
         raise
-    shutil.rmtree(stage, ignore_errors=True)
+    for stage in stages.values():
+        shutil.rmtree(stage, ignore_errors=True)
 
 
 def write_into(directory: str, files: list[tuple[str, bytes]], *inputs: str,
@@ -160,7 +168,7 @@ def write_into(directory: str, files: list[tuple[str, bytes]], *inputs: str,
     except OSError as e:
         raise InvalidInputError(f"-o {directory}: {e.strerror or e}") from None
     try:
-        write_all(files, directory, checked)
+        write_all(files, checked)
     except InvalidInputError:
         for d in made:
             with contextlib.suppress(OSError):
@@ -180,38 +188,54 @@ def _missing(directory: str) -> list[str]:
 _ASIDE = "replaced"
 
 
-def _replace_all(paths: list[str], stage: str, replaceable: set[str]) -> None:
-    """Move each existing target aside into ``stage`` before its new file lands, so a
-    refused rename puts every original back and removes every new file."""
-    aside = os.path.join(stage, _ASIDE)
-    os.mkdir(aside)
+def _replace_all(paths: list[str], staged: list[str], replaceable: set[str]) -> None:
+    """Move each existing target aside, into its staging folder, before its new file lands,
+    so a refused rename, or an interrupt, puts every original back and removes every new
+    file."""
+    for stage in dict.fromkeys(os.path.dirname(new) for new in staged):
+        os.mkdir(os.path.join(stage, _ASIDE))
     moved: list[tuple[str, str]] = []
-    placed: list[str] = []
-    for path in paths:
-        name = os.path.basename(path)
+    placed: list[tuple[str, str]] = []
+    for path, new in zip(paths, staged, strict=True):
+        kept = os.path.join(os.path.dirname(new), _ASIDE, os.path.basename(new))
         try:
             if os.path.lexists(path):
                 if path not in replaceable or (os.path.isdir(path) and not os.path.islink(path)):
                     raise OSError(errno.EEXIST, "appeared after the overwrite check")
-                os.replace(path, os.path.join(aside, name))
-                moved.append((path, os.path.join(aside, name)))
-            os.replace(os.path.join(stage, name), path)
-            placed.append(path)
+                moved.append((path, kept))
+                os.replace(path, kept)
+            placed.append((path, new))
+            os.replace(new, path)
         except OSError as e:
             lost = _roll_back(placed, moved)
             what = f"{path}: {e.strerror or e}"
             if lost:
                 raise InvalidInputError(f"{what}; could not restore {', '.join(lost)}, "
-                                        f"originals kept in {aside}") from None
+                                        f"originals kept in {_kept_in(lost, moved)}") from None
             raise InvalidInputError(f"{what}; nothing written") from None
+        except BaseException:
+            lost = _roll_back(placed, moved)
+            if lost:
+                print(f"x32scene: could not restore {', '.join(lost)}, originals kept in "
+                      f"{_kept_in(lost, moved)}", file=sys.stderr)
+            raise
 
 
-def _roll_back(placed: list[str], moved: list[tuple[str, str]]) -> list[str]:
-    for path in placed:
-        with contextlib.suppress(OSError):
-            os.remove(path)
+def _kept_in(lost: list[str], moved: list[tuple[str, str]]) -> str:
+    return ", ".join(dict.fromkeys(os.path.dirname(kept) for path, kept in moved if path in lost))
+
+
+def _roll_back(placed: list[tuple[str, str]], moved: list[tuple[str, str]]) -> list[str]:
+    """Undo each rename that happened: recorded before it runs, so one interrupted
+    part-way is judged by where its file is now."""
+    for path, staged in placed:
+        if not os.path.lexists(staged):
+            with contextlib.suppress(OSError):
+                os.remove(path)
     lost = []
     for path, kept in reversed(moved):
+        if not os.path.lexists(kept):
+            continue
         try:
             os.replace(kept, path)
         except OSError:
@@ -219,34 +243,54 @@ def _roll_back(placed: list[str], moved: list[tuple[str, str]]) -> list[str]:
     return lost
 
 
-def read_checked(path: str) -> str:
-    """A user-named file's text, warning on stderr when it lacks the shape of its kind.
+def _checked(path: str) -> tuple[str, Scene | None]:
+    """A user-named file's text, warning on stderr when it lacks the shape of its kind, and
+    the Scene the check parsed when it is the one a caller would (no CR in the text).
 
     A warning, never a refusal: reading a truncated scene to see what survived is a real
     job. stderr, so ``--json`` stays a clean pipe. CR is normalized for the check alone —
     Scene.parse refuses it, but `header` and `show` are diagnostics that still read one.
     """
     text = read_file(path)
-    if path not in _warned:
-        _warned.add(path)
-        lf = text.replace("\r\n", "\n").replace("\r", "\n")
-        for f in _validate.findings(Scene.parse(lf), file_kind(path)):
-            print(f"x32scene: warning: {path}: {f.area} — {f.message}", file=sys.stderr)
-    return text
+    if path in _warned:
+        return text, None
+    _warned.add(path)
+    lf = text.replace("\r\n", "\n").replace("\r", "\n")
+    scene = Scene.parse(lf)
+    for f in _validate.findings(scene, file_kind(path)):
+        print(f"x32scene: warning: {path}: {f.area} — {f.message}", file=sys.stderr)
+    return text, scene if lf == text else None
+
+
+def read_checked(path: str) -> str:
+    """A user-named file's text, warned on as ``_checked`` says."""
+    return _checked(path)[0]
 
 
 def read_listed(path: str) -> str:
     """read_checked for a file a command lists rather than stops on: a read or parse failure
     is warned on stderr, then raised for the caller to list."""
     try:
-        text = read_checked(path)
-        Scene.parse(text)
+        text, scene = _checked(path)
+        if scene is None:
+            Scene.parse(text)
     except (OSError, ValueError) as e:
         print(f"x32scene: warning: {path}: {clean(e)}", file=sys.stderr)
         raise
     return text
 
 
+def read_lf(path: str) -> str:
+    """read_checked for a file an edit parses: CR line endings are refused, naming ``path``."""
+    text = read_checked(path)
+    if "\r" in text:
+        raise ValueError(f"{path}: {CR_ENDINGS}")
+    return text
+
+
 def load_checked(path: str) -> Scene:
-    """read_checked, parsed. Raises on CR, as every scene reader does."""
-    return Scene.parse(read_checked(path))
+    """read_lf, parsed once."""
+    text, scene = _checked(path)
+    if "\r" in text:
+        raise ValueError(f"{path}: {CR_ENDINGS}")
+    return scene if scene is not None else Scene.parse(text)

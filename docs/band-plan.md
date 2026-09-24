@@ -110,7 +110,8 @@ those sources have no head amp. See [format.md](format.md#the-number-one-trap-ga
 **Processing written by a plan does not mirror to a stereo-linked partner.** A plan names
 its channels explicitly, so mirroring would write a path the plan never asked for — and
 the verify step would then refuse the whole run. Name both sides of a linked pair
-yourself.
+yourself; `band-setup` names a channel `preset` whose partner is not given the same preset
+and scopes.
 
 ## `dca`
 
@@ -146,8 +147,9 @@ Three rules, each of which raises:
 Unlike channel processing, a send **is** mirrored: each record writes every send the
 console mirrors it to, both sides of a stereo bus pair and of a stereo strip pair. Name
 only one side, or the two records collide and the plan is refused. `iem_copy` writes both
-buses of a linked destination the same way. `band-setup` lists every path it changed and
-marks each send no record named `(mirrored)`.
+buses of a linked destination the same way, and so does a channel `preset`'s send on a
+linked bus pair (`apply-preset`). `band-setup` lists every path it changed and marks each
+send no record or preset line named `(mirrored)`.
 
 ## `outputs` and `output_patch`
 
@@ -178,7 +180,8 @@ only; the `aux` bank is not routable this way.
 
 A `preset` or a `type` resets the slot to the console's own default parameter line before
 `params` is applied, exactly as the desk does. Parameter names are the desk's own — run
-`x32scene fx-types CODE` to list them.
+`x32scene fx-types CODE` to list them. A `GEQ` or `GEQ2` band or master outside −15…15 dB
+is a plan error; no other type's values are range-checked.
 
 Slots 5–8 are inserts: they take only the 34 insert-style types and have no `source`.
 
@@ -211,14 +214,16 @@ one scene's `record-map` drops straight in.
 A track is written through its `/config/routing/CARD` block into the user-out slot that
 block reads, exactly as `set-record` does ([routing.md](routing.md#the-record-map)). The
 section runs after `routing`, so a plan that re-points a card block records through the new
-block. A track whose block is not `UOUT…` is a plan error naming the block's token, as are
-two tracks that read one slot and name different sources. Every track resolves before any
-is written.
+block. A track whose block is not `UOUT…`, or is a hand-edited `UOUT` token the console does
+not write (`UOUT0-7`), is a plan error naming the block's token and the `routing` entry that
+would re-patch it, as are two tracks that read one slot and name different sources. Every
+track resolves before any is written.
 
-A user-out slot is one signal wherever it is read: an AES50 or XLR block reading the same
-slot carries the new source too. `band-setup` prints each track as `set-record` does —
-`record track 3: Local input 3 -> Output 9 (user-out slot 3)`, then every other AES50, card
-or XLR channel that slot feeds — and `run`'s report carries the same rows as `record`.
+A user-out slot is one signal wherever it is read: an AES50, card or XLR-out block reading
+the same slot carries the new source too. `band-setup` prints each track as `set-record`
+does — `record track 3: Local input 3 -> Output 9 (user-out slot 3)`, then every other
+AES50 channel, card track or `XLR-out routing` position that slot feeds — and `run`'s
+report carries the same rows as `record`.
 
 ## Rules that decide whether a plan works
 

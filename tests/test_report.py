@@ -39,7 +39,7 @@ class ReportTest(unittest.TestCase):
 
     def test_channel_row_carries_source_gain_phantom_processing_and_groups(self):
         row = next(ln for ln in self.out.splitlines() if ln.startswith("| 01 |"))
-        self.assertIn("| Kick | Local input 1 | +27.5 | off |", row)
+        self.assertIn("| Kick | Local input 1 | +22.5 | off |", row)
         cells = [c.strip() for c in row.strip("|").split("|")]
         self.assertRegex(cells[5], r"^(off|\d+ Hz)$")     # low cut
         self.assertIn(cells[6], ("on", "off"))            # gate
@@ -56,8 +56,8 @@ class ReportTest(unittest.TestCase):
         self.assertIn("| 13 | Plate | mono | FX 1 send (Plate Reverb) |", self.out)
 
     def test_outputs_and_matrix_and_fx_and_groups(self):
-        self.assertIn("| main 09 | Bus 3 (Drums L) | POST | AES50-A 9 |", self.out)
-        self.assertIn("| rec 01 | Main L | <-EQ |", self.out)
+        self.assertIn("| main 09 | Bus 7 (Bass L) | POST | AES50-A 9 |", self.out)
+        self.assertIn("| rec 01 | Main L | POST |", self.out)
         self.assertIn("1/2 Guitar L", self.out)
         self.assertIn("| ch01 Kick |", self.out)
         self.assertIn("| 1 | Plate Reverb (PLAT) | MIX13 |", self.out)
@@ -68,7 +68,7 @@ class ReportTest(unittest.TestCase):
         out = render(cmd_report, self.sc, 8, load_stage(STAGE))
         self.assertIn("| main 09 (virtual) |", out)
         self.assertIn("| main 01 (XLR) |", out)
-        self.assertIn("Box A out 1 -> IEM TX 1 / Drums", out)
+        self.assertIn("Box A out 9 -> IEM TX 1 / Bass", out)
 
     def test_markdown_tables_are_well_formed(self):
         for ln in self.out.splitlines():

@@ -215,7 +215,7 @@ The library map is [docs/python-api.md](https://github.com/phierceweb/x32scene/b
 ```bash
 git clone https://github.com/phierceweb/x32scene && cd x32scene
 bin/run setup          # venv, editable install
-bin/run pytest         # the suite
+bin/run pytest -n auto # the suite, across every core
 bin/run lint           # ruff + the pf-core structural gate
 bin/run x32scene …     # the CLI, with .env loaded
 ```

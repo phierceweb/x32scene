@@ -1,4 +1,4 @@
-"""EQ/dyn/gate editor tests, anchored to GUI-validated values (Floor 1 = ch09)."""
+"""EQ/dyn/gate editor tests (Floor 1 = ch09)."""
 
 import os
 import unittest
@@ -23,8 +23,7 @@ class FmtTest(unittest.TestCase):
         self.assertEqual(F.fmt_freq(999.99), "1k00")
 
     def test_gain_keeps_quarter_db_steps(self):
-        # the console stores EQ gain in 0.25 dB steps and writes two decimals below
-        # 10 dB — '+4.75' appears verbatim in the fixture
+        # the console stores EQ gain in 0.25 dB steps and writes two decimals below 10 dB
         self.assertEqual(F.fmt_gain(4.75), "+4.75")
         self.assertEqual(F.fmt_gain(-7.25), "-7.25")
         self.assertEqual(F.fmt_gain(6.0), "+6.00")
@@ -33,8 +32,7 @@ class FmtTest(unittest.TestCase):
         self.assertEqual(F.fmt_gain(-14.0), "-14.0")
 
     def test_q_ten_is_bare(self):
-        # the Q column is 3 chars: every fixture Q carries one decimal except the top of
-        # the range, written '10' (see /ch/02/eq/2 in both fixtures)
+        # the Q column is 3 chars: one decimal, except the top of the range, written '10'
         self.assertEqual(F._fmt_q(10), "10")
         self.assertEqual(F._fmt_q(0.3), "0.3")
         self.assertEqual(F._fmt_q(2.0), "2.0")
@@ -62,7 +60,7 @@ class ChannelFxTest(unittest.TestCase):
     def test_set_eq_band_only_touches_that_band(self):
         F.set_eq_band(self.sc, 9, 1, gain=6.0, freq=100)
         self.assertEqual(self._changed(), {"/ch/09/eq/1"})
-        self.assertEqual(self.sc.get("/ch/09/eq/1").args, ["PEQ", "100.0", "+6.00", "0.5"])
+        self.assertEqual(self.sc.get("/ch/09/eq/1").args, ["PEQ", "100.0", "+6.00", "2.0"])
 
     def test_eq_k_notation_for_high_freq(self):
         F.set_eq_band(self.sc, 9, 3, freq=5000)
@@ -106,11 +104,11 @@ class ChannelFxTest(unittest.TestCase):
         self.assertEqual(a[4], "80")
 
     def test_writing_back_a_fixture_token_is_a_no_op(self):
-        # the console's own value must survive a round trip through each formatter
-        F.set_lowcut(self.sc, 11, freq=121)     # /ch/11+12/preamp carry '121'
+        # a token the fixture holds must survive a round trip through each formatter
+        F.set_lowcut(self.sc, 11, freq=158)     # /ch/11+12/preamp carry '158'
         F.set_eq_band(self.sc, 2, 2, q=10)      # /ch/02/eq/2 carries '10'
-        F.set_gate(self.sc, 11, hold=126)       # /ch/11+12/gate carry '126'
-        F.set_comp(self.sc, 9, makeup=0.0, hold=1.59)
+        F.set_gate(self.sc, 1, hold=142)        # /ch/01/gate carries '142'
+        F.set_comp(self.sc, "/bus/01", makeup=0.0, hold=2.52)   # /bus/01+02/dyn
         self.assertEqual(self._changed(), set())
 
     def test_comp_makeup_drops_a_decimal_at_ten(self):

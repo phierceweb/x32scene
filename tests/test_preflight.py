@@ -29,7 +29,7 @@ EXPECTED = {
         "20": {"name": "Gtr 1", "source": "AES50-A input 4", "gain": 0.5,
                "phantom": False, "in_main": True},
     },
-    "record": {"29": "AES50-A input 13", "32": "AES50-A input 16"},
+    "record": {"29": "Aux In 5", "32": "Output 2"},
     "fx": {"1": "PLAT"},
 }
 
@@ -85,7 +85,7 @@ class PreflightTest(unittest.TestCase):
 
     def test_record_map_mismatch_fails(self):
         toks = line("/config/userrout/out").split(" ")
-        toks[32] = "1"   # slot 32 (track 32) now sources Local input 1
+        toks[40] = "1"   # slot 40 (track 32) now sources Local input 1
         sc = mini_scene({"/config/userrout/out": " ".join(toks)})
         f = fails(preflight(sc, EXPECTED))
         self.assertEqual(len(f), 1)

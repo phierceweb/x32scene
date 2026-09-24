@@ -16,7 +16,6 @@ from itertools import pairwise
 from pf_core.utils.io import atomic_write_bytes
 
 
-
 def write_file(path: str, data: bytes) -> None:
     """``atomic_write_bytes``, raising a failure's OSError against ``path`` rather than
     the temporary file it writes first."""
@@ -41,28 +40,14 @@ def read_file(path: str) -> str:
 
 
 HEADER_WIDTH = 127
+CR_ENDINGS = "CR line endings found — X32 files are LF-only; convert CRLF to LF before editing"
 HEADER_RE = re.compile(r"^#\d+\.\d+#$")  # older firmware writes #2.7#, #3.1#
+TOKEN_RE = re.compile(r'"[^"]*"?|[^ ]+')   # an unclosed quote runs to the end of the line
 
 
 def _spans(s: str) -> list[tuple[int, int]]:
     """(start, end) of each token ``tokenize`` returns."""
-    spans: list[tuple[int, int]] = []
-    i, n = 0, len(s)
-    while i < n:
-        if s[i] == " ":
-            i += 1
-            continue
-        j = i + 1
-        if s[i] == '"':
-            while j < n and s[j] != '"':
-                j += 1
-            j = min(j + 1, n)
-        else:
-            while j < n and s[j] != " ":
-                j += 1
-        spans.append((i, j))
-        i = j
-    return spans
+    return [m.span() for m in TOKEN_RE.finditer(s)]
 
 
 def tokenize(s: str) -> list[str]:
@@ -70,7 +55,7 @@ def tokenize(s: str) -> list[str]:
 
     Quotes are kept in the returned tokens so a value round-trips exactly.
     """
-    return [s[a:b] for a, b in _spans(s)]
+    return TOKEN_RE.findall(s)
 
 
 def check_token(tok: str) -> None:
@@ -154,6 +139,13 @@ def put_field(fields: list[str], i: int, tok: str) -> None:
     fields[i] = fields[i][:len(fields[i]) - len(fields[i].lstrip(" "))] + tok
 
 
+def put_level(fields: list[str], i: int, tok: str) -> None:
+    """Replace a level in ``Line.padded_fields`` as the desk writes one: right-aligned to five
+    characters after one space (``  -oo``, `` -7.9``, ``-12.0``)."""
+    check_token(tok)
+    fields[i] = " " + tok.rjust(5)
+
+
 class Scene:
     """An ordered list of :class:`Line` with a path index for fast lookup."""
 
@@ -170,8 +162,7 @@ class Scene:
     @classmethod
     def parse(cls, text: str) -> "Scene":
         if "\r" in text:
-            raise ValueError("CR line endings found — X32 files are LF-only; "
-                             "convert CRLF to LF before editing")
+            raise ValueError(CR_ENDINGS)
         trailing_newline = text.endswith("\n")
         body = text[:-1] if trailing_newline else text
         # An empty file splits to [''] which we must not treat as a line.

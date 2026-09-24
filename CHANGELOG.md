@@ -3,6 +3,120 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.5.0] — 2026-09-24
+
+### Added
+- `ports --json` carries `physical_outputs` and a per-output `physical` flag (`explain --json`
+  `outputs` carries both, null).
+- `show` decodes a cue's MIDI command: `midi` (type, channel, params) in `--json`, and in
+  the listing when the type is not none.
+
+### Changed
+- `presets-diff`: a preset that compares no path is `NOTHING COMPARED`, not `MATCH` (exit
+  stays 0); each compared preset names the scopes its header leaves out, as `apply-preset`
+  does (`skipped` in `--json`).
+- `apply-preset` and a `band-setup` preset write a send to one bus of a stereo-linked pair
+  onto both buses (on and level, the preset's later line winning); the summary names each
+  send taken from its partner, `band-setup` marks it `(mirrored)`, and `presets-diff`
+  compares the partner bus, or each send on its own bus when the scene has no
+  `/config/buslink`. `apply-preset` refuses a scene without `/config/buslink` when the
+  preset writes a send. Library: `services.presets.mirrored_sends`, `partner_only_sends`,
+  `body_lines`.
+- `apply-preset` and a `band-setup` preset on a stereo-linked channel write the preset's
+  sends to the partner channel too (on, level and tap; the pan stays per side), as the desk
+  mirrors a send write; processing stays on the named channel, and the summary says the
+  partner keeps its own. `band-setup` says so for a preset whose partner the plan does not
+  give the same preset and scopes. Library: `services.presets.writes_beyond_sends`.
+- `show --check`: a `scene/NNN`, `snippet/NNN` or `cue/NNN` slot listed more than once is a
+  finding, exit 1.
+- `set-fx --set` and a `band-setup` plan's `fx` `params`: a `GEQ`/`GEQ2` band or master
+  outside -15..15 dB is refused with nothing written, naming the parameter (exit 1; a plan
+  error, exit 2). Library: `tables_fx.GEQ_GAIN_DB`.
+- `snippet --edit` refuses, exit 1 with nothing written, an edit that writes a line a
+  snippet cannot carry (`set-routing switch`, `set-output rec`, an `apply-preset` that
+  changes `/automix`), naming the edit and the command to run on the scene.
+- `band-setup --snippet` writes no snippet, and says so, when the plan changes nothing a
+  snippet can carry; with `--force`, an existing one is removed rather than left stale.
+- `set-record` and `band-setup` name a `/config/routing/OUT` reader `XLR-out routing N`.
+- The `band-setup` record refusal for a non-UOUT CARD block points at the plan's `routing`
+  key.
+- The `ports` header states the jack count without claiming an AES50 path.
+- `ports`, `report` and `require_reachable` read which main outputs the rear jacks carry
+  from `/config/routing/OUT` (`OUT9-12` on jacks 1-4, a user-out slot naming an output), not
+  from the output's number; `ports --json` rows carry `jack`. Library:
+  `services.routing.jack_outputs`.
+- `ports` and `report` name a main output's AES50 channels through user-out slots too
+  (`AES50-B 3 via user-out 3`), as `preflight`'s reachability counts them.
+- `record-map`'s text view lists a track whose CARD block the console does not write as `?`.
+- `watch` waits for a read-back reply as long as the measured round trip needs (RFC 6298,
+  between `--timeout` and four `--timeout`s, seeded from the start pull), so a fader ride on
+  a link up to four `--timeout`s slow is logged while it happens; the end read-back and the
+  lost-reply window are counted in round-trip estimates, not `--timeout`s.
+- The example fixtures carry a synthetic mix and wiring. `bin/run python -m
+  tests.fixture_regen` rebuilds them, `tests/test_fixture_regen.py` holds the committed files
+  to its output, and opt-in `tests/test_fixture_privacy.py` (`X32SCENE_CORPUS`) fails when
+  more than a fifth of a fixture's uncommon processing values, or of its wiring, equal one
+  corpus scene's.
+- `Scene.parse` is about twice as fast, and a scene a command loads is parsed once.
+
+### Fixed
+- `-o OUT` and `band-setup --snippet` are checked before any input is read: a directory, a
+  missing folder or an unwritable folder exits 1 with nothing written; `band-setup` writes
+  OUT and the snippet all or nothing, so a snippet the filesystem refuses leaves no OUT,
+  and a file that appears at either path while the plan builds is neither replaced nor
+  removed. Library: `orchestrators.band_swap.build`.
+- `desk` gives up on a desk that goes away during the memory-slot read, as `pull` does,
+  instead of waiting out every remaining slot.
+- `snippet --edit` prints its edit rows only after every edit applies and the snippet is
+  written.
+- A batch write (`extract-preset --all`, `show-build`) interrupted mid-replace restores every
+  original and removes every file it placed.
+- `apply-preset` and a `band-setup` preset keep a send's last tokens when the preset's line
+  is short of them, as an older desk preset's odd-bus send is (`apply-preset` wrote the
+  short line; `band-setup` refused it as malformed), and `presets-diff` compares the tokens
+  the line carries. A send line without on and level, or longer than its bus's line, is
+  refused, exit 1 with nothing written.
+- `ports`, `report` and `preflight` apply one rule to `monitor.physical_outputs`: a count
+  that is not a whole number 0–16 is refused by `ports` and `report` and FAILed by
+  `preflight`, with or without `--console`; `ports` and `report` refuse a `monitor` section
+  that is not an object.
+- `preflight --console` fills `physical_outputs` only into a `monitor` section, and the
+  `checked:` line and `--json` `checked` count it; the missing-count FAIL names `--console`
+  and `X32SCENE_CONSOLE`, and a malformed count is one FAIL.
+- `preflight --regenerate` refuses a file whose header is a snippet's, a preset's or of no
+  known shape, whatever its name.
+- `set-record` and `band-setup` refuse a CARD block token the console does not write
+  (`UOUT`, `UOUT0-7`), naming the block and token, and write nothing.
+- `record-map`, `preflight`'s record and reachability checks, and the destinations
+  `set-record` and `band-setup` print resolve only UOUT tokens the console writes; an
+  unresolved block's tracks read `?`.
+- `inputs` and `move-inputs` resolve only `/config/routing/IN` tokens the console writes:
+  such a slot reads `?`, and `move-inputs` refuses it, naming the block and token.
+- `extract-preset --all` puts a leading `_` on a channel named with a Windows device name
+  (`AUX`, `CON.x`, `nul .`, `CONIN$`, `COM¹`).
+- `apply-preset` and `band-setup` refuse a preset with CR line endings instead of
+  normalizing it; every CR refusal names the file.
+- `apply_preset` counts a line written twice once.
+- A send level mirrored onto a linked bus or channel partner is padded as the desk pads one
+  (right-aligned to five characters), so a mirrored line matches the desk's read-back byte
+  for byte; a line the preset writes itself is single-spaced, as any edited line is.
+- `set-fx` names an unknown effect type instead of printing a bare key, and the TrueEQ
+  refusal points at `GEQ`/`GEQ2`.
+- `pull`, `live-diff`, the `watch` start pull and `desk`'s preference and memory-slot reads
+  go on when the desk lacks the first paths but answers `/node ch/01/config`; a device that
+  answers `/xinfo` but no `/node` fails fast, and the error says so.
+- `watch` reads a path back again when a reply that answers no read-back differs from the
+  path's last line.
+
+### Docs
+- `routing.md`'s block-list example, `stage-sidecar.md`'s shape example and `format.md`'s
+  main-mix example match the example files.
+- `format.md`: output taps `21`–`25`, `58`–`65`, `74` and `76` written to a desk and read
+  back as written; a factory routing preset exported from X32-Edit carries the four
+  `/config/routing` bank lines only; `PIT`'s six parameters, their order, units and ranges,
+  read off the desk; a `.shw` cue line's MIDI fields (type, channel, two parameters) and the
+  `show` line's ten scene-safe bitmaps, the latter set and read back on a desk.
+
 ## [0.4.0] — 2026-09-14
 
 ### Added
@@ -122,28 +236,20 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   `pull_lines(asked=)`, `pull_scene_like(asked=)`, `Watch.run(pulled=)`.
 
 ### Docs
-- `docs/console-behavior.md`: the main-pan rule for linking and unlinking a bus pair,
-  observed from ten starting pan pairs; `set-bus-link` matches the desk in each.
-- console-behavior.md: a `swap-strips` file root-written to the desk line by line matched a full
-  pull, remapped direct-out tap and user-control page jumps included.
-- console-behavior.md: the table-of-contents link to the load test resolves on GitHub, and
-  `set-bus-link` records its X32-Edit load test.
-- cli.md: `watch` states which paths the end of a watch asks again, and how often.
+- console-behavior.md: the main-pan rule for linking and unlinking a bus pair; which
+  channel-processing values the desk snaps on load; a write to one side of a stereo-linked
+  channel pair mirrors to the other, so a one-sided file ends at the even side's values;
+  X32-Edit load results for `swap-strips`, `band-setup`, routing-preset and `--header`
+  channel-preset files.
+- cli.md: which paths the end of a `watch` asks again, and how often.
 - format.md: a Channel references section (values that point at a channel, key sources,
   look-alikes); `/ch/NN/config` field order corrected to name, icon, colour, source; the
   `keysrc` enumeration and which dyn lines carry it; automix acts on channels 1–8 only;
   user-assign `P0051` is the FX1 page; routing presets may carry output lines (published).
 - format.md: how a channel preset header's section flags map to apply scopes.
-- format.md: the send taps `IN/LC`, `<-EQ` and `GRP` are desk-verified (written and read back on
-  firmware 4.06) but not yet seen in a saved file.
-- console-behavior.md: X32-Edit load tests on firmware 4.06 — a `swap-strips` scene, a
-  `band-setup` scene (channel processing, an FX type and parameter, a CARD block, a record
-  slot, `rec`/`aes` taps), a routing preset that changes a block, and a `--header` channel
-  preset all loaded as written; which channel-processing values the desk snaps; a write to
-  one side of a stereo-linked channel pair mirrors to the other, so a one-sided file ends
-  at the even side's values.
-- format.md: `GEQ`/`GEQ2` band order and gain form verified on a console; output taps `20`
-  and `75` written and read back; X32-Edit reads a preset header x32scene writes.
+- format.md: send taps `IN/LC`, `<-EQ` and `GRP` (desk-verified, not yet seen in a saved
+  file); `GEQ`/`GEQ2` band order and gain form; output taps `20` and `75`; X32-Edit reads
+  a preset header x32scene writes.
 
 ## [0.3.0] — 2026-09-12
 

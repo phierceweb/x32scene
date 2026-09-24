@@ -29,7 +29,7 @@ class WriteErrorTest(unittest.TestCase):
         rc, _, err = _run(argv)
         self.assertEqual(rc, 1)
         self.assertEqual(len(err.strip().splitlines()), 1, err)
-        self.assertIn(f"'{typed}'", err)
+        self.assertIn(typed, err)
         self.assertNotIn(".tmp", err)
 
     def test_every_writer_names_a_missing_directory_as_typed(self):

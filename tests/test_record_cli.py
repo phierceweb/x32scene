@@ -1,7 +1,7 @@
 """The set-record command, and the snippet --edit that carries it.
 
 Fixture facts the cases lean on: example.scn records user-out slots 1-32 on tracks 1-32,
-slot 5 holds Local input 5, and AES50-A/B 1-8 also read slots 1-8; example-alt.scn's
+slot 5 holds Local input 5, and AES50-B 1-24 also reads slots 1-24; example-alt.scn's
 first CARD block is AN1-8.
 """
 
@@ -47,7 +47,7 @@ class SetRecordCliTest(unittest.TestCase):
         self.assertEqual((code, err), (0, ""))
         self.assertEqual(text.splitlines(), [
             "track 5: Local input 5 -> Output 9 (user-out slot 5)",
-            "  user-out slot 5 also feeds AES50-A 5, AES50-B 5",
+            "  user-out slot 5 also feeds AES50-B 5",
             f"wrote {self.out}",
             LOAD_TEST])
         self.assertEqual(self._changed(), ["/config/userrout/out"])

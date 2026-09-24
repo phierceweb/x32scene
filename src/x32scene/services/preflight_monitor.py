@@ -11,7 +11,7 @@ from __future__ import annotations
 from ..model import Scene
 from ..tables import OUTPUT_BANKS, SEND_STRIPS, decode_tap, send_is_live, tap_to_bus
 from .preflight_config import Finding, fail_unknown, mapping, want_bool, want_index
-from .routing import output_reach, output_sources, routing_blocks, userrout
+from .routing import jack_outputs, output_reach, output_sources, routing_blocks, userrout
 
 SECTIONS = frozenset({"monitor"})
 _KEYS = frozenset({"physical_outputs", "stereo_pairs", "require_reachable",
@@ -19,11 +19,19 @@ _KEYS = frozenset({"physical_outputs", "stereo_pairs", "require_reachable",
 _PAIR_BANKS = ("main", "aux")
 
 
+def physical_count(mon: dict, out: list[Finding]) -> int | None:
+    """``physical_outputs`` of a monitor section: None when absent, and None after one FAIL
+    in ``out`` when it is not a whole number 0-16."""
+    return want_index(mon, "physical_outputs", "monitor", out, lo=0, hi=16)
+
+
 def check(scene: Scene, expected: dict, out: list[Finding]) -> None:
     mon = mapping(expected, "monitor", "config", out)
     fail_unknown(mon, _KEYS, "monitor", out)
-    physical = want_index(mon, "physical_outputs", "monitor", out, lo=0, hi=16)
-    if want_bool(mon, "require_reachable", "monitor", out):
+    physical = physical_count(mon, out)
+    # a malformed count has already FAILed; only an absent one is reported as missing
+    if want_bool(mon, "require_reachable", "monitor", out) and (
+            physical is not None or "physical_outputs" not in mon):
         _reachable(scene, physical, out)
     for bank in _pair_banks(mon, out):
         _pairs(scene, bank, out)
@@ -49,17 +57,18 @@ def _pair_banks(mon: dict, out: list[Finding]) -> list[str]:
 
 def _reachable(scene: Scene, physical: int | None, out: list[Finding]) -> None:
     if physical is None:
-        out.append(Finding("FAIL", "monitor", "require_reachable needs physical_outputs — "
-                           "the console model is not in the scene"))
+        out.append(Finding("FAIL", "monitor", "require_reachable needs physical_outputs, or "
+                           "the model from --console or X32SCENE_CONSOLE — the scene does not "
+                           "record the console"))
         return
     if not (routing_blocks(scene, "AES50A") or routing_blocks(scene, "AES50B")
             or userrout(scene, "out")):
         out.append(Finding("FAIL", "monitor", "cannot verify reachability: no "
                            "/config/routing/AES50A, AES50B or /config/userrout/out"))
         return
-    reach = output_reach(scene)
+    reach, jacks = output_reach(scene), jack_outputs(scene, physical)
     srcs = output_sources(scene, "main")
-    for n in range(physical + 1, OUTPUT_BANKS["main"][0] + 1):
+    for n in (n for n in range(1, OUTPUT_BANKS["main"][0] + 1) if n not in jacks):
         path, area = f"/outputs/main/{n:02d}", f"out main {n:02d}"
         src = srcs.get(n)
         if src is None:

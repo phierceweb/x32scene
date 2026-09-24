@@ -10,8 +10,8 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 from ..model import Line, Scene
-from ..tables import decode_source
-from .routing import resolve_in_slot_number, uin_in_index
+from ..tables import decode_source, routing_block_names
+from .routing import resolve_in_slot_number, uin_in_index, unwritten_in_block
 
 _PORT_BASE = {"A": 32, "B": 80}
 
@@ -50,6 +50,10 @@ def _plan_move(scene: Scene, ch: int, aes_input: int, port: str) -> tuple[int, i
                          "only a channel on slots 1-32 can move")
     if not 1 <= slot <= 32:
         raise ValueError(f"ch{ch:02d} source slot {slot} is out of range — nothing to move")
+    if (tok := unwritten_in_block(scene, slot)) is not None:
+        raise ValueError(f"ch{ch:02d} slot {slot}: /config/routing/IN block "
+                         f"{routing_block_names('IN')[(slot - 1) // 8]} is {tok!r}, a token the "
+                         "console does not write — nothing to move")
     idx = uin_in_index(scene, slot)
     if idx is None:
         raise ValueError(f"ch{ch:02d} slot {slot} is direct-routed (non-UIN routing block) — "

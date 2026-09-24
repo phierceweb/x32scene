@@ -52,7 +52,7 @@ class EncodeOutSourceTest(unittest.TestCase):
 class RecordSlotTest(unittest.TestCase):
     def test_uout_blocks_resolve_track_to_slot(self):
         sc = Scene.load(EXAMPLE)
-        self.assertEqual([RT.record_slot(sc, t) for t in (1, 5, 8, 9, 32)], [1, 5, 8, 9, 32])
+        self.assertEqual([RT.record_slot(sc, t) for t in (1, 5, 8, 9, 32)], [1, 5, 8, 9, 40])
 
     def test_an_offset_block_names_its_own_first_slot(self):
         sc = Scene.load(EXAMPLE)
@@ -121,9 +121,8 @@ class SetRecordTest(unittest.TestCase):
         RT.set_routing(sc, "CARD", {"25-32": "UOUT1-8"})
         RT.set_routing(sc, "OUT", {"5-8": "UOUT5-8"})
         self.assertEqual(user_out_readers(sc, 5), ["AES50-A 5", "AES50-B 21", "CARD track 5",
-                                                   "CARD track 29", "XLR out 5"])
-        self.assertEqual(user_out_readers(sc, 48),
-                         ["AES50-A 48", "AES50-B 32", "AES50-B 40", "AES50-B 48"])
+                                                   "CARD track 29", "XLR-out routing 5"])
+        self.assertEqual(user_out_readers(sc, 48), ["AES50-B 40", "AES50-B 48"])
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
-"""Does a show hold together: every cue's scene and snippet slot is in the index, and every
-slot's ``<show>.NNN.scn`` / ``.snp`` companion is there, has its kind's shape and, for a
-snippet, the header its ``snippet/NNN`` line copies."""
+"""Does a show hold together: no slot is listed twice, every cue's scene and snippet slot is
+in the index, and every slot's ``<show>.NNN.scn`` / ``.snp`` companion is there, has its
+kind's shape and, for a snippet, the header its ``snippet/NNN`` line copies."""
 
 from __future__ import annotations
 
@@ -39,17 +39,32 @@ def check_cues(show: Show) -> list[Finding]:
     return out
 
 
+def check_duplicates(show: Show) -> list[Finding]:
+    """A FAIL for each scene, snippet or cue slot listed more than once, in file order."""
+    seen: dict[str, int] = {}
+    for e in show.entries:
+        line = f"{e.kind}/{e.index:03d}"
+        seen[line] = seen.get(line, 0) + 1
+    return [Finding("FAIL", "duplicate", f"{line} is listed {n} times; which line X32-Edit "
+                                         "or the desk reads is unknown", line)
+            for line, n in seen.items() if n > 1]
+
+
 def check_show(show: Show, stem: str, read: Callable[[str], str]) -> list[Finding]:
-    """A FAIL when the file has no ``show`` line, then ``check_cues`` plus every slot's
-    companion. ``read(name)`` returns a companion's text and raises FileNotFoundError when it
-    is absent."""
+    """A FAIL when the file has no ``show`` line, then ``check_duplicates``, ``check_cues``
+    and every slot's companion, read once per slot. ``read(name)`` returns a companion's
+    text and raises FileNotFoundError when it is absent."""
     out = [] if show.has_show_line else [
         Finding("FAIL", "show", "no show line: not a .shw index (an empty or header-only file, "
                                 "or another kind of file)", "show")]
-    out += check_cues(show)
+    out += check_duplicates(show) + check_cues(show)
+    checked: set[str] = set()
     for entry in show.of("scene") + show.of("snippet"):
         name = companion(stem, entry)
         line = f"{entry.kind}/{entry.index:03d}"
+        if line in checked:
+            continue
+        checked.add(line)
         try:
             text = read(name)
         except FileNotFoundError:

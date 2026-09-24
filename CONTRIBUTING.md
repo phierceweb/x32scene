@@ -24,7 +24,7 @@ you don't need to attach the scene itself.
 
 ```bash
 bin/run setup          # venv (needs python3.12 on PATH), editable install, pf-core docs link
-bin/run pytest
+bin/run pytest -n auto # the suite across every core; drop -n to debug one test
 bin/run lint
 ```
 
@@ -46,6 +46,10 @@ bin/run lint
 New behavior needs a test. Tests must pass on a fresh clone with no hardware and no user
 files — use `tests/fixtures/*.scn`. Anything needing a real console or a personal scene
 library is opt-in behind `X32SCENE_CORPUS` and must skip cleanly without it.
+
+The fixtures are synthetic. `bin/run python -m tests.fixture_regen` rebuilds them, and
+`tests/test_fixture_regen.py` fails when a change to a writer alters one: rerun it and
+review the diff rather than editing a fixture by hand.
 
 ## Reporting security issues
 

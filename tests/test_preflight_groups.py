@@ -12,7 +12,7 @@ from tests.preflight_scene import fails, mini_scene
 EXAMPLE = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")
 GROUPS_OK = {"groups": {
     "dca": {"2": {"name": "Bass", "members": [17, 18]},
-            "4": {"members": [8, 23, 24, 25, 26]}},
+            "4": {"members": [23, 24, 25, 26]}},
     "mute": {"5": {"members": ["/ch/31", "/ch/32", "/auxin/05", "/auxin/06"]},
              "6": {"members": [f"/fxrtn/{n:02d}" for n in range(1, 9)]}}}}
 
@@ -60,7 +60,7 @@ class MembershipTest(unittest.TestCase):
         sc = Scene.load(EXAMPLE)
         sc.lines = [ln for ln in sc.lines if ln.path != "/mtx/01/grp"]
         sc._reindex()
-        exp = {"groups": {"dca": {"1": {"members": [*range(1, 17), "/mtx/01"]}}}}
+        exp = {"groups": {"dca": {"1": {"members": [*range(1, 17), 27, 28, "/mtx/01"]}}}}
         f = one_fail(preflight(sc, exp), "no /mtx/01/grp", "unknown")
         self.assertNotIn("missing", f.message)
 

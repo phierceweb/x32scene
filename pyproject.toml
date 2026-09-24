@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "x32scene"
-version = "0.4.0"
+version = "0.5.0"
 description = "Read, diff, edit and verify Behringer X32 / M32 console files (scenes, snippets, presets, shows) and read the live desk over OSC"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -32,7 +32,7 @@ Issues = "https://github.com/phierceweb/x32scene/issues"
 x32scene = "x32scene.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-cov>=5.0", "ruff>=0.6"]
+dev = ["pytest>=8.0", "pytest-cov>=5.0", "pytest-xdist>=3.5", "ruff>=0.6"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

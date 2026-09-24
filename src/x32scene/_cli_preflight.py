@@ -8,9 +8,10 @@ from pf_core.exceptions import InvalidInputError
 
 from . import _json
 from ._cli_console import with_console
-from ._cli_files import file_kind, load_checked, refuse_overwrite, refuse_unwritable
+from ._cli_files import file_kind, load_checked, refuse_overwrite
 from .model import write_file
 from .services import console_models as _models
+from .services import headers as _headers
 from .services import preflight as _preflight
 from .services import preflight_regen as _regen
 from .services import stage as _stage
@@ -29,10 +30,9 @@ def run_preflight(args) -> int:
         raise InvalidInputError(
             "preflight needs --config or X32SCENE_CONFIG; write one from a scene you trust "
             "with `x32scene preflight GOOD.scn --regenerate rig.json`")
-    expected = _preflight.load_expected(config)
-    checked_against = with_console(expected, args.console)
+    expected = with_console(_preflight.load_expected(config), args.console)
     stage = _stage.load_stage(stage_path) if stage_path else None
-    findings = _preflight.preflight(load_checked(args.scene), checked_against, stage=stage)
+    findings = _preflight.preflight(load_checked(args.scene), expected, stage=stage)
     checked = _preflight.coverage(expected, stage)
     if args.json:
         _json.dump(_json.preflight_doc(findings, checked))
@@ -54,13 +54,18 @@ def _run_regenerate(args) -> int:
     if kind not in (None, "scn"):
         raise InvalidInputError(f"--regenerate describes a whole console and needs a scene; "
                                 f"{args.scene} is a .{kind} file")
-    refuse_unwritable(args.regenerate, "--regenerate")
     refuse_overwrite(args.regenerate, args.scene, force=args.force, flag="--regenerate")
     out_kind = _validate.kind_of(args.regenerate)
     if out_kind is not None:
         raise InvalidInputError(f"--regenerate writes a JSON config; {args.regenerate} is named "
                                 f"as a .{out_kind} console file")
     scene = load_checked(args.scene)
+    header = _headers.decode_header(scene.lines[0].raw) if scene.lines else None
+    if header is not None and header["kind"] != "scene":
+        what = ("a header that is not a scene's" if header["kind"] == "unknown"
+                else f"a {header['kind']} header")
+        raise InvalidInputError(f"--regenerate describes a whole console and needs a scene; "
+                                f"{args.scene} has {what}, nothing written")
     if not _validate.strip_counts(scene)[0]:
         raise InvalidInputError(f"--regenerate needs a whole-console scene; {args.scene} has no "
                                 "channel strips, nothing written")

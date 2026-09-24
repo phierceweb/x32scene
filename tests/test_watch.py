@@ -11,11 +11,11 @@ from x32scene.services.diff import diff
 REF_TEXT = ('#4.0# "REF" "" %000000000 1\n'
             "/config/buslink ON ON ON ON ON ON OFF OFF\n"
             '/ch/01/config "Kick" 2 YEi 1\n'
-            "/ch/01/eq/1 PEQ 36.0 +0.00 1.0\n"
-            "/ch/01/mix ON  +6.5 ON +0 OFF   -oo\n"
-            "/ch/01/mix/01 ON  +2.8 +0 PRE 0\n"
+            "/ch/01/eq/1 PEQ 52.6 +4.75 1.6\n"
+            "/ch/01/mix ON  -4.8 ON +0 OFF   -oo\n"
+            "/ch/01/mix/01 ON  -7.9 +0 PRE 0\n"
             "/ch/02/mix ON  -oo ON +0 OFF   -oo\n")
-MIX_OFF = "/ch/01/mix OFF  +6.5 ON +0 OFF   -oo"
+MIX_OFF = "/ch/01/mix OFF  -4.8 ON +0 OFF   -oo"
 MIX_DOWN = "/ch/01/mix ON -10.0 ON +0 OFF   -oo"
 
 
@@ -109,7 +109,7 @@ class DebounceTest(unittest.TestCase):
         w, events = run(desk)
         self.assertEqual(len(desk.queries("ch/01/mix")), 1)
         self.assertEqual([(e.path, e.before, e.after) for e in events],
-                         [("/ch/01/mix", "/ch/01/mix ON  +6.5 ON +0 OFF   -oo", MIX_DOWN)])
+                         [("/ch/01/mix", "/ch/01/mix ON  -4.8 ON +0 OFF   -oo", MIX_DOWN)])
         self.assertEqual(w.summary().logged, 1)
 
     def test_a_long_sweep_is_queried_at_most_once_per_window(self):
@@ -144,8 +144,8 @@ class NetTest(unittest.TestCase):
     def test_a_change_and_back_is_transient_not_net(self):
         desk = ScriptedDesk()
         desk.push(1.0, "/ch/01/mix/on", [0], MIX_OFF)
-        desk.push(3.0, "/ch/01/mix/on", [1], "/ch/01/mix ON  +6.5 ON +0 OFF   -oo")
-        desk.push(5.0, "/ch/01/eq/1/g", [0.6], "/ch/01/eq/1 PEQ 36.0 +3.00 1.0")
+        desk.push(3.0, "/ch/01/mix/on", [1], "/ch/01/mix ON  -4.8 ON +0 OFF   -oo")
+        desk.push(5.0, "/ch/01/eq/1/g", [0.6], "/ch/01/eq/1 PEQ 52.6 +7.75 1.6")
         w, events = run(desk)
         self.assertEqual([e.path for e in events], ["/ch/01/mix", "/ch/01/mix", "/ch/01/eq/1"])
         s = w.summary()
@@ -154,19 +154,19 @@ class NetTest(unittest.TestCase):
 
     def test_the_end_scene_differs_from_the_start_by_the_net_changes_only(self):
         desk = ScriptedDesk()
-        desk.push(1.0, "/ch/01/eq/1/g", [0.6], "/ch/01/eq/1 PEQ 36.0 +3.00 1.0")
+        desk.push(1.0, "/ch/01/eq/1/g", [0.6], "/ch/01/eq/1 PEQ 52.6 +7.75 1.6")
         w, _ = run(desk)
         start = Scene.parse(REF_TEXT)
         end = w.end_scene()
         self.assertEqual(Scene.parse(end.dump()).dump(), end.dump())
         self.assertEqual([(c.path, c.after) for c in diff(start, end)],
-                         [("/ch/01/eq/1", "/ch/01/eq/1 PEQ 36.0 +3.00 1.0")])
+                         [("/ch/01/eq/1", "/ch/01/eq/1 PEQ 52.6 +7.75 1.6")])
         self.assertEqual(end.lines[0].raw, start.lines[0].raw)
 
     def test_an_event_carries_the_wall_time_of_the_push_that_reported_it(self):
         desk = ScriptedDesk()
         desk.push(2.0, "/ch/01/mix/on", [0], MIX_OFF)
-        desk.push(2.1, "/ch/01/mix/fader", [0.3], MIX_OFF.replace("+6.5", "-3.0"))
+        desk.push(2.1, "/ch/01/mix/fader", [0.3], MIX_OFF.replace("-4.8", "-3.0"))
         _, events = run(desk)
         self.assertEqual(len(events), 1)
         self.assertAlmostEqual(events[0].at, 1_700_000_000.0 + 2.0, places=3)
@@ -174,7 +174,7 @@ class NetTest(unittest.TestCase):
     def test_a_change_read_back_twice_takes_each_push_time(self):
         desk = ScriptedDesk()
         desk.push(2.0, "/ch/01/mix/on", [0], MIX_OFF)
-        desk.push(5.0, "/ch/01/mix/fader", [0.3], MIX_OFF.replace("+6.5", "-3.0"))
+        desk.push(5.0, "/ch/01/mix/fader", [0.3], MIX_OFF.replace("-4.8", "-3.0"))
         _, events = run(desk)
         self.assertEqual([round(e.at - 1_700_000_000.0, 3) for e in events], [2.0, 5.0])
 
@@ -219,7 +219,7 @@ class BacklogTest(unittest.TestCase):
         for t in (2.0, 5.0, 9.0, 12.0):          # the pull reads /ch/01/mix at 5.0
             desk.now = t
             sub()
-        start = Scene.parse(REF_TEXT.replace("/ch/01/mix ON  +6.5 ON +0 OFF   -oo", MIX_DOWN))
+        start = Scene.parse(REF_TEXT.replace("/ch/01/mix ON  -4.8 ON +0 OFF   -oo", MIX_DOWN))
         w = W.Watch(Scene.parse(REF_TEXT), start)
         events = list(w.run(desk, seconds=2, clock=desk.clock, wall=desk.wall,
                             backlog=sub.backlog, pulled={"/ch/01/mix": 5.0}))

@@ -151,11 +151,20 @@ def preflight(scene: Scene, expected: dict, *, stage: dict | None = None) -> lis
 
 
 def physical_outputs(expected: dict) -> int | None:
-    """The declared jack count (``monitor.physical_outputs``), when the config carries a
-    valid one."""
-    mon = expected.get("monitor")
-    v = mon.get("physical_outputs") if isinstance(mon, dict) else None
-    return v if isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 16 else None
+    """The declared jack count (``monitor.physical_outputs``); None when none is declared.
+
+    Raises:
+        ValueError: ``monitor`` is not an object, or the count is not a whole number 0-16 —
+            what the monitor check FAILs.
+    """
+    bad: list[Finding] = []
+    mon = mapping(expected, "monitor", "config", bad)
+    if bad:
+        raise ValueError(bad[0].message)
+    n = preflight_monitor.physical_count(mon, bad)
+    if bad:
+        raise ValueError(f"monitor.{bad[0].message}")
+    return n
 
 
 def coverage(expected: dict, stage: dict | None = None) -> dict[str, int]:

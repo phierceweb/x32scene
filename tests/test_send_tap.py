@@ -23,14 +23,14 @@ def example() -> Scene:
 class SetSendTapTest(unittest.TestCase):
     def test_odd_bus_writes_its_own_line_keeping_the_padding(self):
         sc = example()
-        self.assertEqual(I.set_send_tap(sc, 1, 9, "POST"), ["/ch/01/mix/09"])
-        self.assertEqual(sc.get("/ch/01/mix/09").raw, "/ch/01/mix/09 ON  -0.3 +0 POST 0")
-        self.assertEqual([c.path for c in diff(example(), sc)], ["/ch/01/mix/09"])
+        self.assertEqual(I.set_send_tap(sc, 1, 3, "POST"), ["/ch/01/mix/03"])
+        self.assertEqual(sc.get("/ch/01/mix/03").raw, "/ch/01/mix/03 ON  -1.6 +0 POST 0")
+        self.assertEqual([c.path for c in diff(example(), sc)], ["/ch/01/mix/03"])
 
     def test_even_bus_writes_the_odd_partners_line(self):
         sc = example()
-        self.assertEqual(I.set_send_tap(sc, 1, 10, "POST"), ["/ch/01/mix/09"])
-        self.assertEqual(sc.get("/ch/01/mix/10").raw, "/ch/01/mix/10 ON  -0.3")
+        self.assertEqual(I.set_send_tap(sc, 1, 4, "POST"), ["/ch/01/mix/03"])
+        self.assertEqual(sc.get("/ch/01/mix/04").raw, "/ch/01/mix/04 ON  -1.6")
 
     def test_every_tap_is_written_verbatim_and_round_trips(self):
         for tap in SEND_TAPS:
@@ -52,7 +52,7 @@ class SetSendTapTest(unittest.TestCase):
         self.assertEqual(I.set_send_tap(sc, 11, 3, "EQ->"), ["/ch/11/mix/03", "/ch/12/mix/03"])
         self.assertEqual(I.set_send_tap(example(), "/ch/12", 4, "EQ->"),
                          ["/ch/12/mix/03", "/ch/11/mix/03"])
-        self.assertEqual(sc.get("/ch/12/mix/03").raw, "/ch/12/mix/03 ON  -1.8 +100 EQ-> 0")
+        self.assertEqual(sc.get("/ch/12/mix/03").raw, "/ch/12/mix/03 ON   -oo +100 EQ-> 0")
 
     def test_linked_false_confines_the_write_to_the_named_strip(self):
         sc = example()
@@ -89,7 +89,7 @@ class SetSendTapRefusalTest(unittest.TestCase):
 
     def test_short_send_line_on_the_partner(self):
         text = open(EXAMPLE, encoding="utf-8").read().replace(
-            "/ch/12/mix/03 ON  -1.8 +100 PRE 0", "/ch/12/mix/03 ON  -1.8 +100")
+            "/ch/12/mix/03 ON   -oo +100 PRE 0", "/ch/12/mix/03 ON   -oo +100")
         self._refused(Scene.parse(text), IndexError, 11, 3, "POST")
 
     def test_missing_link_config_unless_unlinked(self):

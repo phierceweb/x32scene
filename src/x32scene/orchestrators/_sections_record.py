@@ -6,6 +6,7 @@ from __future__ import annotations
 from ..model import Scene
 from ..services import routing_edit as _rt
 from ..services.routing import record_map
+from ..tables import routing_block_names
 from ._sections import _numbered_key
 
 RECORD_PATH = "/config/userrout/out"
@@ -36,7 +37,10 @@ def apply_record(scene: Scene, plan: dict, recorded: dict[int, str] | None = Non
     by_slot: dict[int, tuple[int, int]] = {}
     tracks = sorted((int(t), s) for t, s in plan.get("record", {}).items())
     for track, source in tracks:
-        slot, num = _rt.record_slot(scene, track), _rt.encode_out_source(source)
+        label = routing_block_names("CARD")[(track - 1) // 8]
+        fix = f'the plan\'s "routing": {{"CARD": {{"{label}": "UOUT…"}}}} re-patches it'
+        slot = _rt.record_slot(scene, track, fix=fix)
+        num = _rt.encode_out_source(source)
         other, other_num = by_slot.setdefault(slot, (track, num))
         if other_num != num:
             raise ValueError(f"record: tracks {other} and {track} both read user-out slot "

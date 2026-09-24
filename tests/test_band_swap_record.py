@@ -51,9 +51,9 @@ class RecordApplyTest(unittest.TestCase):
         rep = apply_plan(Scene.load(EXAMPLE), {"record": {"20": "Output 9", "03": "Output 9"}})
         self.assertEqual(rep["record"], [
             {"track": 3, "before": "Local input 3", "after": "Output 9", "slot": 3,
-             "also_feeds": ["AES50-A 3", "AES50-B 3"]},
+             "also_feeds": ["AES50-B 3"]},
             {"track": 20, "before": "AES50-A input 4", "after": "Output 9", "slot": 20,
-             "also_feeds": ["AES50-A 20"]}])
+             "also_feeds": ["AES50-B 20"]}])
         self.assertEqual(apply_plan(Scene.load(EXAMPLE), {})["record"], [])
 
     def test_before_is_what_the_template_recorded_when_routing_re_points_the_track(self):
@@ -146,7 +146,7 @@ class RecordCliTest(unittest.TestCase):
             lines = buf.getvalue().splitlines()
             self.assertEqual(lines[1:3], [
                 "record track 3: Local input 3 -> Output 9 (user-out slot 3)",
-                "  user-out slot 3 also feeds AES50-A 3, AES50-B 3"])
+                "  user-out slot 3 also feeds AES50-B 3"])
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 main(["set-record", EXAMPLE, "3", "Output 9", "-o", os.path.join(d, "s.scn")])

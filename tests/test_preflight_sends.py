@@ -22,7 +22,7 @@ def one_fail(findings, *needles):
 
 class SendShapeTest(unittest.TestCase):
     def test_five_field_even_line_fails(self):
-        sc = mini_scene(extra=["/ch/01/mix/02 ON  +2.8 +0 PRE 0"])
+        sc = mini_scene(extra=["/ch/01/mix/02 ON  -7.9 +0 PRE 0"])
         f = one_fail(preflight(sc, {}), "send bus 02", "5 field(s), not 2")
         self.assertEqual(f.path, "/ch/01/mix/02")
 
@@ -39,22 +39,22 @@ class TapTest(unittest.TestCase):
         self.assertEqual(fails(preflight(self.sc, {"sends": {"1": {"tap": "PRE"}}})), [])
 
     def test_family_and_strip_exceptions_pass(self):
-        exp = {"sends": {"9": {"tap": "PRE", "except": {"/fxrtn": "POST", "/ch/11": "POST",
-                                                        "/ch/12": "POST"}}}}
+        exp = {"sends": {"9": {"tap": "PRE", "except": {"/fxrtn": "POST", "/ch/31": "POST",
+                                                        "/ch/32": "POST"}}}}
         self.assertEqual(fails(preflight(self.sc, exp)), [])
 
     def test_strip_exception_beats_family_exception(self):
-        # bus 9: everything POST, except channels are PRE, except ch 11/12 are POST again
-        exp = {"sends": {"9": {"tap": "POST", "except": {"/ch": "PRE", "/ch/11": "POST",
-                                                         "/ch/12": "POST", "/auxin": "PRE"}}}}
+        # bus 9: everything POST, except channels are PRE, except ch 31/32 are POST again
+        exp = {"sends": {"9": {"tap": "POST", "except": {"/ch": "PRE", "/ch/31": "POST",
+                                                         "/ch/32": "POST", "/auxin": "PRE"}}}}
         self.assertEqual(fails(preflight(self.sc, exp)), [])
 
     def test_flipped_taps_fail_per_strip(self):
         fs = fails(preflight(self.sc, {"sends": {"9": {"tap": "PRE"}}}))
-        self.assertEqual(len(fs), 10, fs)   # ch 11/12 and the eight FX returns are POST
+        self.assertEqual(len(fs), 10, fs)   # ch 31/32 and the eight FX returns are POST
         self.assertTrue(all(f.area == "send bus 09" for f in fs))
-        self.assertIn("/ch/11 tap POST != expected PRE", [f.message for f in fs])
-        self.assertEqual(fs[0].path, "/ch/11/mix/09")
+        self.assertIn("/ch/31 tap POST != expected PRE", [f.message for f in fs])
+        self.assertEqual(fs[0].path, "/ch/31/mix/09")
 
     def test_tap_on_an_even_bus_is_refused(self):
         one_fail(preflight(self.sc, {"sends": {"10": {"tap": "PRE"}}}), "stored on bus 9")

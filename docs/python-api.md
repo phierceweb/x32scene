@@ -44,7 +44,7 @@ from x32scene import Scene
 
 sc = Scene.load("scene.scn")        # or Scene.parse(text)
 line = sc.get("/ch/01/mix")         # Line | None — the path is the index
-line.args                           # ['ON', '+6.5', 'ON', '+0', 'OFF', '-oo']
+line.args                           # ['ON', '-4.8', 'ON', '+0', 'OFF', '-oo']
 line.set_arg(1, "-3.0")             # marks the line dirty; only dirty lines are rebuilt
 sc.save("out.scn")                  # atomic write, LF endings; OSError names out.scn
 ```
@@ -93,7 +93,7 @@ One concern per module. The ones a script reaches for first:
 | `buslink` | link or unlink a stereo bus pair as the desk does: `set_bus_link(sc, bus, on) -> BusLinkEdit`; `relinked_pairs(a, b, paths)` for the pairs whose link differs that `paths` carry a line of |
 | `stripmove` | reorder channel strips: `permute_channels(sc, {old: new}) -> StripMove` (the moves, each `RemappedRef(path, field, before, after)`, the changed paths), all-or-nothing with a ValueError naming every refusal; `swap_mapping(a, b)` and `move_mapping(frm, to)` build a mapping; `unexpected_changes(before, after, move)` is the check it runs before writing |
 | `transplant` | carry chosen lines from one scene into another |
-| `presets` | `.chn` extract/apply, with the head-amp index remapped; `header_scopes(text)` the scopes a header's flags select (None when headerless or the header has no flag mask), `preset_selects(text, scopes) -> Callable[[str], bool]` the predicate an apply writes a bare preset path by (`selects("/eq/1")`), `unflagged_scopes(text, scopes)` what an apply skips |
+| `presets` | `.chn` extract/apply, with the head-amp index remapped; `header_scopes(text)` the scopes a header's flags select (None when headerless or the header has no flag mask), `preset_selects(text, scopes) -> Callable[[str], bool]` the predicate an apply writes a bare preset path by (`selects("/eq/1")`), `unflagged_scopes(text, scopes)` what an apply skips, `mirrored_sends(sc, ch, text, scopes)` the sends it writes from a stereo-linked bus partner's line |
 | `preset_library` | a folder of `.chn` against a scene: `check_library(sc, dir) -> list[PresetCheck]`; `extract_library(sc) -> (presets, unnamed, shared)` for one preset per named channel, skipping every channel on a shared file name |
 | `fx` | effect types, sources and parameters by name |
 | `snippets` | build a `.snp` from a delta, with the header masks derived from the body |
@@ -131,8 +131,8 @@ writing a scene the plan did not describe. Its report lists the `changed` paths,
 `mirrored` those a stereo-linked pair wrote without the plan naming them
 (`mirrored_paths`), and in `record` one row per record track: its source before and
 after, its user-out slot, and `also_feeds`, every other destination that slot feeds
-(`routing_edit.record_row`). To inspect before saving, call `apply_plan` and
-`verify` yourself.
+(`routing_edit.record_row`). `build` does the same without saving and returns the edited
+scene with the report; to inspect each step, call `apply_plan` and `verify` yourself.
 
 ## What the library does not do
 

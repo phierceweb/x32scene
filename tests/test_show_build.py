@@ -60,7 +60,7 @@ class BuildTest(unittest.TestCase):
         show = read_show(files["Night.shw"])
         self.assertEqual([e.decoded["scene"] for e in show.of("cue")], [0, None])
         self.assertEqual(show.of("cue")[1].decoded, {"name": "Encore", "number": "2.0.0",
-                                                     "skip": True, "scene": None, "snippet": 0})
+                                                     "skip": True, "scene": None, "snippet": 0, "midi": {"type": "none", "channel": 1, "params": [0, 0]}})
 
     def test_refuses_dangling_links_and_wrong_files(self):
         with self.assertRaises(ValueError):

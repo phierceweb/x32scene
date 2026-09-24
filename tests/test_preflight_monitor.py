@@ -55,11 +55,12 @@ class ReachabilityTest(unittest.TestCase):
     def test_physical_outputs_0_means_every_output_must_leave_the_console(self):
         exp = {"monitor": {"physical_outputs": 0, "require_reachable": True}}
         self.assertEqual(fails(preflight(mini_scene(), exp)), [])
-        sc = mini_scene({"/config/routing/AES50B": "/config/routing/AES50B UOUT1-8 UOUT9-16 "
-                                                   "UOUT17-24 UOUT41-48 UOUT41-48 UOUT41-48"})
+        sc = mini_scene({"/config/routing/AES50A": "/config/routing/AES50A UOUT1-8 OUT9-16 "
+                                                   "P161-8 P169-16 AUX/CR AUX/TB"})
         self.assertEqual(fails(preflight(sc, REACH)), [])
+        # outputs 1/2 still leave through the user-out slots the recorder reads
         self.assertEqual([f.area for f in fails(preflight(sc, exp))],
-                         [f"out main {n:02d}" for n in range(1, 9)])
+                         [f"out main {n:02d}" for n in range(3, 9)])
 
     def test_physical_outputs_outside_0_to_16_is_refused(self):
         for bad in (-1, 17, True, 8.0):
@@ -80,11 +81,11 @@ class StereoPairTest(unittest.TestCase):
         self.assertEqual(preflight(mini_scene(), self.PAIRS), [])
 
     def test_even_output_carrying_the_wrong_bus_fails(self):
-        sc = mini_scene({"/outputs/main/10": "/outputs/main/10 6 POST OFF"})   # bus 3 twice
+        sc = mini_scene({"/outputs/main/10": "/outputs/main/10 10 POST OFF"})  # bus 7 twice
         fs = fails(preflight(sc, self.PAIRS))
         self.assertEqual(len(fs), 1, fs)
         self.assertEqual(fs[0].area, "out main 09")
-        self.assertIn("Bus 3 / Bus 3", fs[0].message)
+        self.assertIn("Bus 7 / Bus 7", fs[0].message)
 
     def test_odd_output_carrying_an_even_bus_fails(self):
         sc = mini_scene({"/outputs/aux/01": "/outputs/aux/01 11 POST OFF",
@@ -93,8 +94,8 @@ class StereoPairTest(unittest.TestCase):
         self.assertEqual([f.area for f in fs], ["out aux 01"])
 
     def test_non_bus_pairs_have_no_rule(self):
-        # main 07/08 carry Main L/R: nothing to pair-check
-        sc = mini_scene({"/outputs/main/08": "/outputs/main/08 0 POST OFF"})
+        # main 01/02 carry Main L/R: nothing to pair-check
+        sc = mini_scene({"/outputs/main/02": "/outputs/main/02 0 POST OFF"})
         self.assertEqual(preflight(sc, self.PAIRS), [])
 
     def test_p16_is_refused_as_a_pair_bank(self):
@@ -121,7 +122,7 @@ class LiveSenderTest(unittest.TestCase):
         fs = fails(preflight(sc, self.LIVE))
         self.assertEqual(len(fs), 1, fs)
         self.assertEqual(fs[0].area, "bus 11")
-        self.assertIn("/outputs/main/05", fs[0].message)
+        self.assertIn("/outputs/main/13", fs[0].message)
         self.assertIn("no sender", fs[0].message)
 
     def test_no_send_lines_at_all_cannot_verify(self):

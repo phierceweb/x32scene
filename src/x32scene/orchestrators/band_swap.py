@@ -57,20 +57,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..model import Line, Scene
+from ..model import Scene, read_file
 from ..services import iem as I
 from ..services import transforms as T
 from ..services.diff import diff
 from ..services.groups import set_dca
 from ..services.jsonfile import read_json
-from ..services.presets import apply_preset, preset_selects, unflagged_scopes
-from . import _sections, _sections_record
+from ..services.presets import (
+    apply_preset, body_lines, mirrored_sends, partner_only_sends, preset_selects,
+    unflagged_scopes,
+)
+from . import _linked_presets, _sections, _sections_record
 from ._schema import _send_strip, validate_plan
 from ..services.routing import channel_headamp_index, record_map
 from ..services.snippets import MIX_FIELD
 from ..tables import SEND_STRIPS
-
-
 
 
 def load_plan(path: str | Path) -> dict:
@@ -130,12 +131,16 @@ def _preset_text(plan: dict, spec: dict) -> str:
     if not p.is_absolute():
         p = Path(plan.get("_dir", ".")) / p
     try:
-        return p.read_text(encoding="utf-8")
+        text = read_file(str(p))
     except OSError as e:
         raise ValueError(f"preset {p}: {e.strerror}") from e
-    except UnicodeDecodeError as e:
-        raise ValueError(f"preset {p}: not a console text file (byte {e.start} is not UTF-8)"
-                         ) from None
+    except ValueError as e:
+        raise ValueError(f"preset {e}") from None   # read_file's message opens with the path
+    try:
+        Scene.parse(text)
+    except ValueError as e:
+        raise ValueError(f"preset {p}: {e}") from None
+    return text
 
 
 def apply_plan(scene: Scene, plan: dict) -> dict:
@@ -197,7 +202,8 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
     _sections.apply_output_patch(scene, plan)
     record = _sections_record.apply_record(scene, plan, recorded)
     return {"lines_changed": sum(1 for ln in scene.lines if ln.dirty), "preset_skipped": skipped,
-            "record": record}
+            "record": record,
+            "preset_partners": _linked_presets.unmatched_partners(scene, plan, _preset_text)}
 
 
 def allowed_paths(template: Scene, plan: dict) -> set[str]:
@@ -219,10 +225,9 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
         if "preset" in spec:
             text = _preset_text(plan, spec)
             selects = preset_selects(text, spec.get("scopes"))
-            for raw in text.splitlines():
-                if not raw or raw.startswith("#"):
-                    continue
-                bare = Line.parse(raw).path   # the parser apply_preset uses, so both agree
+            allowed.update(p for p, _ in mirrored_sends(template, ch, text, spec.get("scopes")))
+            for ln in body_lines(text):   # the parser apply_preset uses, so both agree
+                bare = ln.path
                 if bare.startswith("/headamp"):
                     if selects(bare):
                         idx = channel_headamp_index(template, ch)
@@ -254,8 +259,11 @@ def mirrored_paths(template: Scene, plan: dict) -> set[str]:
         dst = int(cp["dst"])
         for bus in I.copy_iem_dst_buses(template, int(cp["src"]), dst):
             (named if bus == dst else mirrors).update(f"{s}/mix/{bus:02d}" for s in SEND_STRIPS)
+    presets = {p for ch_s, spec in plan.get("channels", {}).items() if "preset" in spec
+               for p in partner_only_sends(template, int(ch_s), _preset_text(plan, spec),
+                                           spec.get("scopes"))}
     rest = {k: v for k, v in plan.items() if k not in ("iem_sends", "iem_copy")}
-    return mirrors - named - allowed_paths(template, rest)
+    return (mirrors | presets) - named - (allowed_paths(template, rest) - presets)
 
 
 def verify(template: Scene, edited: Scene, plan: dict) -> dict:
@@ -270,9 +278,9 @@ def verify(template: Scene, edited: Scene, plan: dict) -> dict:
             "malformed": I.send_shape_errors(edited, changes)}
 
 
-def run(template_path: str | Path, plan: dict, out_path: str | Path) -> dict:
-    """plan -> apply -> verify -> save. Returns the verify report; raises ValueError on
-    out-of-plan or malformed changes, having written nothing."""
+def build(template_path: str | Path, plan: dict) -> tuple[Scene, dict]:
+    """plan -> apply -> verify. Returns the edited scene and the verify report; raises
+    ValueError on out-of-plan or malformed changes."""
     template, edited = Scene.load(str(template_path)), Scene.load(str(template_path))
     summary = apply_plan(edited, plan)
     report = verify(template, edited, plan)
@@ -282,5 +290,11 @@ def run(template_path: str | Path, plan: dict, out_path: str | Path) -> dict:
     if report["malformed"]:
         raise ValueError("malformed send line(s), nothing written: "
                          + ", ".join(report["malformed"]))
+    return edited, {**report, **summary}
+
+
+def run(template_path: str | Path, plan: dict, out_path: str | Path) -> dict:
+    """:func:`build`, then save. Returns the verify report; writes nothing on a ValueError."""
+    edited, report = build(template_path, plan)
     edited.save(str(out_path))
-    return {**report, **summary}
+    return report

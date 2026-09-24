@@ -54,12 +54,15 @@ def presets_diff_doc(results: list[_presetlib.PresetCheck]) -> dict:
                          "channels": r.channels, "compared": r.compared,
                          "drift": [{"path": d.path, "preset": d.preset, "scene": d.scene}
                                    for d in r.drift],
-                         "uncompared": r.uncompared, "reason": r.reason} for r in results],
+                         "uncompared": r.uncompared, "skipped": r.skipped,
+                         "reason": r.reason} for r in results],
             "counts": {s: sum(r.status == s for r in results) for s in _presetlib.STATUSES}}
 
 
-def ports_doc(scene: Scene, bank: str = "main", stage: dict | None = None) -> dict:
-    return {"outputs": _ports.ports_rows(scene, bank, stage)}
+def ports_doc(scene: Scene, bank: str = "main", stage: dict | None = None,
+              *, physical: int | None = None) -> dict:
+    return {"physical_outputs": physical,
+            "outputs": _ports.ports_rows(scene, bank, stage, physical=physical)}
 
 
 def diff_doc(changes: list[Change], scene: Scene | None = None) -> dict:

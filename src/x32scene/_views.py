@@ -56,7 +56,7 @@ def cmd_record_map(scene: Scene) -> None:
     """The 32 USB record tracks the DAW receives, in order."""
     print("USB record tracks (X32 -> DAW):")
     for n, src in _routing.record_map(scene):
-        if src not in ("OFF", "?"):
+        if src != "OFF":
             print(f"  track {n:>2} <- {src}")
     loop = _routing.card_sourced_channels(scene)
     if loop:
@@ -272,9 +272,13 @@ def cmd_show(show: Show) -> None:
     for e in show.entries:
         if e.kind == "cue":
             d = e.decoded
+            midi = d.get("midi")
             links = [f"scene {d['scene']}" if d.get("scene") is not None else "",
                      f"snippet {d['snippet']}" if d.get("snippet") is not None else "",
-                     "skip" if d.get("skip") else ""]
+                     "skip" if d.get("skip") else "",
+                     (f"midi {midi['type']} ch {midi['channel']} "
+                      + " ".join(str(p) for p in midi["params"][:1 if midi["type"] == "program change" else 2]))
+                     if midi and midi["type"] != "none" else ""]
             detail = f"   [{', '.join(x for x in links if x) or 'nothing attached'}]"
             print(f"  cue/{e.index:03d}  {d.get('number', '?')} {e.name}{detail}")
             continue

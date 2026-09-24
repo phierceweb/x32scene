@@ -74,8 +74,6 @@ def decode_fx(code: str) -> str:
     return FX_CODES.get(code, code)
 
 
-
-
 # The 31 ISO 1/3-octave centres in par order; verified on a console for GEQ and GEQ2.
 GEQ_BAND_LABELS = (
     "20", "25", "31.5", "40", "50", "63", "80", "100", "125", "160",
@@ -83,6 +81,10 @@ GEQ_BAND_LABELS = (
     "2000", "2500", "3150", "4000", "5000", "6300", "8000", "10000", "12500", "16000",
     "20000",
 )
+
+
+# every GEQ/GEQ2 band and master, in dB (the manual's 15 dB boost or cut; Maillot v4.06)
+GEQ_GAIN_DB = (-15.0, 15.0)
 
 
 def geq_param_names(dual: bool) -> list[str]:

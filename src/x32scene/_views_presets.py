@@ -17,7 +17,7 @@ def _where(r: _lib.PresetCheck) -> str:
         return f"no channel named {r.name!r}"
     if r.status == _lib.AMBIGUOUS:
         return f"{r.name!r} names {chans}"
-    return f"{chans} {r.name}" + ("" if r.compared else "  (nothing in scope to compare)")
+    return f"{chans} {r.name}"
 
 
 def cmd_presets_diff(results: list[_lib.PresetCheck]) -> None:
@@ -30,6 +30,9 @@ def cmd_presets_diff(results: list[_lib.PresetCheck]) -> None:
             print(f"    {d.path}  {_tokens(d.preset)} -> {_tokens(d.scene)}")
         for path in r.uncompared:
             print(f"    {path}  not compared: the channel's source has no head amp")
+        if r.skipped:
+            print(f"    skipped {', '.join(r.skipped)}: the preset header does not flag them "
+                  "present")
     counts = {s: sum(r.status == s for r in results) for s in _lib.STATUSES}
     print(", ".join(f"{n} {s}" for s, n in counts.items()))
 

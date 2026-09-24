@@ -58,7 +58,7 @@ class JsonTest(unittest.TestCase):
         _, doc = run_json(["fx", SCENE, "--json"])
         slot1 = doc["slots"][0]
         self.assertEqual((slot1["slot"], slot1["code"]), (1, "PLAT"))
-        self.assertEqual(slot1["params"]["Decay"], "2.11")
+        self.assertEqual(slot1["params"]["Decay"], "1.62")
 
     def test_dca_json(self):
         _, doc = run_json(["dca", SCENE, "--json"])

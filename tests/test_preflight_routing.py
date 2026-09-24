@@ -42,10 +42,10 @@ class RoutingPinTest(unittest.TestCase):
     def test_fixture_pins_pass(self):
         exp = {"routing": {"mode": "REC",
                            "blocks": {"IN": {"1": "UIN1-8", "5": "AUX1-4"},
-                                      "AES50A": {"2": "OUT9-16"}, "AES50B": {"3": "OUT1-8"},
+                                      "AES50A": {"2": "OUT9-16"}, "AES50B": {"4": "UOUT33-40"},
                                       "CARD": {"1": "UOUT1-8"}, "OUT": {"1": "OUT1-4"},
                                       "PLAY": {"1": "CARD1-8"}},
-                           "userrout": {"out": {"1": 1, "17": 33}, "in": {"29": 157}}}}
+                           "userrout": {"out": {"1": 1, "17": 33}, "in": {"30": 160}}}}
         self.assertEqual(preflight(mini_scene(), exp), [])
 
     def test_mode_mismatch_fails(self):

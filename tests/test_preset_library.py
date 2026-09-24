@@ -54,11 +54,12 @@ class CheckPresetTest(unittest.TestCase):
         r = self.check(chn, scene=edited)
         self.assertEqual(r.status, lib.DRIFT)
         self.assertEqual([(d.path, d.preset, d.scene) for d in r.drift],
-                         [("/eq/1", ["PEQ", "36.0", "+0.00", "1.0"],
-                           ["PEQ", "36.0", "+3.00", "1.0"])])
+                         [("/eq/1", ["PEQ", "52.6", "+4.75", "1.6"],
+                           ["PEQ", "52.6", "+3.00", "1.6"])])
 
     def test_column_padding_is_not_drift(self):
-        chn = extract_preset(self.sc, 1).replace("/eq/1 PEQ 36.0", "/eq/1  PEQ   36.0")
+        chn = extract_preset(self.sc, 1).replace("/eq/1 PEQ 52.6", "/eq/1  PEQ   52.6")
+        self.assertIn("/eq/1  PEQ   52.6", chn)
         self.assertEqual(self.check(chn).status, lib.MATCH)
 
     def test_without_a_config_line_the_filename_stem_names_the_channel(self):
@@ -107,13 +108,13 @@ class CheckPresetTest(unittest.TestCase):
 
     def test_split_main_fader_lines_compare_against_the_combined_mix_line(self):
         # a desk-written preset stores the main mix one sub-path per field
-        split = "/mix/fader  +6.5\n/mix/st ON\n/mix/pan +0\n/mix/mono OFF\n/mix/mlevel   -oo\n"
-        chn = extract_preset(self.sc, 1).replace("/mix ON +6.5 ON +0 OFF -oo\n", split)
+        split = "/mix/fader  -4.8\n/mix/st ON\n/mix/pan +0\n/mix/mono OFF\n/mix/mlevel   -oo\n"
+        chn = extract_preset(self.sc, 1).replace("/mix ON -4.8 ON +0 OFF -oo\n", split)
         self.assertIn("/mix/fader", chn)
         self.assertEqual(self.check(chn).status, lib.MATCH)
-        r = self.check(chn.replace("/mix/fader  +6.5", "/mix/fader -3.0"))
+        r = self.check(chn.replace("/mix/fader  -4.8", "/mix/fader -3.0"))
         self.assertEqual([(d.path, d.preset, d.scene) for d in r.drift],
-                         [("/mix/fader", ["-3.0"], ["+6.5"])])
+                         [("/mix/fader", ["-3.0"], ["-4.8"])])
 
     def test_a_path_the_scene_lacks_is_drift(self):
         chn = extract_preset(self.sc, 1)
@@ -128,7 +129,7 @@ class CheckPresetTest(unittest.TestCase):
         edited.get("/headamp/000").set_arg(0, "+40.0")
         r = self.check(chn, scene=edited)
         self.assertEqual([(d.path, d.preset, d.scene) for d in r.drift],
-                         [("/headamp/000", ["+27.5", "OFF"], ["+40.0", "OFF"])])
+                         [("/headamp/000", ["+22.5", "OFF"], ["+40.0", "OFF"])])
 
     def test_head_amp_on_a_source_without_one_is_not_comparable(self):
         chn = extract_preset(self.sc, 31) + "/headamp/000 +27.0 OFF\n"   # DAW L <- card

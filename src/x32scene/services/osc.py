@@ -19,6 +19,7 @@ X32_PORT = 10023
 _RECV_BUF = 65536
 _BETWEEN_EVERY = 0.5
 GIVE_UP = 8       # unanswered paths in a row before a scene pull checks the desk is still there
+PROBE = "ch/01/config"   # a path every X32 and M32 firmware answers
 
 
 class OscError(RuntimeError):
@@ -103,52 +104,91 @@ def node_line(args: list) -> str | None:
 def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
                timeout: float = 0.5, retries: int = 1, fail_fast: int | None = None,
                give_up: int | None = None, asked: dict[str, float] | None = None,
-               between: Callable[[], object] | None = None) -> tuple[list[str], list[str]]:
+               round_trips: list[float | None] | None = None,
+               between: Callable[[], object] | None = None,
+               confirm: bool = True) -> tuple[list[str], list[str]]:
     """Query each path via /node. Returns (scene-format lines, unanswered paths).
 
     A reply line starts with its own path, so late replies land in the right slot rather
     than desynchronizing the capture. ``fail_fast=N`` raises once N paths have gone
     unanswered with nothing received, instead of timing out over every remaining path.
     ``give_up=N`` raises after N unanswered paths in a row unless a late reply landed during
-    them or the last path that answered answers again. ``asked`` is filled with each ``/path``'s first send time
-    (``time.monotonic``). ``between`` is called at least every half second while a reply is
-    awaited.
+    them or the last path that answered answers again. With ``confirm``, a desk that has
+    answered no path yet is asked for ``PROBE`` before either gives up, and one that answers
+    is read on: its firmware lacks those paths. A device that answers no ``/node`` answers
+    ``/xinfo`` or nothing, and the error says which. ``asked`` is filled with each
+    ``/path``'s first send time (``time.monotonic``). ``round_trips`` gets, in reply order,
+    each answered path's round trip, or None when it had been asked again before its reply
+    came. ``between`` is called at least every half second while a reply is awaited.
     """
     if not paths:
         return [], []
     got: dict[str, str] = {}  # "/path" -> scene-format line
+    first: dict[str, float] = asked if asked is not None else {}
+    sends: dict[str, int] = {}
+    timed: set[str] = set()
     peer = desk_address(ip)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        xinfo, replies = False, 0
+
+        def listen(done: Callable[[], bool]) -> None:
+            nonlocal xinfo, replies
+            deadline = time.monotonic() + timeout
+            while not done():
+                if between is not None:
+                    between()
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return
+                sock.settimeout(min(remaining, _BETWEEN_EVERY))
+                try:
+                    data, sender = sock.recvfrom(_RECV_BUF)
+                except socket.timeout:
+                    continue
+                if sender[0] != peer:
+                    continue      # someone else on the network, not the desk
+                try:
+                    addr, args = decode_message(data)
+                except OscError:
+                    continue  # one malformed datagram must not abort the pull
+                xinfo = xinfo or addr in ("/xinfo", "xinfo")
+                line = node_line(args) if addr == "node" else None
+                if line is not None:
+                    replies += 1
+                    key = line.split(" ", 1)[0]
+                    if round_trips is not None and key in sends and key not in timed:
+                        timed.add(key)
+                        round_trips.append(time.monotonic() - first[key]
+                                           if sends[key] == 1 else None)
+                    got[key] = line
+
         def query(path: str) -> bool:
             want = "/" + path
             for _ in range(retries + 1):
                 if want in got:
                     break
                 sock.sendto(encode_message("/node", [path]), (ip, port))
-                if asked is not None:
-                    asked.setdefault(want, time.monotonic())
-                deadline = time.monotonic() + timeout
-                while want not in got:
-                    if between is not None:
-                        between()
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        break
-                    sock.settimeout(min(remaining, _BETWEEN_EVERY))
-                    try:
-                        data, sender = sock.recvfrom(_RECV_BUF)
-                    except socket.timeout:
-                        continue
-                    if sender[0] != peer:
-                        continue      # someone else on the network, not the desk
-                    try:
-                        addr, args = decode_message(data)
-                    except OscError:
-                        continue  # one malformed datagram must not abort the pull
-                    line = node_line(args) if addr == "node" else None
-                    if line is not None:
-                        got[line.split(" ", 1)[0]] = line
+                first.setdefault(want, time.monotonic())
+                sends[want] = sends.get(want, 0) + 1
+                listen(lambda: want in got)
             return want in got
+
+        def present() -> bool:
+            """The desk answers ``/node`` for ``PROBE``, or a late reply lands meanwhile.
+            Replies are counted, not paths: an earlier probe's reply already holds its key."""
+            heard = replies
+            sock.sendto(encode_message("/node", [PROBE]), (ip, port))
+            listen(lambda: replies > heard)
+            return replies > heard
+
+        def absent(queries: str) -> OscError:
+            nonlocal xinfo
+            xinfo = False
+            sock.sendto(encode_message("/xinfo"), (ip, port))
+            listen(lambda: xinfo)
+            why = ("answers /xinfo but no /node — not an X32/M32, or not ready?" if xinfo
+                   else "desk off or unreachable?")
+            return OscError(f"no reply from {ip}:{port} {queries} — {why}")
 
         def still_there(since: int) -> bool:
             """A reply landed since the run of misses began, or the last path that answered
@@ -156,14 +196,14 @@ def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
             if len(got) > since:
                 return True
             if answered is None:
-                return False
+                return confirm and present()
             kept = got.pop("/" + answered)   # or query() answers from memory
             if query(answered) or len(got) >= since:
                 got.setdefault("/" + answered, kept)
                 return True
             return False
 
-        answered, misses, since = None, 0, 0
+        answered, misses, since, confirmed = None, 0, 0, False
         for n_tried, path in enumerate(paths, start=1):
             heard = len(got)
             if query(path):
@@ -171,13 +211,13 @@ def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
                 continue
             since = since if misses else heard
             misses += 1
-            if fail_fast is not None and not got and n_tried >= fail_fast:
-                raise OscError(f"no reply from {ip}:{port} after {n_tried} queries "
-                               "— desk off or unreachable?")
+            if fail_fast is not None and not got and n_tried >= fail_fast and not confirmed:
+                if not (confirm and present()):
+                    raise absent(f"after {n_tried} queries")
+                confirmed = True
             if give_up is not None and misses >= give_up:
                 if not still_there(since):
-                    raise OscError(f"no reply from {ip}:{port} to {misses} queries in a row "
-                                   "— desk off or unreachable?")
+                    raise absent(f"to {misses} queries in a row")
                 misses = 0
     wanted = ["/" + p for p in paths]
     lines = [got[w] for w in wanted if w in got]
@@ -188,6 +228,7 @@ def pull_lines(ip: str, paths: Sequence[str], *, port: int = X32_PORT,
 def pull_scene_like(reference: Scene, ip: str, *, port: int = X32_PORT,
                     timeout: float = 0.5, retries: int = 1, fail_fast: int | None = 3,
                     give_up: int | None = GIVE_UP, asked: dict[str, float] | None = None,
+                    round_trips: list[float | None] | None = None,
                     between: Callable[[], object] | None = None) -> tuple[Scene, list[str]]:
     """Pull the running desk's state for every path the reference scene has.
 
@@ -197,7 +238,7 @@ def pull_scene_like(reference: Scene, ip: str, *, port: int = X32_PORT,
     paths = [ln.path.lstrip("/") for ln in reference.lines if ln.path.startswith("/")]
     lines, missing = pull_lines(ip, paths, port=port, timeout=timeout,
                                 retries=retries, fail_fast=fail_fast, give_up=give_up,
-                                asked=asked, between=between)
+                                asked=asked, round_trips=round_trips, between=between)
     header = [reference.lines[0].raw] if (
         reference.lines and HEADER_RE.match(reference.lines[0].path)) else []
     return Scene.parse("\n".join(header + lines) + "\n"), missing

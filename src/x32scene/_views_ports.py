@@ -14,13 +14,17 @@ from .tables import OUTPUT_BANKS, SEND_STRIPS, decode_tap, tap_to_bus
 BANKS = (*OUTPUT_BANKS, "all")
 
 
-def ports_rows(scene: Scene, bank: str = "main", stage: dict | None = None) -> list[dict]:
+def ports_rows(scene: Scene, bank: str = "main", stage: dict | None = None,
+               *, physical: int | None = None) -> list[dict]:
     """One dict per output line of ``bank`` (every bank for "all"): bank, n, src, label,
-    bus, pos, invert, mirrors, and the sidecar entry (or None)."""
+    bus, pos, invert, mirrors, the sidecar entry (or None), ``physical``: whether a rear
+    jack within the jack count carries a main output (None elsewhere or without a count),
+    and ``jack``: which one (:func:`routing.jack_outputs`)."""
     if bank not in BANKS:
         raise ValueError(f"bank must be one of {', '.join(BANKS)}, got {bank!r}")
     names = bus_names(scene)
     mirrors = _routing.output_aes_mirrors(scene)
+    jacks = _routing.jack_outputs(scene, physical) if physical is not None else {}
     entries = stage_entries(stage) if stage else {}
     rows = []
     for b, (size, fields) in OUTPUT_BANKS.items():
@@ -39,7 +43,10 @@ def ports_rows(scene: Scene, bank: str = "main", stage: dict | None = None) -> l
                          "pos": ln.args[1] if len(ln.args) > 1 else None,
                          "invert": ln.args[2] if fields == 3 and len(ln.args) > 2 else None,
                          "mirrors": mirrors.get(n, []) if b == "main" else [],
-                         "stage": entries.get((b, n))})
+                         "stage": entries.get((b, n)),
+                         "physical": (n in jacks if b == "main" and physical is not None
+                                      else None),
+                         "jack": jacks.get(n) if b == "main" else None})
     return rows
 
 
@@ -60,20 +67,21 @@ def cmd_ports(scene: Scene, physical: int | None = None, *, bank: str = "main",
     if physical is None:
         print("Outputs (pass --console or declare monitor.physical_outputs in a preflight "
               "config to label physical vs virtual):")
-    elif physical >= 16:
-        print("Outputs (main 1-16 = physical jacks):")
     elif physical == 0:
         print("Outputs (main 1-16 = virtual: no rear jacks)")
+    elif _routing.jack_outputs(scene, physical) != {n: n for n in range(1, physical + 1)}:
+        print(f"Outputs ({physical} rear jacks, as /config/routing/OUT patches them; the rest "
+              "virtual):")
+    elif physical >= 16:
+        print("Outputs (main 1-16 = physical jacks):")
     else:
-        print(f"Outputs (main 1-{physical} = physical jacks; {physical + 1}-16 = virtual, "
-              "mirrored via AES50):")
-    for r in ports_rows(scene, bank, stage):
-        kind = ""
-        if physical is not None and r["bank"] == "main":
-            kind = "[XLR ] " if r["n"] <= physical else "[virt] "
+        print(f"Outputs (main 1-{physical} = physical jacks; {physical + 1}-16 = virtual):")
+    for r in ports_rows(scene, bank, stage, physical=physical):
+        kind = "" if r["physical"] is None else "[XLR ] " if r["physical"] else "[virt] "
         pos = f" {r['pos']}" if r["pos"] and r["pos"] != "POST" else ""
         mtxt = f"  [{' + '.join(r['mirrors'])} -> stagebox]" if r["mirrors"] else ""
-        print(f"  {r['bank']} {r['n']:02d} {kind}-> {r['label']:<22}{pos}{mtxt}")
+        jtxt = f"  (rear jack {r['jack']})" if r["jack"] not in (None, r["n"]) else ""
+        print(f"  {r['bank']} {r['n']:02d} {kind}-> {r['label']:<22}{pos}{jtxt}{mtxt}")
         if r["stage"]:
             print(f"      {_stage_text(r['stage'])}")
 

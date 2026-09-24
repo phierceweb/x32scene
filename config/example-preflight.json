@@ -6,201 +6,201 @@
       "name": "Kick",
       "source": "Local input 1",
       "in_main": true,
-      "gain": 27.5,
+      "gain": 22.5,
       "phantom": false
     },
     "2": {
       "name": "Kick Sub",
       "source": "Local input 2",
       "in_main": true,
-      "gain": 27.0,
+      "gain": 21.0,
       "phantom": false
     },
     "3": {
       "name": "Snare Top",
       "source": "Local input 3",
       "in_main": true,
-      "gain": 21.0,
+      "gain": 16.0,
       "phantom": false
     },
     "4": {
       "name": "Snare Bot",
       "source": "Local input 4",
       "in_main": true,
-      "gain": 21.5,
+      "gain": 15.5,
       "phantom": false
     },
     "5": {
       "name": "Rack 1",
       "source": "Local input 5",
-      "in_main": false,
-      "gain": 16.5,
+      "in_main": true,
+      "gain": 26.0,
       "phantom": false
     },
     "6": {
       "name": "Rack 2",
       "source": "Local input 6",
       "in_main": true,
-      "gain": 24.5,
+      "gain": 15.0,
       "phantom": false
     },
     "7": {
       "name": "Rack 3",
       "source": "Local input 7",
-      "in_main": false,
-      "gain": 17.5,
+      "in_main": true,
+      "gain": 14.0,
       "phantom": false
     },
     "8": {
       "name": "Rack 4",
       "source": "Local input 8",
-      "in_main": false,
-      "gain": 17.5,
+      "in_main": true,
+      "gain": 21.5,
       "phantom": false
     },
     "9": {
       "name": "Floor 1",
       "source": "Local input 9",
       "in_main": true,
-      "gain": 22.0,
+      "gain": 27.0,
       "phantom": false
     },
     "10": {
       "name": "Floor 2",
       "source": "Local input 10",
       "in_main": true,
-      "gain": 17.5,
+      "gain": 16.5,
       "phantom": false
     },
     "11": {
       "name": "OH L",
       "source": "Local input 11",
       "in_main": true,
-      "gain": 19.0,
+      "gain": 37.0,
       "phantom": true
     },
     "12": {
       "name": "OH R",
       "source": "Local input 12",
       "in_main": true,
-      "gain": 19.0,
+      "gain": 37.0,
       "phantom": true
     },
     "13": {
       "name": "Hat",
       "source": "Local input 13",
       "in_main": true,
-      "gain": 26.0,
+      "gain": 25.5,
       "phantom": true
     },
     "14": {
       "name": "Ride",
       "source": "Local input 14",
       "in_main": true,
-      "gain": 27.0,
+      "gain": 26.5,
       "phantom": true
     },
     "15": {
       "name": "ROOM L",
       "source": "Local input 15",
-      "in_main": false,
-      "gain": 25.0,
+      "in_main": true,
+      "gain": 30.5,
       "phantom": true
     },
     "16": {
       "name": "ROOM R",
       "source": "Local input 16",
-      "in_main": false,
-      "gain": 25.0,
+      "in_main": true,
+      "gain": 30.5,
       "phantom": true
     },
     "17": {
       "name": "Bass DI",
       "source": "AES50-A input 1",
       "in_main": true,
-      "gain": 37.5,
+      "gain": 22.0,
       "phantom": false
     },
     "18": {
       "name": "Bass Amp",
       "source": "AES50-A input 2",
       "in_main": true,
-      "gain": 15.0,
+      "gain": 23.5,
       "phantom": false
     },
     "19": {
       "name": "Gtr 1 DI",
       "source": "AES50-A input 3",
       "in_main": false,
-      "gain": 14.0,
+      "gain": 30.0,
       "phantom": false
     },
     "20": {
       "name": "Gtr 1",
       "source": "AES50-A input 4",
       "in_main": true,
-      "gain": 6.5,
+      "gain": 11.5,
       "phantom": false
     },
     "21": {
       "name": "Gtr 2 DI",
       "source": "AES50-A input 5",
-      "in_main": false,
-      "gain": 40.0,
+      "in_main": true,
+      "gain": 10.0,
       "phantom": false
     },
     "22": {
       "name": "Gtr 2",
       "source": "AES50-A input 6",
       "in_main": true,
-      "gain": 8.0,
+      "gain": 15.5,
       "phantom": false
     },
     "23": {
       "name": "Vox 1",
       "source": "AES50-A input 7",
       "in_main": true,
-      "gain": 40.0,
+      "gain": 46.0,
       "phantom": false
     },
     "24": {
       "name": "Vox 2",
       "source": "AES50-A input 8",
       "in_main": true,
-      "gain": 40.0,
+      "gain": 48.5,
       "phantom": false
     },
     "25": {
       "name": "Vox 3",
       "source": "AES50-A input 9",
-      "in_main": false,
-      "gain": 40.0,
+      "in_main": true,
+      "gain": 45.5,
       "phantom": false
     },
     "26": {
       "name": "Vox 4",
       "source": "AES50-A input 10",
-      "in_main": false,
-      "gain": 33.0,
+      "in_main": true,
+      "gain": 36.0,
       "phantom": false
     },
     "27": {
       "name": "Trigger L",
       "source": "AES50-A input 11",
       "in_main": false,
-      "gain": 10.0,
+      "gain": 13.0,
       "phantom": false
     },
     "28": {
       "name": "Trigger R",
       "source": "AES50-A input 12",
       "in_main": false,
-      "gain": 10.0,
+      "gain": 13.0,
       "phantom": false
     },
     "30": {
       "name": "Click",
-      "source": "USB Card (DAW) 30",
+      "source": "USB Card (DAW) 32",
       "in_main": false
     },
     "31": {
@@ -244,10 +244,10 @@
     "26": "AES50-A input 10",
     "27": "AES50-A input 11",
     "28": "AES50-A input 12",
-    "29": "AES50-A input 13",
-    "30": "AES50-A input 14",
-    "31": "AES50-A input 15",
-    "32": "AES50-A input 16"
+    "29": "Aux In 5",
+    "30": "Aux In 6",
+    "31": "Output 1",
+    "32": "Output 2"
   },
   "fx": {
     "1": "PLAT",
@@ -267,222 +267,222 @@
   },
   "outputs": {
     "_comment": "Every output of every bank: src (raw output-source number) or bus (1-16), pos (tap point) and invert. A rec line has no invert field.",
-    "main": {
+    "aes": {
       "1": {
-        "bus": 1,
-        "pos": "POST",
+        "src": 1,
+        "pos": "<-EQ",
         "invert": false
       },
       "2": {
-        "bus": 2,
-        "pos": "POST",
-        "invert": false
-      },
-      "3": {
-        "bus": 3,
-        "pos": "POST",
-        "invert": false
-      },
-      "4": {
-        "bus": 4,
-        "pos": "POST",
-        "invert": false
-      },
-      "5": {
-        "bus": 11,
-        "pos": "POST",
-        "invert": false
-      },
-      "6": {
-        "bus": 12,
-        "pos": "POST",
-        "invert": false
-      },
-      "7": {
-        "src": 1,
-        "pos": "POST",
-        "invert": false
-      },
-      "8": {
         "src": 2,
-        "pos": "POST",
-        "invert": false
-      },
-      "9": {
-        "bus": 3,
-        "pos": "POST",
-        "invert": false
-      },
-      "10": {
-        "bus": 4,
-        "pos": "POST",
-        "invert": false
-      },
-      "11": {
-        "bus": 7,
-        "pos": "POST",
-        "invert": false
-      },
-      "12": {
-        "bus": 8,
-        "pos": "POST",
-        "invert": false
-      },
-      "13": {
-        "bus": 5,
-        "pos": "POST",
-        "invert": false
-      },
-      "14": {
-        "bus": 6,
-        "pos": "POST",
-        "invert": false
-      },
-      "15": {
-        "bus": 1,
-        "pos": "POST",
-        "invert": false
-      },
-      "16": {
-        "bus": 2,
-        "pos": "POST",
+        "pos": "<-EQ",
         "invert": false
       }
     },
     "aux": {
       "1": {
-        "bus": 7,
+        "bus": 11,
         "pos": "POST",
         "invert": false
       },
       "2": {
-        "bus": 8,
+        "bus": 12,
         "pos": "POST",
         "invert": false
       },
       "3": {
-        "bus": 5,
+        "src": 1,
         "pos": "POST",
         "invert": false
       },
       "4": {
-        "bus": 6,
+        "src": 2,
         "pos": "POST",
         "invert": false
       },
       "5": {
-        "bus": 9,
+        "src": 20,
         "pos": "POST",
         "invert": false
       },
       "6": {
+        "src": 21,
+        "pos": "POST",
+        "invert": false
+      }
+    },
+    "main": {
+      "1": {
+        "src": 1,
+        "pos": "POST",
+        "invert": false
+      },
+      "2": {
+        "src": 2,
+        "pos": "POST",
+        "invert": false
+      },
+      "3": {
+        "bus": 1,
+        "pos": "POST",
+        "invert": false
+      },
+      "4": {
+        "bus": 2,
+        "pos": "POST",
+        "invert": false
+      },
+      "5": {
+        "bus": 3,
+        "pos": "POST",
+        "invert": false
+      },
+      "6": {
+        "bus": 4,
+        "pos": "POST",
+        "invert": false
+      },
+      "7": {
+        "bus": 5,
+        "pos": "POST",
+        "invert": false
+      },
+      "8": {
+        "bus": 6,
+        "pos": "POST",
+        "invert": false
+      },
+      "9": {
+        "bus": 7,
+        "pos": "POST",
+        "invert": false
+      },
+      "10": {
+        "bus": 8,
+        "pos": "POST",
+        "invert": false
+      },
+      "11": {
+        "bus": 9,
+        "pos": "POST",
+        "invert": false
+      },
+      "12": {
         "bus": 10,
+        "pos": "POST",
+        "invert": false
+      },
+      "13": {
+        "bus": 11,
+        "pos": "POST",
+        "invert": false
+      },
+      "14": {
+        "bus": 12,
+        "pos": "POST",
+        "invert": false
+      },
+      "15": {
+        "src": 3,
+        "pos": "POST",
+        "invert": false
+      },
+      "16": {
+        "src": 20,
         "pos": "POST",
         "invert": false
       }
     },
     "p16": {
       "1": {
-        "src": 26,
-        "pos": "PRE",
-        "invert": false
-      },
-      "2": {
-        "src": 28,
-        "pos": "PRE",
-        "invert": false
-      },
-      "3": {
-        "src": 30,
-        "pos": "PRE",
-        "invert": false
-      },
-      "4": {
-        "src": 31,
-        "pos": "PRE",
-        "invert": false
-      },
-      "5": {
-        "src": 32,
-        "pos": "PRE",
-        "invert": false
-      },
-      "6": {
-        "src": 34,
-        "pos": "PRE",
-        "invert": false
-      },
-      "7": {
-        "src": 35,
-        "pos": "PRE",
-        "invert": false
-      },
-      "8": {
-        "src": 36,
-        "pos": "PRE",
-        "invert": false
-      },
-      "9": {
-        "src": 37,
-        "pos": "PRE",
-        "invert": false
-      },
-      "10": {
         "src": 42,
         "pos": "PRE",
         "invert": false
       },
-      "11": {
+      "2": {
+        "src": 43,
+        "pos": "PRE",
+        "invert": false
+      },
+      "3": {
+        "src": 44,
+        "pos": "PRE",
+        "invert": false
+      },
+      "4": {
         "src": 45,
         "pos": "PRE",
         "invert": false
       },
-      "12": {
+      "5": {
+        "src": 46,
+        "pos": "PRE",
+        "invert": false
+      },
+      "6": {
         "src": 47,
         "pos": "PRE",
         "invert": false
       },
-      "13": {
+      "7": {
+        "src": 30,
+        "pos": "PRE",
+        "invert": false
+      },
+      "8": {
         "src": 48,
         "pos": "PRE",
         "invert": false
       },
-      "14": {
+      "9": {
+        "src": 32,
+        "pos": "PRE",
+        "invert": false
+      },
+      "10": {
         "src": 49,
         "pos": "PRE",
         "invert": false
       },
-      "15": {
+      "11": {
         "src": 50,
         "pos": "PRE",
         "invert": false
       },
-      "16": {
+      "12": {
         "src": 51,
         "pos": "PRE",
         "invert": false
-      }
-    },
-    "aes": {
-      "1": {
-        "src": 1,
-        "pos": "POST",
+      },
+      "13": {
+        "src": 26,
+        "pos": "PRE",
         "invert": false
       },
-      "2": {
-        "src": 2,
-        "pos": "POST",
+      "14": {
+        "src": 28,
+        "pos": "PRE",
+        "invert": false
+      },
+      "15": {
+        "src": 55,
+        "pos": "PRE",
+        "invert": false
+      },
+      "16": {
+        "src": 36,
+        "pos": "PRE",
         "invert": false
       }
     },
     "rec": {
       "1": {
         "src": 1,
-        "pos": "<-EQ"
+        "pos": "POST"
       },
       "2": {
         "src": 2,
-        "pos": "<-EQ"
+        "pos": "POST"
       }
     }
   },
@@ -492,22 +492,25 @@
     "blocks": {
       "IN": {
         "1": "UIN1-8",
+        "3": "A1-8",
         "5": "AUX1-4"
       },
       "AES50A": {
         "2": "OUT9-16"
       },
       "AES50B": {
-        "3": "OUT1-8"
+        "4": "UOUT33-40"
       },
       "CARD": {
-        "1": "UOUT1-8"
+        "1": "UOUT1-8",
+        "4": "UOUT33-40"
       },
       "OUT": {
         "1": "OUT1-4"
       },
       "PLAY": {
-        "1": "CARD1-8"
+        "1": "CARD1-8",
+        "4": "UIN25-32"
       }
     },
     "userrout": {
@@ -515,10 +518,12 @@
         "1": 1,
         "16": 16,
         "17": 33,
-        "32": 48
+        "33": 41,
+        "40": 170
       },
       "in": {
-        "29": 157,
+        "29": 0,
+        "30": 160,
         "32": 130
       }
     }
@@ -571,10 +576,10 @@
       "5": false
     },
     "linkcfg": {
-      "hadly": true,
-      "eq": true,
       "dyn": true,
-      "fdrmute": true
+      "eq": true,
+      "fdrmute": true,
+      "hadly": true
     },
     "require_send_symmetry": true
   },
@@ -586,9 +591,9 @@
     "9": {
       "tap": "PRE",
       "except": {
-        "/fxrtn": "POST",
-        "/ch/11": "POST",
-        "/ch/12": "POST"
+        "/ch/31": "POST",
+        "/ch/32": "POST",
+        "/fxrtn": "POST"
       },
       "present": [
         "/ch/23"
@@ -619,7 +624,9 @@
           "/ch/13",
           "/ch/14",
           "/ch/15",
-          "/ch/16"
+          "/ch/16",
+          "/ch/27",
+          "/ch/28"
         ]
       },
       "2": {
@@ -641,7 +648,6 @@
       "4": {
         "name": "Vocals",
         "members": [
-          "/ch/08",
           "/ch/23",
           "/ch/24",
           "/ch/25",
@@ -651,6 +657,9 @@
       "5": {
         "name": "DCA 5",
         "members": [
+          "/ch/27",
+          "/ch/28",
+          "/ch/30",
           "/ch/31",
           "/ch/32"
         ]

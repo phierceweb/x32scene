@@ -1,7 +1,7 @@
 """Strip reorder: the references outside /ch that are remapped, and those that refuse a move.
 
-Fixture facts the cases lean on: ch05 and ch07 are unlinked; p16 03 taps channel 5 (30) and
-p16 05 channel 7 (32); layer B buttons 11-12 hold the factory "P0000"; every key source is 0
+Fixture facts the cases lean on: ch05 and ch07 are unlinked; p16 07 taps channel 5 (30) and
+p16 09 channel 7 (32); layer B buttons 11-12 hold the factory "P0000"; every key source is 0
 and every automix group OFF.
 """
 
@@ -33,10 +33,10 @@ class DirectOutTest(unittest.TestCase):
     def test_p16_taps_follow_their_channels(self):
         sc = _load()
         refs = _refs(SM.permute_channels(sc, SWAP))
-        self.assertEqual(refs[("/outputs/p16/03", 1)], ("30", "32"))
-        self.assertEqual(refs[("/outputs/p16/05", 1)], ("32", "30"))
-        self.assertEqual(sc.get("/outputs/p16/03").raw, "/outputs/p16/03 32 PRE OFF")
-        self.assertNotIn(("/outputs/p16/04", 1), refs)   # ch06 stays
+        self.assertEqual(refs[("/outputs/p16/07", 1)], ("30", "32"))
+        self.assertEqual(refs[("/outputs/p16/09", 1)], ("32", "30"))
+        self.assertEqual(sc.get("/outputs/p16/07").raw, "/outputs/p16/07 32 PRE OFF")
+        self.assertNotIn(("/outputs/p16/08", 1), refs)   # ch23 stays
 
     def test_other_banks_follow_and_keep_padding_and_every_other_field(self):
         sc = _load("/outputs/main/01  30 <-EQ ON", "/outputs/rec/02 32 PRE",

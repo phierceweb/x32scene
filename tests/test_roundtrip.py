@@ -147,7 +147,7 @@ class PaddedFieldTest(unittest.TestCase):
                 ("/outputs/main/02 26 POST OFF  ", 0, "27", "/outputs/main/02 27 POST OFF  "),
                 ('/config/userctrl/B/btn "F05""P01" x', 2, "y",
                  '/config/userctrl/B/btn "F05""P01" y'),
-                ('  /ch/01/mix ON  +6.5', 1, "-3.0", '  /ch/01/mix ON  -3.0')):
+                ('  /ch/01/mix ON  -4.8', 1, "-3.0", '  /ch/01/mix ON  -3.0')):
             with self.subTest(raw=raw):
                 ln = Line.parse(raw)
                 fields = ln.padded_fields()

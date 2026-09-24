@@ -70,7 +70,7 @@ class BandSetupOutputTest(unittest.TestCase):
         self.assertEqual([ln.split()[3] for ln in body], ["05", "06", "05", "06"])
         self.assertEqual([ln.endswith("  (mirrored)") for ln in body],
                          [False, True, True, True])
-        self.assertIn("level +0.8 -> -16.0", body[0])
+        self.assertIn("level -oo -> -16.0", body[0])
         self.assertEqual(lines[-1], "LOAD-TEST on the console before a gig.")
 
     def test_a_plan_without_mirrors_marks_nothing(self):

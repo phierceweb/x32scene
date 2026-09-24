@@ -10,7 +10,7 @@ Remote Protocol* (v4.06); where it and the console disagreed, the console won an
 disagreement is recorded.
 
 A worked example ships with the repo: [`tests/fixtures/example.scn`](../tests/fixtures/example.scn),
-a full 32-channel console scene.
+a full 32-channel console scene with a synthetic mix and wiring.
 
 ---
 
@@ -148,7 +148,7 @@ order is published and observed in files.
 /ch/NN/mix <on> <fader dB> <LR-on> <pan −100…+100> <mono-on> <mono-level>
 ```
 
-The channel's main pan is **field 4**. `ON -6.1 ON -94 OFF -oo` = fader −6.1 dB, panned
+The channel's main pan is **field 4**. `ON -6.8 ON -100 OFF -oo` = fader −6.8 dB, panned
 hard left.
 
 ### Bus sends — and the odd/even field-count invariant
@@ -446,7 +446,7 @@ channels 1–8.
 | `/config/dp48/assign`, `/config/dp48/link` | indexed by the DP48 personal mixer's own 48 channels, not by console channel | published, observed |
 | `/fx/N/source`, `/ch/NN/insert` | `INS`, `MIX1`…`MIX16`, `M/C`; FX slot sides and aux sends | published, observed |
 | `.chn` `.efx` `.rou` header slot | a library slot | observed on `.chn` and `.efx` |
-| `.shw` cue MIDI channel, user-assign `Mxyyzzz` `yy` | a MIDI channel | published; observed in cue lines |
+| `.shw` cue MIDI fields (type, channel, two parameters); user-assign `Mxyyzzz` `yy` | a MIDI channel | published; the cue fields round-trip X32-Edit unchanged; the `show` line's ten safe bitmaps set and read back on a desk |
 
 **No scene-file solo, monitor, talkback or oscillator setting stores a channel.** The solo
 source, the talkback destination masks and the oscillator destination name buses, main and
@@ -479,7 +479,10 @@ A preset the desk writes differs from the scene lines it came from in two ways: 
 carries the name, icon and colour but **not the input-source field**, and the main mix is
 **split one sub-path per field** (`/mix/fader`, `/mix/st`, `/mix/pan`, `/mix/mono`,
 `/mix/mlevel`, with no mute) where a scene has one `/mix` line. Its columns are padded as
-the desk pads them, so compare a preset with a scene by tokens, never by text.
+the desk pads them, so compare a preset with a scene by tokens, never by text. An older
+preset can be a token short: a `#2.1#` one writes an odd-bus send as four tokens, without
+the trailing `0`. `apply-preset` keeps the target's value for that token (inferred: the
+desk leaves a field a line does not reach), and `presets-diff` compares the four.
 
 The head-amp index inside a `.chn` is fixed at save time (`/headamp/000`). Applying that
 preset to a channel on a different physical input means **remapping the index** —
@@ -503,7 +506,7 @@ and `--scope` overrides the header (`/delay` is then HA Config). `extract-preset
 - `/fx/N/par …` — **positional and specific to the effect type.**
 
 x32scene maps the parameter order for every effect type (`services/fx.py`), each
-corroborated against a line a console wrote — the scene fixtures, a desk's effect-preset
+corroborated against a line a console wrote — saved scenes, a desk's effect-preset
 library, and the default parameter line the desk returns for each type. Two published
 tables disagree with the desk: the stereo enhancer has a ninth parameter (`Solo`), and the
 dual pitch shifter has twelve, not thirteen. The graphic EQs (`GEQ`, `GEQ2`, `TEQ`, `TEQ2`)
@@ -522,15 +525,15 @@ oversights:
 | Item | Status |
 |---|---|
 | `/config/userrout` enumerations | Published (Maillot v4.06). Earlier releases decoded `169`–`184` as mix buses and `167`/`168` as the USB player; they are output slots 1–16 and talkback |
-| Output taps `20`–`25`, `58`–`65`, `74`–`76` | Published enumeration; `20` (Matrix 1) and `75` (Monitor R) written to a desk through X32-Edit and read back as written; the rest not yet seen in a file |
+| Output taps `20`–`25`, `58`–`65`, `74`–`76` | Published enumeration; every one written to a desk and read back as written (`20` and `75` through X32-Edit; the rest by OSC root write and `/node` read-back, firmware 4.06); none yet seen in a saved file |
 | Output taps `26`–`57` on the `main`, `aux`, `aes` and `rec` banks | Published; observed on `p16` only |
 | Gate and dynamics `keysrc` `1`–`64` | Published enumeration; only `0` observed. Whether `1`–`32` names a channel or an input slot is unverified |
 | User-assign codes naming a channel (`Fxx`, `Pxx`, `Sxxyy`, `Oxx`, `Ixx`, `Pxx0z`) | Published; only the factory `P0000` observed |
 | Automix on channels 1–8 only | Published; not verified on a console |
 | Send taps `IN/LC`, `<-EQ`, `GRP` | Taken and read back verbatim on a desk (OSC root write, `/node` read-back, firmware 4.06); not yet seen in a saved file |
-| Output lines in a `.rou` | Published; not yet seen in a file |
+| Output lines in a `.rou` | Published; the factory routing presets X32-Edit exports carry none (four lines: `IN`, `AES50A`, `AES50B`, `CARD`); a desk-saved preset not yet seen |
 | GEQ band labels | Verified on a console for `GEQ` and `GEQ2` (fader labels, and `par` 1, 31 and 33 moved the 20 Hz, 20 kHz and B-side 20 Hz faders); `TEQ`/`TEQ2` assumed to match |
-| `PIT` parameters 4–5 | The desk's default line carries a low-cut-like value and a frequency where the published table has Gain and Pan; named `Lo Cut`/`Hi Cut` from the defaults |
+| `PIT` parameters | Read off X32-Edit's editor with the slot set to `PIT` on a desk (firmware 4.06): Semi −12…+12, Cent −50…+50, Delay 0–500 ms, Lo Cut 10–500 Hz, Hi Cut 2–20 kHz, Mix 0–100, in that order; the desk's default line is `0 0 5.0 52 15k8 100`. The published table's Gain and Pan at 4–5 are wrong |
 | Total line count per scene | Varies with console model and firmware — only *agreement across a library* is checkable |
 
 ## Related save types
@@ -583,7 +586,9 @@ where blocks `1-4`/`9-12` take the low half of each eight (`AN1-4`, `AN9-12` …
 preset; `set-routing` edits a bank. The protocol document's routing-preset list is longer:
 `/config/routing/routswitch`, `OUT` and `PLAY`, and the `/outputs/main`, `aux`, `p16` and
 `aes` lines with their `/delay` and `/iQ` siblings. A routing preset may therefore carry the
-output patch, channel direct outs included — published, not yet seen in a file.
+output patch, channel direct outs included — published; the factory presets X32-Edit exports
+carry only the four `IN`/`AES50A`/`AES50B`/`CARD` lines, and a desk-saved preset has not been
+seen.
 
 **Show files** (`.shw`) are an index X32-Edit writes next to `<show>.NNN.scn` and
 `<show>.NNN.snp` companions: a `show "<name>" …` line, then one `cue/NNN`, `scene/NNN` or
@@ -595,8 +600,16 @@ cue/000 100 "Opener" 0 0 -1 0 1 0 0
 ```
 
 the cue number times 100 (`1.2.3` is `123`), its name, skip, the scene slot and snippet
-slot it recalls (`-1` for none), then the MIDI type, channel and two values. `x32scene
-show` lists one and `show --check` checks its cues and companions; `x32scene show-build`
-writes one from scene and snippet files and cue lines, in the shape X32-Edit imports.
+slot it recalls (`-1` for none), then the MIDI command the console sends on recall: its
+type (`0` none, `1` program change, `2` control change, `3` note), channel, and two
+parameters (the program number; the controller and its value; the note and its velocity).
+That is the `/node` form of `/-show/showfile/cue/NNN` (published), and X32-Edit imports
+and exports the four values unchanged. The `show` line is `show "<name>"` then ten
+integers and the writer's version string: the scene-safe bitmaps `inputs`, `mxsends`,
+`mxbuses`, `console`, `chan16`, `chan32`, `return`, `buses`, `lrmtxdca` and `effects`, in
+that order (each set on a desk in turn and read back, firmware 4.06); the bits are the
+published safe tables. `x32scene show` lists a show and `show --check` checks its cues and
+companions; `x32scene show-build` writes one from scene and snippet files and cue lines, in
+the shape X32-Edit imports.
 
 **Cues** pair a scene with a snippet (and MIDI); they live only in the show index.

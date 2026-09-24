@@ -44,8 +44,8 @@ class SetBusLinkCliTest(unittest.TestCase):
                                  os.path.join(d, "u.scn"))
             self.assertEqual(code, 0)
             self.assertIn("unlinked bus 9/10", text)
-            self.assertIn("aux 05 <- bus 9", text)
-            self.assertIn("aux 06 <- bus 10", text)
+            self.assertIn("main 11 <- bus 9", text)
+            self.assertIn("main 12 <- bus 10", text)
 
     def test_state_is_accepted_in_either_case(self):
         for state, token in (("ON", "ON"), ("On", "ON"), ("OFF", "OFF")):

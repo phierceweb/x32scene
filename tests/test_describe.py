@@ -60,7 +60,7 @@ class DescribeTest(unittest.TestCase):
     def test_output_change_names_the_source_with_its_label(self):
         d = D.describe(self.b, self.by_path["/outputs/main/05"])
         self.assertEqual((d.group, d.what), ("outputs", "main 05"))
-        self.assertEqual(d.fields, [("src", "14 (Bus 11)", "8 (Bus 5)")])
+        self.assertEqual(d.fields, [("src", "6 (Bus 3)", "1 (Main L)")])
 
     def test_routing_block_change_names_the_block(self):
         d = D.describe(self.b, self.by_path["/config/routing/AES50A"])
@@ -77,7 +77,7 @@ class DescribeTest(unittest.TestCase):
         self.assertEqual(d.group, "/ch/02")
         self.assertEqual(d.label, 'ch 02 "Kick Sub"')
         self.assertEqual(d.what, "headamp 001")
-        self.assertEqual(d.fields, [("gain", "+27.0", "+23.5")])
+        self.assertEqual(d.fields, [("gain", "+21.0", "+13.5")])
 
     def test_strip_line_change_lists_only_the_changed_fields(self):
         d = D.describe(self.b, self.by_path["/ch/07/mix"])
@@ -90,7 +90,7 @@ class DescribeTest(unittest.TestCase):
         b.get("/ch/23/mix/09").set_arg(1, "-11.0")
         d = D.describe(b, diff(self.a, b)[0])
         self.assertEqual((d.group, d.label, d.what), ("/ch/23", 'ch 23 "Vox 1"', "send -> bus 09"))
-        self.assertEqual(d.fields, [("level", "0.0", "-11.0")])
+        self.assertEqual(d.fields, [("level", "+0.3", "-11.0")])
 
     def test_a_bus_or_main_send_names_the_matrix(self):
         for path in ("/bus/13/mix/01", "/main/st/mix/03", "/main/m/mix/05"):
@@ -105,7 +105,7 @@ class DescribeTest(unittest.TestCase):
         b.get("/fx/1/par").set_arg(1, "3.50")
         d = D.describe(b, diff(self.a, b)[0])
         self.assertEqual((d.group, d.what), ("fx", "fx 1 params"))
-        self.assertEqual(d.fields, [("Decay", "2.11", "3.50")])
+        self.assertEqual(d.fields, [("Decay", "1.62", "3.50")])
 
     def test_fx_type_change_is_labelled(self):
         b = Scene.load(EXAMPLE)
@@ -120,8 +120,8 @@ class DescribeTest(unittest.TestCase):
         self.assertEqual(d.note, "added")
 
     def test_field_count_change_is_noted(self):
-        d = D.describe(self.b, Change("/ch/01/mix/02", "/ch/01/mix/02 ON  +2.8",
-                                       "/ch/01/mix/02 ON  +2.8 +0 PRE 0"))
+        d = D.describe(self.b, Change("/ch/01/mix/02", "/ch/01/mix/02 ON  -7.9",
+                                       "/ch/01/mix/02 ON  -7.9 +0 PRE 0"))
         self.assertIn("2 -> 5 field(s)", d.note)
 
     def test_unknown_layout_falls_back_to_field_numbers(self):
@@ -143,7 +143,7 @@ class DiffByStripViewTest(unittest.TestCase):
             _views.cmd_diff_by_strip(a, b)
         out = buf.getvalue()
         self.assertIn('ch 02 "Kick Sub"', out)
-        self.assertIn("gain +27.0 -> +23.5", out)
+        self.assertIn("gain +21.0 -> +13.5", out)
         self.assertIn("block 2 OUT9-16 -> UOUT9-16", out)
 
     def test_cli_flag_and_json_fields(self):
@@ -159,7 +159,7 @@ class DiffByStripViewTest(unittest.TestCase):
         doc = json.loads(buf.getvalue())
         c = next(c for c in doc["changes"] if c["path"] == "/outputs/main/05")
         self.assertEqual(c["group"], "outputs")
-        self.assertEqual(c["fields"], [{"name": "src", "before": "14 (Bus 11)", "after": "8 (Bus 5)"}])
+        self.assertEqual(c["fields"], [{"name": "src", "before": "6 (Bus 3)", "after": "1 (Main L)"}])
 
 
 if __name__ == "__main__":

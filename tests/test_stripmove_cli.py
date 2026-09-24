@@ -1,7 +1,7 @@
 """The swap-strips, move-strip and reorder-strips commands, and the snippet --edit that
 refuses them.
 
-Fixture facts the cases lean on: ch05 "Rack 1" and ch07 "Rack 3" are unlinked and p16 03
+Fixture facts the cases lean on: ch05 "Rack 1" and ch07 "Rack 3" are unlinked and p16 07
 taps channel 5; channel pairs 11/12 and 15/16 are linked.
 """
 
@@ -46,7 +46,7 @@ class StripCommandTest(unittest.TestCase):
         self.assertEqual((code, err), (0, ""))
         self.assertIn('ch05 "Rack 1" -> ch07', text)
         self.assertIn('ch07 "Rack 3" -> ch05', text)
-        self.assertIn("/outputs/p16/03 field 1 (src): 30 -> 32", text)
+        self.assertIn("/outputs/p16/07 field 1 (src): 30 -> 32", text)
         lines = text.rstrip().splitlines()
         self.assertEqual(lines[-2:], [f"wrote {out}", LOAD_TEST])
         written = Scene.load(out)

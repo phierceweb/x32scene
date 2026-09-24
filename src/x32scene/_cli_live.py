@@ -8,7 +8,7 @@ import sys
 from . import _json
 from . import _views
 from . import _views_desk as _vdesk
-from ._cli_files import load_checked, refuse_overwrite, refuse_unwritable
+from ._cli_files import load_checked, refuse_overwrite
 from .services import buslink as _buslink
 from .services import osc as _osc
 from .services import snippets as _snippets
@@ -18,16 +18,16 @@ from .services import watch as _watch
 def run_watch(args) -> int:
     """Exit 2 when the desk does not answer the start snapshot; Ctrl-C ends a watch with 0."""
     if args.snippet is not None:
-        refuse_unwritable(args.snippet, "--snippet")
         refuse_overwrite(args.snippet, args.reference, force=args.force, flag="--snippet")
     ref = load_checked(args.reference)
     port = _osc.X32_PORT
     with _osc.UdpTransport(args.ip, port) as link:
         sub = _watch.subscribe(link)
         pulled: dict[str, float] = {}
+        trips: list[float | None] = []
         try:
             start, unanswered = _osc.pull_scene_like(ref, args.ip, port=port, timeout=args.timeout,
-                                                     asked=pulled, between=sub)
+                                                     asked=pulled, round_trips=trips, between=sub)
             sub()
         except _osc.OscError as e:
             print(f"watch failed: {e}", file=sys.stderr)
@@ -38,7 +38,7 @@ def run_watch(args) -> int:
         if unanswered:
             head = ", ".join(unanswered[:8]) + (" …" if len(unanswered) > 8 else "")
             print(f"unanswered paths, not watched ({len(unanswered)}): {head}", file=sys.stderr)
-        w = _watch.Watch(ref, start, reply_timeout=args.timeout)
+        w = _watch.Watch(ref, start, reply_timeout=args.timeout, round_trips=trips)
         nodes = sum(ln.path.startswith("/") for ln in start.lines)
         print(f"watching {nodes} path(s) on {args.ip}; Ctrl-C to stop", file=sys.stderr)
 

@@ -1,8 +1,8 @@
 """set-bus-link: toggling a stereo mix-bus pair the way the desk does.
 
 Fixture facts the cases lean on: buses 13/14 are unlinked with centred pans and differing
-sends (ch03 -22.5 on 13, -19.5 on 14); buses 1/2 and 9/10 are linked with main and
-matrix-send pans at -100/+100; aux outs 5/6 carry buses 9/10.
+sends (ch03 -9.7 on 13, -11.9 on 14); buses 1/2 and 9/10 are linked with main and
+matrix-send pans at -100/+100; main outs 11/12 carry buses 9/10.
 """
 
 import os
@@ -70,9 +70,9 @@ class LinkOnTest(unittest.TestCase):
         self.assertEqual((self.edit.odd, self.edit.even, self.edit.on), (13, 14, True))
 
     def test_even_sends_take_the_odd_sends_on_and_level_verbatim(self):
-        self.assertEqual(_raw(self.sc, "/ch/03/mix/14"), "/ch/03/mix/14 ON -22.5")
+        self.assertEqual(_raw(self.sc, "/ch/03/mix/14"), "/ch/03/mix/14 ON  -9.7")
         self.assertEqual(_raw(self.sc, "/ch/01/mix/14"), "/ch/01/mix/14 ON   -oo")
-        self.assertEqual(_raw(self.sc, "/ch/23/mix/14"), "/ch/23/mix/14 ON -72.0")
+        self.assertEqual(_raw(self.sc, "/ch/23/mix/14"), "/ch/23/mix/14 ON -11.2")
         self.assertEqual(_raw(self.sc, "/auxin/01/mix/14"), "/auxin/01/mix/14 ON   -oo")
         self.assertEqual(_raw(self.sc, "/fxrtn/01/mix/14"), "/fxrtn/01/mix/14 ON   -oo")
         for s in SEND_STRIPS:
@@ -101,10 +101,9 @@ class LinkOnTest(unittest.TestCase):
         self.assertEqual(_raw(self.sc, "/bus/13/mix"), "/bus/13/mix ON   0.0 OFF -100 OFF   -oo")
 
     def test_writes_exactly_the_desks_paths(self):
-        want = {"/config/buslink", "/ch/01/mix/14", "/ch/03/mix/14", "/ch/05/mix/14",
-                "/ch/06/mix/14", "/ch/07/mix/14", "/ch/09/mix/14", "/ch/10/mix/14",
-                "/ch/11/mix/14", "/ch/12/mix/14", "/ch/23/mix/14", "/ch/24/mix/14",
-                "/ch/25/mix/14", "/ch/26/mix/14", "/auxin/01/mix/14", "/fxrtn/01/mix/14",
+        want = {"/config/buslink", "/ch/01/mix/14", "/ch/03/mix/14", "/ch/04/mix/14",
+                *(f"/ch/{n:02d}/mix/14" for n in (*range(5, 11), *range(19, 27))),
+                "/auxin/01/mix/14", "/fxrtn/01/mix/14",
                 "/bus/13/mix", "/bus/13/mix/01", "/bus/13/mix/03", "/bus/13/mix/05",
                 "/bus/14/config", "/bus/14/eq", "/bus/14/eq/1", "/bus/14/dyn",
                 "/bus/14/dyn/filter", "/bus/14/insert", "/bus/14/grp", "/bus/14/mix",
@@ -185,8 +184,8 @@ class LinkOffTest(unittest.TestCase):
         self.assertEqual(set(self.edit.changed), want)
         self.assertEqual(_raw(self.sc, "/config/buslink"),
                          "/config/buslink OFF ON ON ON ON ON OFF OFF")
-        self.assertEqual(_raw(self.sc, "/bus/01/mix"), "/bus/01/mix ON -31.5 OFF +0 OFF   -oo")
-        self.assertEqual(_raw(self.sc, "/bus/02/mix"), "/bus/02/mix ON -31.5 OFF +0 OFF   -oo")
+        self.assertEqual(_raw(self.sc, "/bus/01/mix"), "/bus/01/mix ON  -8.3 OFF +0 OFF   -oo")
+        self.assertEqual(_raw(self.sc, "/bus/02/mix"), "/bus/02/mix ON  -8.3 OFF +0 OFF   -oo")
         self.assertEqual(_raw(self.sc, "/bus/02/mix/03"), "/bus/02/mix/03 ON   -oo +0 POST 0")
         self.assertEqual(_field_counts(self.sc), _field_counts(self.base))
 
@@ -238,7 +237,7 @@ class RefusalTest(unittest.TestCase):
 class OutputsTest(unittest.TestCase):
     def test_outputs_fed_from_a_pair(self):
         sc = Scene.load(EXAMPLE)
-        self.assertEqual(outputs_from_buses(sc, (9, 10)), [("aux", 5, 9), ("aux", 6, 10)])
+        self.assertEqual(outputs_from_buses(sc, (9, 10)), [("main", 11, 9), ("main", 12, 10)])
         self.assertEqual(outputs_from_buses(sc, (13, 14)), [])
 
 

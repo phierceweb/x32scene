@@ -89,7 +89,7 @@ class SetSendTapCliTest(unittest.TestCase):
         with open(EXAMPLE, encoding="utf-8") as fh:
             text = fh.read()
         with open(short, "w", encoding="utf-8") as fh:
-            fh.write(text.replace("/ch/01/mix/03 ON  +6.8 +0 PRE 0", "/ch/01/mix/03 ON  +6.8"))
+            fh.write(text.replace("/ch/01/mix/03 ON  -1.6 +0 PRE 0", "/ch/01/mix/03 ON  -1.6"))
         cases = (([EXAMPLE, "33", "1", "POST"], "not a send strip"),
                  ([EXAMPLE, "/bus/01", "1", "POST"], "not a send strip"),
                  ([EXAMPLE, "1", "17", "POST"], "out of range 1-16"),
@@ -116,8 +116,8 @@ class SetSendTapCliTest(unittest.TestCase):
         self.assertIn("bus 4's tap lives on bus 3's line", text)
         with open(snp, encoding="utf-8") as fh:
             body = [ln for ln in fh.read().split("\n")[1:] if ln]
-        self.assertEqual(body, ["/ch/11/mix/03 ON  -1.8 -100 POST 0",
-                                "/ch/12/mix/03 ON  -1.8 +100 POST 0"])
+        self.assertEqual(body, ["/ch/11/mix/03 ON   -oo -100 POST 0",
+                                "/ch/12/mix/03 ON   -oo +100 POST 0"])
 
     def test_snippet_edit_refusal_is_exit_1(self):
         snp = os.path.join(self.dir, "tap.snp")

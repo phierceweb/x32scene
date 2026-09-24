@@ -8,7 +8,7 @@ from tests.test_watch_end import InterruptedDesk
 from x32scene.model import Scene
 from x32scene.services import watch as W
 
-MIX_START = "/ch/01/mix ON  +6.5 ON +0 OFF   -oo"
+MIX_START = "/ch/01/mix ON  -4.8 ON +0 OFF   -oo"
 
 
 class SilentFrom(ScriptedDesk):

@@ -167,8 +167,8 @@ class InversionTest(unittest.TestCase):
 
     def test_a_non_bus_output_is_written_as_src(self):
         outputs = _generated(EXAMPLE)["outputs"]
-        self.assertEqual(outputs["main"]["1"], {"bus": 1, "invert": False, "pos": "POST"})
-        self.assertEqual(outputs["main"]["7"], {"invert": False, "pos": "POST", "src": 1})
+        self.assertEqual(outputs["main"]["3"], {"bus": 1, "invert": False, "pos": "POST"})
+        self.assertEqual(outputs["main"]["1"], {"invert": False, "pos": "POST", "src": 1})
         self.assertNotIn("invert", outputs["rec"]["1"])
 
     def test_an_engaged_mute_group_is_declared(self):
@@ -189,11 +189,11 @@ class InversionTest(unittest.TestCase):
 
     def test_a_malformed_line_adds_nothing_to_its_shape_finding(self):
         text = _fixture_text()
-        cases = {"short output": ("/outputs/main/03 6 POST OFF", "/outputs/main/03 6 POST"),
+        cases = {"short output": ("/outputs/main/03 4 POST OFF", "/outputs/main/03 4 POST"),
                  "link token": ("/config/buslink ON ON", "/config/buslink XX ON"),
-                 "short send": ("/ch/01/mix/03 ON  +6.8 +0 PRE 0", "/ch/01/mix/03 ON  +6.8"),
+                 "short send": ("/ch/01/mix/03 ON  -1.6 +0 PRE 0", "/ch/01/mix/03 ON  -1.6"),
                  "mute width": ("/config/mute OFF OFF OFF OFF OFF OFF", "/config/mute ON OFF"),
-                 "routing width": ("/config/routing/CARD UOUT1-8 UOUT9-16 UOUT17-24 UOUT25-32",
+                 "routing width": ("/config/routing/CARD UOUT1-8 UOUT9-16 UOUT17-24 UOUT33-40",
                                    "/config/routing/CARD UOUT1-8 UOUT9-16")}
         for case, (old, new) in cases.items():
             with self.subTest(case=case):
@@ -204,7 +204,7 @@ class InversionTest(unittest.TestCase):
                 self.assertTrue(preflight(sc, {}))
 
     def test_a_policy_the_scene_breaks_is_written_false(self):
-        text = _fixture_text().replace("/outputs/aux/02 11 ", "/outputs/aux/02 12 ")
+        text = _fixture_text().replace("/outputs/aux/02 15 ", "/outputs/aux/02 16 ")
         sc = Scene.parse(text)
         doc = json.loads(dumps(regenerate(sc, EXAMPLE, DAY)))
         self.assertEqual(doc["monitor"]["stereo_pairs"], ["main"])
