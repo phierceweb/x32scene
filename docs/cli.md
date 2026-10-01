@@ -40,6 +40,7 @@ same kind decides the `.scn`-only refusal of `swap-strips`, `move-strip` and
 - [Snippets, plans and shows](#snippets-plans-and-shows)
 - [Checks](#checks)
 - [The live desk (read-only)](#the-live-desk-read-only)
+- [Loading onto the desk](#loading-onto-the-desk)
 
 ## Environment
 
@@ -50,8 +51,8 @@ same kind decides the `.scn`-only refusal of `swap-strips`, `move-strip` and
 | `X32SCENE_STAGE` | `ports`, `report`, `preflight` | stage sidecar JSON ([stage-sidecar.md](stage-sidecar.md)); start from `config/example-stage.json` |
 | `X32SCENE_CORPUS` | `audit`, `history`, the round-trip test | directory of `.scn` files; the round-trip test also reads every `.snp`, `.chn`, `.efx`, `.rou` and `.shw` under it |
 | `X32SCENE_REGEN_SCENE` | the rig-config drift test | a scene; with `X32SCENE_CONFIG`, the test regenerates a config from it and fails, printing the diff, when the two differ |
-| `X32SCENE_IP` | `pull`, `live-diff`, `desk`, `meters`, `watch` | the console's address (UDP 10023) |
-| `X32SCENE_TIMEOUT` | `pull`, `live-diff`, `desk`, `watch` | seconds to wait for each path's reply (default 0.5); for `watch`, the least a read-back waits ([below](#the-live-desk-read-only)) |
+| `X32SCENE_IP` | `pull`, `live-diff`, `desk`, `meters`, `watch`, `load` | the console's address (UDP 10023) |
+| `X32SCENE_TIMEOUT` | `pull`, `live-diff`, `desk`, `watch`, `load` | seconds to wait for each path's reply (default 0.5); for `watch`, the least a read-back waits ([below](#the-live-desk-read-only)) |
 | `LOG_FILE` | every command | a JSON-lines log of each invocation |
 
 `bin/run` sources `.env`, so a checkout runs commands bare; `.env.example` lists the values.
@@ -210,6 +211,13 @@ unanswered and the last slot that answered stays silent too.
 
 Exit codes: 0 on success, 1 when a check fails (`audit`, `preflight`, a drifted or
 unreadable preset in `presets-diff`), 2 when a plan or a desk read fails with nothing written
-(for `watch`, the start pull); any other input error prints one line and exits 1. A file that
+(for `watch`, the start pull; for `load`, also a desk that stops answering after writes went
+out, said so), 130 when Ctrl-C ends `load`; any other input error prints one line and exits 1. A file that
 is not UTF-8 is refused as not a console text file (or, for a JSON document, not a JSON
 document), naming it.
+
+## Loading onto the desk
+
+| Command | Writes | Flags |
+|---|---|---|
+| `load FILE` | a `.scn` or `.snp` onto the running desk: every line the desk does not hold (padding aside), as `/` root writes in file order, an FX slot's type line given half a second before its parameters follow; then every line of the file read back (a write can change another: a linked pair's mirror, an FX type resetting its parameters) and what still differs written again, up to `--passes` rounds. Each pass writes slower than the last. Prints each pass's count, then whether the desk holds the file, and names the head amps it wrote. A path the desk did not answer at the start is written and read back once; one it never answers is named as not verified and not asked again. Exit 1 for a path the desk still answers with another value after the last pass (its own grid, a linked pair's mirror), shown as the file's line and the desk's, and for a path never read back; exit 2 when the desk does not answer, before any write (a single silent path is probed with `/node ch/01/config`, so a one-line file never writes blind) or after writes went out, when the passes and head amps written are still printed and the desk may hold part of the file, said so (a failed send ends the same way); exit 130 on Ctrl-C, saying whether anything was written. Exit 1 with nothing written, the desk never contacted, for a `.chn`, `.efx`, `.rou`, `.shw` or a file whose header is not a scene's or a snippet's; a body line that is not a parameter of a scene or snippet (`/config`, `/ch`, `/auxin`, `/fxrtn`, `/bus`, `/mtx`, `/main`, `/dca`, `/fx`, `/outputs`, `/headamp`), since a root write also reaches the desk's actions and preferences (`/-action`, `/-prefs`); a scene whose header marks a group safe, or a snippet line outside its own masks, since the desk's recall skips those and a root write does not; no parameter lines; a last line without its newline | `--ip`, `--timeout`, `--passes` (1–10, default 3), `--json` (`file`, `ok`, `passes` as lists of paths, `written`, `stuck` as `diff --json` gives changes, `unanswered`, `error` when the desk stopped answering or a send failed after writes went out, `interrupted` after Ctrl-C) |

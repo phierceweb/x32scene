@@ -56,9 +56,9 @@ class _Subcommands(argparse._SubParsersAction):
 
 
 DESCRIPTION = ("Read, diff and edit Behringer X32 / M32 scene, snippet and preset files, and "
-               "read a live console over OSC. An edit writes a new file, never its input. Run "
-               "`x32scene <command> --help` for one command; docs/cli.md in the repository "
-               "is the full reference.")
+               "read a live console over OSC, or load a file onto it. An edit writes a new "
+               "file, never its input. Run `x32scene <command> --help` for one command; "
+               "docs/cli.md in the repository is the full reference.")
 
 
 def _build_parser(description: str | None) -> argparse.ArgumentParser:

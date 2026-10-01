@@ -54,6 +54,15 @@ class SnippetHeader:
                          (self.eventtyp, self.channels, self.auxbuses, self.maingrps))
         return f'#4.0# "{self.name}" {masks} 1'.ljust(HEADER_WIDTH)
 
+    def covers(self, path: str) -> bool | None:
+        """Whether the desk's recall of this snippet applies ``path``: its filter and strip
+        bits are set. None for a path the console does not carry in a snippet."""
+        scope = classify(path)
+        if scope is None:
+            return None
+        bit, mask, mbit = scope
+        return bool(self.eventtyp >> bit & 1 and (mask is None or getattr(self, mask) >> mbit & 1))
+
     def describe(self) -> dict:
         """The masks as names: filters, and the strips per mask."""
         out: dict = {"name": self.name,

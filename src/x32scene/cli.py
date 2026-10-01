@@ -23,6 +23,7 @@ from ._cli_console import config_jacks
 from ._cli_edits import EDIT_COMMANDS, run_edit
 from ._cli_files import clean, load_checked, read_checked, start_run
 from ._cli_library import run_audit, run_history
+from ._cli_load import run_load
 from ._cli_outputs import refuse_unwritable_outputs
 from ._cli_pull import run_pull
 from ._cli_snippet import run_snippet
@@ -61,7 +62,7 @@ def _run(argv: list[str] | None = None) -> int:
     start_run(args.kind)
     if args.cmd == "audit" and not args.dir:
         raise InvalidInputError("no scene directory: pass DIR or set X32SCENE_CORPUS")
-    if args.cmd in ("pull", "live-diff", "desk", "meters", "watch") and not args.ip:
+    if args.cmd in ("pull", "live-diff", "desk", "meters", "watch", "load") and not args.ip:
         raise InvalidInputError("no console IP: pass --ip or set X32SCENE_IP")
     refuse_unwritable_outputs(args)
     if args.cmd in EDIT_COMMANDS:
@@ -70,6 +71,8 @@ def _run(argv: list[str] | None = None) -> int:
         return run_strips(args)
     if args.cmd == "watch":
         return run_watch(args)
+    if args.cmd == "load":
+        return run_load(args)
 
     if args.cmd == "audit":
         return run_audit(args)

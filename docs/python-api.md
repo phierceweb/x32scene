@@ -96,7 +96,7 @@ One concern per module. The ones a script reaches for first:
 | `presets` | `.chn` extract/apply, with the head-amp index remapped; `header_scopes(text)` the scopes a header's flags select (None when headerless or the header has no flag mask), `preset_selects(text, scopes) -> Callable[[str], bool]` the predicate an apply writes a bare preset path by (`selects("/eq/1")`), `unflagged_scopes(text, scopes)` what an apply skips, `mirrored_sends(sc, ch, text, scopes)` the sends it writes from a stereo-linked bus partner's line |
 | `preset_library` | a folder of `.chn` against a scene: `check_library(sc, dir) -> list[PresetCheck]`; `extract_library(sc) -> (presets, unnamed, shared)` for one preset per named channel, skipping every channel on a shared file name |
 | `fx` | effect types, sources and parameters by name |
-| `snippets` | build a `.snp` from a delta, with the header masks derived from the body |
+| `snippets` | build a `.snp` from a delta, with the header masks derived from the body; `read_header(text).covers(path)` says whether the desk's recall of a snippet applies a path (None for one no snippet carries) |
 | `diff` | `diff(a, b) -> list[Change]` |
 | `show`, `show_check` | `read_show(text) -> Show`, `build_show(...)` for a `.shw` and its companions; `check_show(show, stem, read) -> list[Finding]` fails a file with no `show` line (`Show.has_show_line`), checks the cues and each `companion(stem, entry)` file, with `read(name)` raising FileNotFoundError for an absent one |
 | `audit` | a scene library: `load_library(dir) -> (scenes, errors)`, `check_invariants(lib)`, and each change down the chronology in `routing_drift(lib)` and `record_patch_drift(lib)` |
@@ -104,6 +104,7 @@ One concern per module. The ones a script reaches for first:
 | `preflight_regen` | the config a scene satisfies: `regenerate(sc, source, generated, console=None) -> dict`, with `monitor.physical_outputs` and `require_reachable` only when `console` names a model; `dumps(doc)` is the stable file text |
 | `console_models` | `console_model(name)` for the `/xinfo` model string (`X32RACK` or `"X32 Rack"`, any case) and `main_jacks(name)` for how many `/outputs/main` have a rear jack (0 on X32 Core and M32C); ValueError for an unknown model |
 | `osc`, `desk`, `meters` | the read-only live layer |
+| `load` | `load_scene(target, ip, port=, timeout=, passes=3, sleep=) -> LoadResult`: writes each line the desk does not hold with a `/` root write, reads every line of the file back, and writes again what still differs, `passes` times at most; the result's `passes` are the paths written per pass, `stuck` the `Change`s (the file's line, the desk's) left after the last pass, `unanswered` the paths never read back, `written` the count, `error` the message when the desk stopped answering or a send failed after writes went out, `interrupted` when Ctrl-C did, and `ok` when none of those. Raises ValueError, before the desk is contacted, for a file `refuse_unloadable(target)` refuses (the CLI's list: not a scene or snippet, a line that is not a scene or snippet parameter, a group the header marks safe, a snippet line outside its masks, no parameter lines, no final newline), and OscError when the desk does not answer the first read, before any write |
 | `watch` | changes on the running desk as they happen: `subscribe(transport)` before pulling `start` returns a `Subscription` to pass as `pull_scene_like(..., between=)`, which renews `/xremote` and keeps what the desk pushes meanwhile; `Watch(reference, start).run(transport, backlog=sub.backlog, pulled=asked)` yields each `Changed`, dated by the push that reported it, where `asked` is the dict `pull_scene_like(..., asked=)` filled with when it first asked for each path, so a push the start already holds dates nothing; `flush(transport)` reads back what an interrupted run left waiting; `summary()` is the net change of the paths that answered and the paths left `unanswered`; transport and clock are injectable |
 
 Two conventions run through all of them:
@@ -139,8 +140,8 @@ scene with the report; to inspect each step, call `apply_plan` and `verify` your
 - **It does not refuse to overwrite.** `Scene.save(path)` writes where you point it. The
   input/output guards are the CLI's (`_cli_files.refuse_overwrite`), so a script that edits
   a real scene library must not point `save` at its source.
-- **It does not push to the desk.** The OSC layer reads; writing over the network is
-  deliberately not a feature.
+- **Only `load_scene` writes to the desk.** The rest of the OSC layer reads, and `load_scene`
+  believes nothing it has not read back.
 - **It does not validate a file on load.** `services.validate` computes the shape findings
   (`findings`, `kind_of`), but only the CLI's checked readers call it and print them — a
   script gets them by asking. `preflight` and `audit` are the semantic checks, and they are

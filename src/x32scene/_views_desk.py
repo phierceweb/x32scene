@@ -14,6 +14,7 @@ from .services.console import console_sections
 from .services.describe import describe
 from .services.desk import LIB_KINDS, DeskInfo, state_words
 from .services.diff import Change
+from .services.load import LoadResult
 from .services.meters import Peaks, fmt_db, slot_names, to_db
 from .services.snippets import Snippet
 from .services.watch import Changed, Summary
@@ -144,3 +145,26 @@ def cmd_watch_no_snippet(snip: Snippet | None, out: str, summary: Summary) -> No
     else:
         print(f"the net change has nothing a snippet can carry "
               f"({', '.join(snip.skipped)}); nothing written to {out}")
+
+
+def cmd_load(result: LoadResult, target: Scene, name: str, passes: int) -> None:
+    """Each pass, then whether the desk holds the file; the head amps written are named,
+    since a gain or phantom change is the one a load must not surprise anyone with."""
+    for n, paths in enumerate(result.passes, start=1):
+        print(f"pass {n}: {len(paths)} line(s) written")
+    if not result.passes and not (result.error or result.interrupted):
+        print(f"the desk already holds {name}: nothing written")
+    elif result.ok:
+        print(f"the desk holds {name}: {result.written} line(s) written in "
+              f"{len(result.passes)} pass(es)")
+    if result.stuck:
+        print(f"{len(result.stuck)} path(s) the desk answers with another value after "
+              f"{passes} pass(es):")
+        for c in result.stuck:
+            print(f"  {c.path}\n    - {c.before}\n    + {c.after}")
+    if result.unanswered:
+        head = ", ".join(result.unanswered[:8]) + (" …" if len(result.unanswered) > 8 else "")
+        print(f"{len(result.unanswered)} path(s) not read back, so not verified: {head}")
+    heads = sorted({p for paths in result.passes for p in paths if p.startswith("/headamp/")})
+    if heads:
+        print("head amps written: " + ", ".join(target.get(p).raw for p in heads))

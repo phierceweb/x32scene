@@ -5,6 +5,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import tempfile
 import unittest
 from unittest import mock
@@ -73,6 +74,15 @@ class ValidateTest(unittest.TestCase):
                 with self.assertRaises(ValueError) as cm:
                     S.validate_stage(bad)
                 self.assertIn(needle, str(cm.exception))
+
+    def test_a_rejection_on_load_names_the_file(self):
+        for bad in ([], {"output": {}}):
+            with self.subTest(doc=bad), tempfile.TemporaryDirectory() as d:
+                path = os.path.join(d, "stage.json")
+                with open(path, "w") as fh:
+                    json.dump(bad, fh)
+                with self.assertRaisesRegex(ValueError, f"^{re.escape(path)}: stage sidecar"):
+                    S.load_stage(path)
 
     def test_same_jack_label_on_two_boxes_is_fine(self):
         S.validate_stage(doc(main={"9": {**ENTRY, "box": "A"},

@@ -43,6 +43,14 @@ class HeaderTest(unittest.TestCase):
     def test_scene_header_is_not_a_snippet(self):
         self.assertIsNone(read_header('#4.0# "Rig" "" %000000000 1'))
 
+    def test_covers_a_path_only_when_its_filter_and_strip_bits_are_set(self):
+        h = SnippetHeader("x", eventtyp=1 << 6, channels=1, maingrps=1 << 8)
+        self.assertTrue(h.covers("/ch/01/mix/fader"))
+        self.assertTrue(h.covers("/dca/1/fader"))
+        self.assertFalse(h.covers("/ch/02/mix/fader"))     # strip bit clear
+        self.assertFalse(h.covers("/ch/01/mix/on"))        # mute filter clear
+        self.assertIsNone(h.covers("/ch/01/mix"))          # a combined line no snippet carries
+
 
 class ClassifyTest(unittest.TestCase):
     def test_strip_paths(self):

@@ -49,6 +49,11 @@ def test_every_subcommand_has_a_row_in_cli_md():
     assert not missing, f"no row in docs/cli.md: {missing}"
 
 
+def test_the_readme_command_count_is_the_parsers():
+    stated = re.findall(r"all (\d+) commands", (DOCS.parent / "README.md").read_text())
+    assert stated == [str(len(_subparsers()))]
+
+
 def test_every_flag_is_in_its_own_commands_rows():
     """`-o` stands for its long spellings; `--force` on a command with `-o` is the intro's."""
     rows = _rows()

@@ -3,6 +3,29 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.6.0] — 2026-09-30
+
+### Added
+- `load FILE`: a scene or snippet onto the running desk over OSC. Writes every line the
+  desk does not hold, reads every line of the file back and writes again what still
+  differs (`--passes`, default 3, each pass slower than the last), so a write the desk
+  mirrors onto a linked partner or an FX type resetting its parameters is caught. Probes
+  the desk before any write when a path goes unanswered at the start. Names the head amps
+  it wrote. Exit 1 with the lines the desk answers with another value or never read back;
+  exit 2 when the desk does not answer, before any write or after, when the passes written
+  are still shown and `--json` carries `error`; 130 on Ctrl-C. Refuses, with nothing
+  written, a preset or show, a file with no parameter lines, a body line that is not a
+  parameter a scene or snippet carries (so never the desk's `/-action` or `/-prefs`), a
+  scene whose header marks a group safe, a snippet line outside its own masks, and a last
+  line without its newline. `--json`. Library: `services.load.load_scene`, which refuses
+  the same files (`refuse_unloadable`).
+
+### Changed
+- Requires pf-core 0.24.
+
+### Fixed
+- A stage sidecar that fails validation names its file.
+
 ## [0.5.0] — 2026-09-24
 
 ### Added

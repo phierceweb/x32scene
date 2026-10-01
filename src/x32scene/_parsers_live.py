@@ -46,10 +46,29 @@ def _watch_seconds(s: str) -> float:
     return _seconds(s, "seconds", 43200)
 
 
+def _passes(s: str) -> int:
+    try:
+        v = int(s)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"passes must be a whole number, got {s!r}") from None
+    if not 1 <= v <= 10:
+        raise argparse.ArgumentTypeError(f"passes must be between 1 and 10, got {s}")
+    return v
+
+
 def _add_live(sub) -> None:
     # resolved once: both live subparsers share it, and a malformed value warns once
     timeout_default = _bounded(resolve_float(None, "X32SCENE_TIMEOUT", default=0.5))
     timeout_help = "seconds to wait for each path's reply (or set X32SCENE_TIMEOUT)"
+    s = sub.add_parser("load", help="load a scene or snippet onto the running desk, reading "
+                                    "it back and writing again until the desk holds it")
+    s.add_argument("file", help="the .scn or .snp to load")
+    s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None),
+                   help="console IP (or set X32SCENE_IP)")
+    s.add_argument("--timeout", type=_timeout, default=timeout_default, help=timeout_help)
+    s.add_argument("--passes", type=_passes, default=3,
+                   help="write-and-read-back rounds before giving up, 1-10 (default 3)")
+    s.add_argument("--json", action="store_true")
     s = sub.add_parser("pull",
                        help="pull the running desk's state via OSC (paths from a reference scene)")
     s.add_argument("reference", help="scene whose paths define what to pull")

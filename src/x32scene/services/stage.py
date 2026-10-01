@@ -20,7 +20,10 @@ _STRINGS = ENTRY_KEYS - {"bus"}
 
 def load_stage(path: str) -> dict:
     doc = read_json(path)
-    validate_stage(doc)
+    try:
+        validate_stage(doc)
+    except ValueError as e:
+        raise ValueError(f"{path}: {e}") from None
     return doc
 
 

@@ -19,6 +19,7 @@ from .services.matrix import Matrix
 from .services import groups as _groups
 from .services import routing as _routing
 from .services.diff import Change
+from .services.load import LoadResult
 from .services.preflight import Finding
 from .services import preset_library as _presetlib
 from .tables import ROUTING_BLOCKS, SOURCE_DOMAINS, decode_tap, routing_block_names, routing_vocab
@@ -194,3 +195,9 @@ def watch_summary_doc(summary: Summary, end: Scene, out: str | None, snip: Snipp
                 "file": out, "written": written,
                 "lines": len(snip.scene.lines) - 1 if written and snip else 0,
                 "skipped": snip.skipped if snip else []}}
+
+
+def load_doc(path: str, result: LoadResult) -> dict:
+    return {"file": path, "ok": result.ok, "passes": result.passes, "written": result.written,
+            "stuck": diff_doc(result.stuck)["changes"], "unanswered": list(result.unanswered),
+            "error": result.error, "interrupted": result.interrupted}

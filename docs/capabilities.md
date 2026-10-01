@@ -153,8 +153,7 @@ writes a show — the index plus its companion files — in the shape X32-Edit i
 | `watch REFERENCE` | a timestamped log of every change made on the desk while it runs — by the surface or another client — each moved field named, then the net change against the start; `--snippet` saves that net change as a snippet |
 
 Nothing here writes to the desk; `watch` only subscribes to its change reports
-(`/xremote`). Pushing changes over the network is deliberately not a feature: a file you
-load is a deliberate act with a confirm step, a push is not.
+(`/xremote`). `load`, below, is the one command that does.
 
 ## Getting a file onto the desk
 
@@ -163,6 +162,13 @@ load is a deliberate act with a confirm step, a push is not.
   masks and a preset's recall scope on the desk itself.
 - X32-Edit imports the same files and its **Load** buttons push them from the computer:
   see [console-behavior.md](console-behavior.md#getting-a-file-onto-the-desk).
+- `load FILE` writes a `.scn` or `.snp` from here, line by line over OSC, then reads those
+  paths back and writes again what still differs, three passes by default. A line can go
+  missing on the way — over Wi-Fi, X32-Edit's Load left a few sends unwritten per pass —
+  so nothing is believed until it is read back; exit 1 names the lines the desk answers
+  with another value, such as a frequency snapped to its grid. It writes only what a scene
+  or snippet carries, and refuses a file whose own header marks a group safe or leaves a
+  line outside its masks, since a recall would skip those.
 - Either way: load-test, save the desk's state back, and `diff`. The desk snaps some
   values to its own grid; the diff shows exactly what it kept.
 

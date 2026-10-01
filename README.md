@@ -50,10 +50,10 @@ which `x32scene diff` shows. Edit commands never overwrite the file they read, a
 land on a file that already exists unless you pass `--force`; the changed file is loaded on
 the console by you.
 
-The live layer is read-only: `pull` captures the running desk as a scene file so every
-command works on the live console, `desk` reports its identity, status and memory slots,
-`meters` reports levels, `watch` logs every change made on the desk as it happens. Pushing
-changes to the desk over the network is not a feature.
+The live layer: `pull` captures the running desk as a scene file so every command works
+on the live console, `desk` reports its identity, status and memory slots, `meters`
+reports levels, `watch` logs every change made on the desk as it happens, and `load` puts
+a scene or snippet onto the desk and reads it back until the desk holds it.
 
 Most read commands have a `--json` form, the vocabularies the console accepts are listed by
 commands, and the reference docs state which facts were observed on hardware and which
@@ -128,7 +128,8 @@ and its load-test loop before trusting a generated file at a gig.
 
 ## Scope
 
-- Files and a read-only view of the desk. No network writes to the console.
+- Files, a read-only view of the desk, and one write: `load`, which writes a file's lines
+  and reads them back until the desk holds them. Nothing else touches the console.
 - Round-trip and diff prove a file is structurally correct and changed only where
   intended; the console is the only proof it is semantically correct.
 - Snippets and presets loaded from a USB stick go through the desk's own recall and
@@ -176,9 +177,10 @@ x32scene show-build -o DIR --name Night --scene a.scn --snippet x.snp --cue "1 O
 x32scene preflight scene.scn --config rig.json [--stage stage.json] | --regenerate rig.json
 x32scene pull reference.scn -o live.scn | live-diff scene.scn | desk | meters   # --ip or X32SCENE_IP
 x32scene watch reference.scn [--seconds N] [--snippet rehearsal.snp]         # a timestamped change log
+x32scene load scene.scn | delta.snp [--passes N]                             # onto the desk, read back until it holds
 ```
 
-The block above is a summary; all 51 commands, every flag and every environment variable
+The block above is a summary; all 57 commands, every flag and every environment variable
 are in [docs/cli.md](https://github.com/phierceweb/x32scene/blob/main/docs/cli.md). Example
 inputs: [`config/example-preflight.json`](https://github.com/phierceweb/x32scene/blob/main/config/example-preflight.json),
 [`config/example-plan.json`](https://github.com/phierceweb/x32scene/blob/main/config/example-plan.json),
@@ -257,8 +259,8 @@ round-trip is the most useful bug report — with the console model and firmware
 ## Security
 
 [SECURITY.md](https://github.com/phierceweb/x32scene/blob/main/SECURITY.md). x32scene
-sends nothing off the local network, stores no credentials, and its live layer only reads
-the desk.
+sends nothing off the local network and stores no credentials; its live layer reads the
+desk, and `load` writes a file onto it only when asked.
 
 ## License
 

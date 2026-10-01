@@ -225,6 +225,20 @@ P16 output moved to the other strip's direct-out tap, and user-control page jump
 re-pointed to the moved channel (`P0000` to `P2800`) all took. A full pull matched the file
 with zero changed paths. That proves the desk accepts the tokens; it is not a recall.
 
+`x32scene load FILE` takes that route and adds the read-back: it writes every line the
+desk does not hold, reads those paths back with `/node`, and writes again what still
+differs, three passes by default. Observed on a Wi-Fi link (firmware 4.06): one X32-Edit
+Load of a full scene left two or three sends at their old values, a different few each
+time, and a second Load put them right — a line can go missing on the way, so a load is
+not a load until it is read back. A line the desk still answers with another value after
+the last pass is reported: its own grid (an EQ frequency, a pan) or a linked pair's mirror.
+A root write sets the node whatever the desk's safes say: with a channel safed
+(`/-show/showfile/show/chan32`), a root write of its pan still took. Safes govern recall,
+so a load through root writes ignores them, and so would ignore a scene header's own safes
+and a snippet's masks: `load` refuses such a file rather than write what a recall skips. Head amps on a stagebox read back late: of a
+1,146-line load, the dozen AES50 head amps were the lines still reading their old values
+0.2 s after the write, and held the new ones by the next pass.
+
 X32-Edit's Load pushes a file's lines from the computer. Loading the same file from a USB
 stick on the desk is the other route, through the desk's own recall and its header masks;
 the body is identical either way, but that route has not been watched.
