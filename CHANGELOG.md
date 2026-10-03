@@ -3,6 +3,30 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.7.0] — 2026-10-03
+
+### Changed
+- `set-input` and a band plan's channel `source`: a bare number is the slot itself (0–64),
+  a source name the channel's own slot when that already reads it, else the lowest slot
+  whose `/config/routing/IN` block reads it, and every source `inputs` prints is taken. A
+  source no slot reads exits 1 with nothing written. Prints the slot and the source it
+  reads. Library: `routing_edit.set_input` returns `"slot S (SOURCE)"` and takes an int as
+  the slot; `routing_edit.channel_slot` and `parse_channel_source` resolve a source.
+- A band plan applies `routing` and channel `source` before every other stage, so
+  `gain_db`, `phantom` and a preset's head amp land on the input the channel reads in the
+  finished scene.
+- Channel source slots 41–64 read as `FX 1L`–`FX 4R` and `Bus 1`–`Bus 16`, not `OFF`, in
+  `inputs`, `report`, `preflight` and `preflight --regenerate`.
+- Requires pf-core 0.25.0.
+
+### Fixed
+- `set-input` and a band plan's channel `source` write a value the channel's source field
+  takes (0–64): `"aes50-a 3"` and `"card 7"` land on the slot that reads them.
+- A partial `AUX` token on `/config/routing/IN` (`AN1-2`, `A1-4`, `UIN1-2` …) remaps only
+  the aux slots it names, and the rest read Aux In: in `inputs`, `report`, `preflight` and
+  `move-inputs`, in the slot `set-input` or a plan `source` picks, and in the head amp a
+  plan's `gain_db` writes.
+
 ## [0.6.0] — 2026-09-30
 
 ### Added

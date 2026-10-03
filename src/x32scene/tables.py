@@ -60,6 +60,9 @@ _TALKBACK = {167: "Talkback Int", 168: "Talkback Ext"}
 # The aux bank's last two channel-source slots are the console's USB player. They are not
 # routed inputs, so no number in the input enumeration names them.
 AUX_BANK_USB = {39: "USB player L", 40: "USB player R"}
+# The channel-source slots past the aux bank: the FX 1-4 returns, then the 16 mix buses.
+SLOT_RETURNS = ({41 + i: f"FX {i // 2 + 1}{'LR'[i % 2]}" for i in range(8)}
+                | {49 + i: f"Bus {i + 1}" for i in range(16)})
 
 
 def decode_source(num: int) -> str:

@@ -57,7 +57,7 @@ class SectionsApplyTest(unittest.TestCase):
         self.assertEqual(self.sc.get("/ch/01/dyn").args[4:6], ["-18.0", "3.0"])
         self.assertEqual(self.sc.get("/ch/01/gate").args[2:4], ["-45.0", "40.0"])
         self.assertEqual(self.sc.get("/ch/01/preamp").args[2:5], ["ON", "24", "40"])
-        self.assertEqual(self.sc.get("/ch/05/config").args[-1], "35")
+        self.assertEqual(self.sc.get("/ch/05/config").args[-1], "3")   # the plan's IN 1-8=A1-8
         self.assertEqual(self.sc.get("/ch/05/mix").args[3], "-25")
 
     def test_fx_routing_and_outputs(self):
@@ -88,6 +88,8 @@ class SectionsValidationTest(unittest.TestCase):
         self._bad({"channels": {"1": {"comp": {"thr": "loud"}}}}, "must be a number")
         self._bad({"channels": {"1": {"pan": 150}}}, "pan must be")
         self._bad({"channels": {"1": {"source": "moon 3"}}}, "source")
+        self._bad({"channels": {"1": {"source": 135}}}, "slot must be 0-64")
+        self._bad({"channels": {"1": {"source": "card 7"}}}, "no input slot reads")
         self._bad({"fx": {"9": {"type": "HALL"}}}, "out of range 1-8")
         self._bad({"fx": {"5": {"type": "HALL"}}}, "cannot go in FX5")
         self._bad({"fx": {"1": {"type": "PLAT", "params": {"Nope": 1}}}}, "not a PLAT parameter")
@@ -102,6 +104,12 @@ class SectionsValidationTest(unittest.TestCase):
         self._bad({"output_patch": {"rec": {"1": {"invert": True}}}}, "invert")
         self._bad({"output_patch": {"main": {"1": {"src": "kitchen"}}}}, "unknown output source")
 
+    def test_source_resolves_through_the_plans_own_routing(self):
+        sc = Scene.load(EXAMPLE)   # no slot reads AES50-A 20 until the plan re-patches IN 1-8
+        apply_plan(sc, {"channels": {"5": {"source": "aes50-a 20"}},
+                        "routing": {"IN": {"1-8": "A17-24"}}})
+        self.assertEqual(sc.get("/ch/05/config").args[-1], "4")
+
     def test_example_plan_validates_and_runs(self):
         with open(PLAN_EXAMPLE, encoding="utf-8") as fh:
             plan = json.load(fh)
@@ -110,6 +118,57 @@ class SectionsValidationTest(unittest.TestCase):
             rep = run(EXAMPLE, plan, os.path.join(d, "out.scn"))
         self.assertEqual(rep["unexpected"], [])
         self.assertIn("/fx/4/par", rep["changed"])
+
+
+class GainFollowsSourceTest(unittest.TestCase):
+    """gain_db, phantom and a preset's head amp land on the head amp the channel reads once
+    the plan's routing and source are in, and verify allows exactly that one."""
+
+    def _run(self, plan: dict) -> tuple[Scene, Scene, dict]:
+        tmpl, sc = Scene.load(EXAMPLE), Scene.load(EXAMPLE)
+        apply_plan(sc, plan)
+        return tmpl, sc, verify(tmpl, sc, plan)
+
+    def test_gain_and_phantom_follow_a_new_source(self):
+        tmpl, sc, rep = self._run({"channels": {"5": {"source": "aes50-a 3", "gain_db": 22.5,
+                                                      "phantom": True}}})
+        self.assertEqual(sc.get("/headamp/034").args, ["+22.5", "ON"])
+        self.assertEqual(sc.get("/headamp/004").args, tmpl.get("/headamp/004").args)
+        self.assertEqual(rep["unexpected"], [])
+
+    def test_gain_on_a_channel_moved_off_a_card(self):
+        _, sc, rep = self._run({"channels": {"31": {"source": "local 3", "gain_db": 21.0}}})
+        self.assertEqual(sc.get("/headamp/002").args[0], "+21.0")
+        self.assertEqual(rep["unexpected"], [])
+
+    def test_gain_follows_the_plans_routing(self):
+        _, sc, rep = self._run({"channels": {"5": {"gain_db": 19.0}},   # slot 5 -> AES50-A 5
+                                "routing": {"IN": {"1-8": "A1-8"}}})
+        self.assertEqual(sc.get("/headamp/036").args[0], "+19.0")
+        self.assertEqual(rep["unexpected"], [])
+
+    def test_preset_head_amp_follows_a_new_source(self):
+        with tempfile.TemporaryDirectory() as d:
+            chn = os.path.join(d, "p.chn")
+            with open(chn, "w", encoding="utf-8", newline="") as fh:
+                fh.write("/headamp/000 +12.5 ON\n")
+            _, sc, rep = self._run({"channels": {"5": {"source": "aes50-a 3", "preset": chn,
+                                                       "scopes": ["ha"]}}})
+        self.assertEqual(sc.get("/headamp/034").args, ["+12.5", "ON"])
+        self.assertEqual(rep["unexpected"], [])
+
+    def test_a_source_the_channel_already_reads_changes_nothing(self):
+        tmpl = Scene.load(EXAMPLE)   # slot 1 reads AES50-A 4 too; ch 20 keeps slot 20
+        tmpl.get("/config/userrout/in").set_arg(0, "36")
+        sc = Scene.parse(tmpl.dump())
+        apply_plan(sc, {"channels": {"20": {"source": "aes50-a 4", "gain_db": 18.0}}})
+        self.assertEqual(sc.get("/ch/20/config").raw, tmpl.get("/ch/20/config").raw)
+        self.assertEqual(sc.get("/headamp/035").args[0], "+18.0")
+
+    def test_gain_on_a_channel_moved_onto_a_card_raises(self):
+        with self.assertRaisesRegex(KeyError, "no head amp"):
+            apply_plan(Scene.load(EXAMPLE), {"channels": {"5": {"source": "card 1",
+                                                                "gain_db": 20.0}}})
 
 
 class SnippetFlagTest(unittest.TestCase):

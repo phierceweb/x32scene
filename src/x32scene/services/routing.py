@@ -17,8 +17,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from ..model import Scene
-from ..tables import (AUX_BANK_USB, OUTPUT_BANKS, decode_out_source, decode_source,
-                      routing_block_names, routing_vocab, tap_to_bus, userrout_out_to_output)
+from ..tables import (AUX_BANK_USB, OUTPUT_BANKS, SLOT_RETURNS, decode_out_source,
+                      decode_source, routing_block_names, routing_vocab, tap_to_bus,
+                      userrout_out_to_output)
 
 
 def userrout(scene: Scene, which: str) -> list[int]:
@@ -66,10 +67,21 @@ def unwritten_in_block(scene: Scene, slot: int) -> str | None:
     return None if tok in routing_vocab("IN", routing_block_names("IN")[b]) else tok
 
 
+def _aux_past_span(scene: Scene, slot: int) -> int | None:
+    """The Aux In number an aux slot reads past its ``AUX`` token's span (``AN1-2`` remaps
+    33-34, so 35-38 stay Aux In 3-6; ``AUX1-4`` means all six), else None."""
+    blocks = _in_blocks(scene)
+    if 33 <= slot <= 38 and len(blocks) >= 5 and unwritten_in_block(scene, slot) is None:
+        span = 6 if blocks[4].startswith("AUX") else int(blocks[4].rsplit("-", 1)[1])
+        return 160 + slot - 32 if slot - 32 > span else None
+    return None
+
+
 def uin_in_index(scene: Scene, slot: int) -> int | None:
-    """0-based /config/userrout/in index feeding ``slot``, honoring the UIN block's own
-    range (``UIN9-16`` on bank 0 maps slot 1 -> index 8). None for a non-UIN block."""
-    if not 1 <= slot <= 40 or unwritten_in_block(scene, slot) is not None:
+    """0-based /config/userrout/in index feeding ``slot``, honoring the UIN block's own range
+    (``UIN9-16`` on bank 0 maps slot 1 -> index 8); None for a non-UIN or Aux In slot."""
+    if (not 1 <= slot <= 40 or unwritten_in_block(scene, slot) is not None
+            or _aux_past_span(scene, slot) is not None):
         return None
     blocks = _in_blocks(scene)
     b = (slot - 1) // 8
@@ -98,13 +110,13 @@ def decode_direct_block(block: str, offset: int) -> int:
 
 
 def resolve_in_slot_number(scene: Scene, slot: int) -> int:
-    """Resolve a 1-based input slot to its physical source *number*, 0 = OFF.
-
-    Slots 1-32 are the channel banks; 33-40 the aux/USB bank. Offset blocks
-    (``A17-24``, ``UIN9-16``) are honored.
-    """
+    """Resolve a 1-based input slot to its physical source *number*, 0 = OFF. Slots 1-32 are
+    the channel banks, 33-40 the aux/USB bank; offset blocks (``A17-24``, ``UIN9-16``) and a
+    partial ``AUX`` token (``AN1-2``) are honored."""
     if not 1 <= slot <= 40 or unwritten_in_block(scene, slot) is not None:
         return 0
+    if (aux := _aux_past_span(scene, slot)) is not None:
+        return aux
     idx = uin_in_index(scene, slot)
     if idx is not None:
         uin = userrout(scene, "in")
@@ -116,10 +128,11 @@ def resolve_in_slot_number(scene: Scene, slot: int) -> int:
 
 
 def resolve_in_slot(scene: Scene, slot: int) -> str:
-    """Resolve a 1-based input slot to a physical source label. Slots 39/40 are the aux
-    bank's USB player, which no routed-input number names."""
-    if slot in AUX_BANK_USB:
-        return AUX_BANK_USB[slot]
+    """Resolve a channel source slot (0-64) to a source label. Slots 39/40 are the aux
+    bank's USB player and 41-64 the FX returns and buses, which no routed-input number names."""
+    named = AUX_BANK_USB.get(slot) or SLOT_RETURNS.get(slot)
+    if named:
+        return named
     if unwritten_in_block(scene, slot) is not None:
         return "?"
     return decode_source(resolve_in_slot_number(scene, slot))

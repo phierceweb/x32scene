@@ -81,7 +81,7 @@ mirror and take no `--no-link`. The rest address a slot, a channel, an output, a
 | `rename`, `set-fader`, `set-mute`, `set-pan` | a strip's name, fader, mute, pan |
 | `set-eq STRIP BAND`, `set-lowcut`, `set-comp`, `set-gate` | one EQ band, the low cut, the compressor, the gate, by parameter |
 | `set-fx SLOT` | an effect's type (parameters reset to the desk's own defaults), source, and parameters by name, formatted like the desk's token |
-| `set-input CH` | a channel's input source by name (`"aes50-a 3"`, `"card 7"`) |
+| `set-input CH` | a channel's input source by name (`"aes50-a 3"`, `"card 7"`), through the slot the scene's input routing reads it on, or a slot number |
 | `move-inputs CH:IN… --to A\|B` | a set of channels onto stage-box inputs, each one's head-amp gain and phantom travelling with it (`--no-gain` leaves them); all-or-nothing, and refused when it would also re-source or re-gain a channel it did not name |
 | `set-output BANK N` | an output's source (`"bus 12"`, `"direct out ch 5"`), tap point and polarity |
 | `set-record TRACK SRC` | a USB card record track's source (`"Output 9"`, `"P16 5"`, `"Local input 5"`), written into the user-out slot its card block reads, naming every other destination that slot feeds; refused for a track whose card block is not user-out |
@@ -174,7 +174,6 @@ Nothing here writes to the desk; `watch` only subscribes to its change reports
 
 ## What it does not do
 
-- Push edits to the desk over OSC (shelved on purpose; the read side is complete).
 - Write DP48 personal-monitor presets, or the MIDI fields of a cue (written as none).
 - Write the TrueEQ graphic EQs (`TEQ`, `TEQ2`): they decode for reading only. `GEQ` and
   `GEQ2` bands write, verified on a console.

@@ -9,6 +9,7 @@ import unittest
 
 from x32scene import Scene
 from x32scene.cli import main
+from x32scene.services import routing as R
 from x32scene.services import routing_edit as RT
 from x32scene.services.headers import decode_header
 from x32scene.tables import routing_block_names, routing_vocab
@@ -85,12 +86,61 @@ class InputSourceTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     RT.encode_input_source(bad)
 
-    def test_set_input_rewrites_the_config_source(self):
-        sc = Scene.load(EXAMPLE)
-        self.assertEqual(RT.set_input(sc, 5, "aes50-a 3"), "AES50-A input 3")
-        self.assertEqual(sc.get("/ch/05/config").args[-1], "35")
+    def test_set_input_writes_the_slot_that_reads_the_source(self):
+        sc = Scene.load(EXAMPLE)   # IN 17-24 is A1-8, so slot 19 reads AES50-A 3
+        self.assertEqual(RT.set_input(sc, 5, "aes50-a 3"), "slot 19 (AES50-A input 3)")
+        self.assertEqual(sc.get("/ch/05/config").args[-1], "19")
         self.assertEqual(sc.get("/ch/05/config").args[:3],
                          Scene.load(EXAMPLE).get("/ch/05/config").args[:3])   # name, icon, colour kept
+        self.assertEqual(RT.set_input(sc, 5, "card 1"), "slot 31 (USB Card (DAW) 1)")   # via UIN
+        self.assertEqual(RT.set_input(sc, 5, "off"), "slot 0 (OFF)")
+
+    def test_set_input_takes_a_bare_number_as_the_slot(self):
+        sc = Scene.load(EXAMPLE)
+        self.assertEqual(RT.set_input(sc, 5, 64), "slot 64 (Bus 16)")
+        self.assertEqual(RT.set_input(sc, 5, "3"), "slot 3 (Local input 3)")
+        self.assertEqual(sc.get("/ch/05/config").args[-1], "3")
+        for bad in (65, "135", True):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                RT.set_input(sc, 5, bad)
+
+    def test_every_label_inputs_prints_drops_back_in(self):
+        tmpl = Scene.load(EXAMPLE)
+        labels = {R.resolve_in_slot(tmpl, s) for s in range(65)} - {"?"}
+        self.assertTrue({"AES50-A input 3", "USB Card (DAW) 1", "USB player L", "FX 1L",
+                         "Bus 4", "OFF"} <= labels)
+        for label in sorted(labels):
+            with self.subTest(label=label):
+                sc = Scene.load(EXAMPLE)
+                RT.set_input(sc, 5, label)
+                slot = int(sc.get("/ch/05/config").args[-1])
+                self.assertEqual(R.resolve_in_slot(sc, slot), label)
+        self.assertEqual(RT.parse_channel_source("  bus   4 "), ("slot", 52))
+        self.assertEqual(RT.parse_channel_source("usb player r"), ("slot", 40))
+        self.assertEqual(RT.encode_input_source("Talkback Int"), 167)
+
+    def test_set_input_refuses_a_source_no_slot_reads(self):
+        sc = Scene.load(EXAMPLE)
+        with self.assertRaisesRegex(ValueError, "no input slot reads USB Card \\(DAW\\) 7"):
+            RT.set_input(sc, 5, "card 7")
+        self.assertEqual(sc.dump(), Scene.load(EXAMPLE).dump())
+
+    def test_set_input_skips_aux_slots_past_a_partial_token(self):
+        sc = Scene.load(EXAMPLE)   # no slot 1-32 reads Local 3; AN1-2 remaps aux slots 33-34
+        RT.set_routing(sc, "IN", {"1-8": "A1-8", "9-16": "A9-16", "25-32": "A25-32",
+                                  "AUX": "AN1-2"})
+        with self.assertRaisesRegex(ValueError, "no input slot reads Local input 3"):
+            RT.set_input(sc, 5, "local 3")
+        self.assertEqual(RT.set_input(sc, 5, "local 2"), "slot 34 (Local input 2)")
+        self.assertEqual(RT.set_input(sc, 5, "aux 3"), "slot 35 (Aux In 3)")
+
+    def test_set_input_keeps_the_channels_own_slot_when_it_reads_the_source(self):
+        sc = Scene.load(EXAMPLE)   # slot 1 now reads AES50-A 4 too; ch 20 reads it on slot 20
+        sc.get("/config/userrout/in").set_arg(0, "36")
+        self.assertEqual(RT.set_input(sc, 20, "aes50-a 4"), "slot 20 (AES50-A input 4)")
+        self.assertFalse(sc.get("/ch/20/config").dirty)
+        self.assertEqual(RT.set_input(sc, 5, "aes50-a 4"), "slot 1 (AES50-A input 4)")
+        self.assertEqual(RT.channel_slot(sc, "aes50-a 4", current=39), 1)   # USB player L
 
 
 class OutputTest(unittest.TestCase):
@@ -161,8 +211,8 @@ class RoutingCliTest(unittest.TestCase):
             self.assertIn("routing IN: 1-8=A1-8", out)
             code, out = self._run("set-routing", a, "switch", "PLAY", "-o", a + "2")
             self.assertEqual(code, 0)
-            code, out = self._run("set-input", EXAMPLE, "5", "card 7", "-o", a + "3")
-            self.assertIn("USB Card (DAW) 7", out)
+            code, out = self._run("set-input", EXAMPLE, "5", "card 1", "-o", a + "3")
+            self.assertIn("ch05 source -> slot 31 (USB Card (DAW) 1)", out)
             code, out = self._run("set-output", EXAMPLE, "main", "9", "-o", a + "4",
                                   "--src", "bus 12", "--pos", "PRE")
             self.assertIn("main 09: Bus 12 PRE invert off", out)
@@ -185,6 +235,8 @@ class RoutingCliTest(unittest.TestCase):
             for argv in (["set-routing", EXAMPLE, "IN", "1-8=OUT1-8", "-o", out],
                          ["set-routing", EXAMPLE, "IN", "AN1-8", "-o", out],
                          ["set-input", EXAMPLE, "5", "moon 3", "-o", out],
+                         ["set-input", EXAMPLE, "5", "card 7", "-o", out],
+                         ["set-input", EXAMPLE, "5", "135", "-o", out],
                          ["set-output", EXAMPLE, "main", "9", "-o", out],
                          ["set-output", EXAMPLE, "main", "9", "-o", out, "--pos", "LATE"]):
                 with self.subTest(argv=argv[2:]):

@@ -90,6 +90,38 @@ class RoutingTest(unittest.TestCase):
         self.assertEqual(R.resolve_in_slot(self.sc, 39), "USB player L")
         self.assertEqual(R.resolve_in_slot(self.sc, 40), "USB player R")
 
+    def test_a_partial_aux_token_remaps_only_its_span(self):
+        aux = self.sc.get("/config/routing/IN")
+        for tok, want in (("AN1-2", ["Local input 1", "Local input 2", "Aux In 3", "Aux In 4",
+                                     "Aux In 5", "Aux In 6"]),
+                          ("A1-4", ["AES50-A input 1", "AES50-A input 2", "AES50-A input 3",
+                                    "AES50-A input 4", "Aux In 5", "Aux In 6"]),
+                          ("CARD1-6", [f"USB Card (DAW) {n}" for n in range(1, 7)])):
+            with self.subTest(tok=tok):
+                aux.set_arg(4, tok)
+                self.assertEqual([R.resolve_in_slot(self.sc, s) for s in range(33, 39)], want)
+                self.assertEqual(R.resolve_in_slot(self.sc, 39), "USB player L")
+        aux.set_arg(4, "UIN1-2")
+        self.assertEqual([R.uin_in_index(self.sc, s) for s in (33, 34, 35)], [0, 1, None])
+        self.assertEqual(R.resolve_in_slot(self.sc, 35), "Aux In 3")
+        aux.set_arg(4, "AN1-2")
+        cfg = self.sc.get("/ch/30/config")
+        cfg.set_arg(len(cfg.args) - 1, "35")
+        self.assertIsNone(R.channel_headamp_index(self.sc, 30))
+        cfg.set_arg(len(cfg.args) - 1, "34")
+        self.assertEqual(R.channel_headamp_index(self.sc, 30), 1)
+
+    def test_fx_return_and_bus_slots_are_named_not_off(self):
+        self.assertEqual(R.resolve_in_slot(self.sc, 0), "OFF")
+        self.assertEqual(R.resolve_in_slot(self.sc, 41), "FX 1L")
+        self.assertEqual(R.resolve_in_slot(self.sc, 48), "FX 4R")
+        self.assertEqual(R.resolve_in_slot(self.sc, 49), "Bus 1")
+        self.assertEqual(R.resolve_in_slot(self.sc, 64), "Bus 16")
+        cfg = self.sc.get("/ch/30/config")
+        cfg.set_arg(len(cfg.args) - 1, "52")
+        self.assertEqual({cs.ch: cs for cs in R.channel_sources(self.sc)}[30].source, "Bus 4")
+        self.assertIsNone(R.channel_headamp_index(self.sc, 30))
+
     def test_channel_sourced_from_aux_is_not_reported_off(self):
         cfg = self.sc.get("/ch/30/config")
         cfg.set_arg(len(cfg.args) - 1, "33")

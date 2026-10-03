@@ -1,5 +1,5 @@
-"""The processing, FX, routing and output-patch sections of a band-setup plan: validate,
-apply, and name every path each is allowed to touch. ``band_swap`` owns the stage order
+"""The processing, FX and output-patch sections of a band-setup plan: validate, apply,
+and name every path each is allowed to touch. ``band_swap`` owns the stage order
 and the verify step; this module keeps those two files under the size guard."""
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from ..services import channelfx as _cfx
 from ..services import fx as _fx
 from ..services import routing_edit as _rt
 from ..services import transforms as T
-from ..tables import OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, routing_block_names, routing_vocab
+from ..tables import OUTPUT_BANKS, OUTPUT_POS
 from ..tables_fx import FX_SIDE_RACK_TYPES, FX_TYPES
 
 CHANNEL_PROC_KEYS = {"eq", "comp", "gate", "lowcut", "pan", "source"}
@@ -21,7 +21,6 @@ _COMP_KEYS = {"thr", "ratio", "makeup", "attack", "release"}
 _GATE_KEYS = {"thr", "range", "attack", "release"}
 _LOWCUT_KEYS = {"on", "freq"}
 FX_KEYS = {"type", "source", "params", "preset"}
-ROUTING_KEYS = {"switch", "preset", "banks", *ROUTING_BLOCKS}
 OUTPUT_KEYS = {"src", "pos", "invert"}
 
 
@@ -99,7 +98,7 @@ def validate_channel_proc(ch: int, spec: dict) -> None:
         raise ValueError(f"{w}: pan must be -100..+100, got {spec['pan']!r}")
     if "source" in spec:
         try:
-            _rt.encode_input_source(spec["source"])
+            _rt.parse_channel_source(spec["source"])
         except ValueError as e:
             raise ValueError(f"{w}: source: {e}") from None
 
@@ -158,29 +157,6 @@ def _check_preset_path(w: str, spec: dict) -> None:
         raise ValueError(f"{w}: preset must be a path string, got {spec['preset']!r}")
 
 
-def validate_routing(plan: dict) -> None:
-    spec = _obj("routing", plan.get("routing", {}))
-    _only("routing", spec, ROUTING_KEYS)
-    if "switch" in spec and spec["switch"] not in ("REC", "PLAY"):
-        raise ValueError(f"routing: switch must be REC or PLAY, got {spec['switch']!r}")
-    _check_preset_path("routing", spec)
-    if "banks" in spec and ("preset" not in spec or not isinstance(spec["banks"], list)):
-        raise ValueError("routing: banks is a list of banks to take from preset")
-    for bank in spec.get("banks") or []:
-        # unchecked, a typo'd or wrong-cased bank applies nothing and still exits 0
-        if bank not in _rt.ROUTING_PRESET_KEYS:
-            raise ValueError(f"routing: banks must be from "
-                             f"{', '.join(_rt.ROUTING_PRESET_KEYS)}, got {bank!r}")
-    for key in ROUTING_BLOCKS:
-        for label, value in _obj(f"routing {key}", spec.get(key, {})).items():
-            if label not in routing_block_names(key):
-                raise ValueError(f"routing {key}: blocks are "
-                                 f"{', '.join(routing_block_names(key))}, not {label!r}")
-            if value not in routing_vocab(key, label):
-                raise ValueError(f"routing {key}/{label}: {value!r} is not a console token "
-                                 f"(`x32scene vocab routing {key}`)")
-
-
 def validate_output_patch(plan: dict) -> None:
     for bank, outs in _obj("output_patch", plan.get("output_patch", {})).items():
         if bank not in OUTPUT_BANKS:
@@ -208,8 +184,6 @@ def validate_output_patch(plan: dict) -> None:
 
 # ---- apply ---------------------------------------------------------------------------
 def apply_channel_proc(scene: Scene, ch: int, spec: dict) -> None:
-    if "source" in spec:
-        _rt.set_input(scene, ch, spec["source"])
     if "pan" in spec:
         T.set_pan(scene, ch, int(spec["pan"]))
     if "lowcut" in spec:
@@ -239,17 +213,6 @@ def apply_fx(scene: Scene, plan: dict) -> None:
             _fx.set_fx_source(scene, slot, *_source_tokens(spec["source"]))
         if spec.get("params"):
             _fx.set_fx_params(scene, slot, spec["params"])
-
-
-def apply_routing(scene: Scene, plan: dict) -> None:
-    spec = plan.get("routing", {})
-    if "preset" in spec:
-        _rt.apply_routing(scene, _read(plan, spec["preset"]), spec.get("banks"))
-    for key in ROUTING_BLOCKS:
-        if spec.get(key):
-            _rt.set_routing(scene, key, spec[key])
-    if "switch" in spec:
-        _rt.set_routswitch(scene, spec["switch"])
 
 
 def apply_output_patch(scene: Scene, plan: dict) -> None:
@@ -285,13 +248,6 @@ def allowed_sections(plan: dict) -> set[str]:
             out.update({f"/fx/{slot}", f"/fx/{slot}/par"})
         if "source" in spec:
             out.add(f"/fx/{slot}/source")
-    spec = plan.get("routing", {})
-    if "switch" in spec:
-        out.add("/config/routing")
-    out.update(f"/config/routing/{k}" for k in ROUTING_BLOCKS if spec.get(k))
-    if "preset" in spec:
-        banks = spec.get("banks") or list(_rt.ROUTING_PRESET_KEYS)
-        out.update(f"/config/routing/{k}" for k in banks)
     for bank, outs in plan.get("output_patch", {}).items():
         out.update(f"/outputs/{bank}/{int(n):02d}" for n in outs)
     return out

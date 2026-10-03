@@ -115,8 +115,8 @@ model only populates as many as it has jacks (an X32 Rack fills `000`–`015` an
 **Channel → headamp** is not 1:1 in general. The last token of
 `/ch/NN/config "Name" icon colour SRC` is a source *slot*; resolve it through the routing
 indirection first ([routing.md](routing.md)), then subtract one:
-`headamp index = source number − 1` for input sources 1–128. Card, Aux and OFF sources
-have no head amp at all.
+`headamp index = source number − 1` for input sources 1–128. Card, Aux, FX-return, bus
+and OFF sources have no head amp at all.
 
 ## Strip lines, field by field
 
@@ -352,8 +352,9 @@ Used by `/config/userrout/in`. A channel's `/ch/NN/config` source is an input *s
 | `167`, `168` | Talkback (internal, external) |
 
 Channel source slots **39 and 40** — the last two of the aux bank — are the console's USB
-player. They are not routed inputs and no number in this table names them; `x32scene inputs`
-labels them directly.
+player, and **41–64** are the FX 1–4 returns and the 16 mix buses. They are not routed
+inputs and no number in this table names them; `x32scene inputs` labels them directly
+(`USB player L`, `FX 1L`, `Bus 4`).
 
 ### Output sources
 
@@ -524,6 +525,7 @@ oversights:
 
 | Item | Status |
 |---|---|
+| A partial `/config/routing/IN` `AUX` token | `AN1-2` verified on a console (firmware 4.06): `/-ha/NN/index` reported Local 1–2 on aux-ins 1–2 and no head amp on aux-ins 3–4. The other spans and prefixes (`A1-4`, `UIN1-6` …) are taken to follow the same rule, which Maillot's note that `AUX1-4` stands for all six also implies; not each observed |
 | `/config/userrout` enumerations | Published (Maillot v4.06). Earlier releases decoded `169`–`184` as mix buses and `167`/`168` as the USB player; they are output slots 1–16 and talkback |
 | Output taps `20`–`25`, `58`–`65`, `74`–`76` | Published enumeration; every one written to a desk and read back as written (`20` and `75` through X32-Edit; the rest by OSC root write and `/node` read-back, firmware 4.06); none yet seen in a saved file |
 | Output taps `26`–`57` on the `main`, `aux`, `aes` and `rec` banks | Published; observed on `p16` only |

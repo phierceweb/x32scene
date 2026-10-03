@@ -36,17 +36,20 @@ paths the plan named. A plan error exits **2** with nothing written.
 The stage order is fixed and load-bearing:
 
 1. `title`
-2. per channel: `preset`, then `name`, then head amp, then fader/mute, then processing
-3. `dca`
-4. `iem_copy`
-5. `iem_sends`
-6. `outputs`
-7. `fx`, `routing`, `output_patch`
-8. `record`
+2. `routing`, then every channel's `source`
+3. per channel: `preset`, then `name`, then head amp, then fader/mute, then processing
+4. `dca`
+5. `iem_copy`
+6. `iem_sends`
+7. `outputs`
+8. `fx`, `output_patch`
+9. `record`
 
 A preset applies before the plan's own values, so a plan key always wins over the preset
-that carried it. A copy replaces a destination send wholesale, so `iem_sends` runs after
-`iem_copy` — a trim written the other way round would be erased.
+that carried it. Routing and sources come first, so `gain_db`, `phantom` and a preset's head
+amp land on the input each channel reads in the finished scene. A copy replaces a
+destination send wholesale, so `iem_sends` runs after `iem_copy` — a trim written the other
+way round would be erased.
 
 ## Top-level keys
 
@@ -89,7 +92,7 @@ Any other key is an error. Keys beginning `_` are comments and are ignored.
 | `fader` | −90…+10 dB, or `"-oo"` / `"oo"` (synonyms here) |
 | `mute` | `true`/`false`; `true` = muted |
 | `pan` | −100…+100 |
-| `source` | an input source in words: `"local 5"`, `"aes50-a 3"`, `"card 7"`, `"aux 2"`, `"off"` |
+| `source` | an input source in words (`"local 5"`, `"aes50-a 3"`, `"card 7"`, `"aux 2"`, `"off"`, or any source `inputs` prints), written as the channel's own slot when that already reads it, else the lowest slot the IN routing reads it on, after the plan's own `routing`; or a slot number 0–64. A source no slot reads raises |
 | `lowcut` | `{on, freq}` |
 | `eq` | band `"1"`–`"6"` → `{type, freq, gain, q}` |
 | `comp` | `{thr, ratio, makeup, attack, release}` |
@@ -104,8 +107,9 @@ number (`3`) is refused — the console rejects a bare `4` and abandons the rest
 Every other numeric value must be a JSON number; a quoted number is refused rather than
 coerced, because a quoted level is how a plan silently kills a send.
 
-Naming `gain_db` or `phantom` on a channel whose source is a card, an aux or OFF raises:
-those sources have no head amp. See [format.md](format.md#the-number-one-trap-gain-and-phantom-are-not-on-the-channel).
+Naming `gain_db` or `phantom` on a channel whose source, after the plan's `routing` and
+`source`, is a card, an aux, an FX return, a bus or OFF raises: those sources have no head
+amp. See [format.md](format.md#the-number-one-trap-gain-and-phantom-are-not-on-the-channel).
 
 **Processing written by a plan does not mirror to a stereo-linked partner.** A plan names
 its channels explicitly, so mirroring would write a path the plan never asked for — and

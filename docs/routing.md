@@ -20,9 +20,10 @@ are patching by hand.
 
 ## Inputs: a channel does not name its jack
 
-`/ch/NN/config "Name" icon colour SRC` ends with a source **slot** (1–32), not a physical
-input. How a slot becomes a jack depends on the matching **8-wide block** in
-`/config/routing/IN`:
+`/ch/NN/config "Name" icon colour SRC` ends with a source **slot** (0–64), not a physical
+input: 0 is OFF, 1–32 the channel banks, 33–38 the six aux ins, 39–40 the USB player, 41–48
+the FX 1–4 returns and 49–64 the mix buses. How slots 1–38 become a jack depends on the
+matching **8-wide block** in `/config/routing/IN`:
 
 ```
 /config/routing/IN UIN1-8 UIN9-16 UIN17-24 UIN25-32 AUX1-4
@@ -40,8 +41,17 @@ A block carries its own range offset, so `UIN9-16` sitting in bank 0 maps slot 1
 A hand-edited token the console does not write at that block (`UIN`, `UIN0-7`, `A0-7`)
 names no source: its slots read `?` in `inputs`, and `move-inputs` refuses them.
 
+The fifth block, `AUX`, remaps only as many aux slots as its token names: `AN1-2` puts
+Local 1–2 on slots 33–34, and slots 35–38 stay Aux In 3–6. `AUX1-4` is the console's spelling
+of all six aux ins.
+
+Every slot resolves through `/config/routing/IN`, whatever `/config/routing` holds. With the
+switch at `PLAY` the desk reads the `/config/routing/PLAY` blocks instead, so `inputs`,
+`report`, `preflight`, `set-input` and a plan's head amps describe the REC patch, not what
+the channels hear during playback.
+
 Once you have a source *number*, the head-amp index is `number − 1` for sources 1–128.
-Card, Aux and OFF sources have no head amp.
+Card, Aux, FX-return, bus and OFF sources have no head amp.
 
 ## Outputs: `OUT` and `UOUT` are not the same signal
 
@@ -152,11 +162,12 @@ so you can see where a patch changed.
 
 ## Changing routing from a file
 
-`set-routing KEY BLOCK=TOKEN …` edits one bank's blocks, `set-input CH "aes50-a 3"` points a
-channel at a source, `set-output BANK N --src "bus 12" --pos PRE+M` re-patches an output,
-`set-record TRACK "Output 9"` re-patches a card record track, and `extract-routing` /
-`apply-routing` move the input banks as a routing preset. All of them write a new file; load it and re-walk the outputs, because a routing change is a
-re-patch of what physically reaches each jack.
+`set-routing KEY BLOCK=TOKEN …` edits one bank's blocks. `set-input CH "aes50-a 3"` points a
+channel at an input slot the IN banks feed that source to, and re-patches no bank.
+`set-output BANK N --src "bus 12" --pos PRE+M` re-patches an output, `set-record TRACK
+"Output 9"` re-patches a card record track, and `extract-routing` / `apply-routing` move
+the input banks as a routing preset. All of them write a new file; load it and re-walk the
+outputs, because a routing change is a re-patch of what physically reaches each jack.
 
 ## Troubleshooting "the signal isn't arriving"
 

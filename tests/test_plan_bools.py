@@ -17,7 +17,7 @@ import unittest
 
 from x32scene.cli import main
 from x32scene.model import Scene
-from x32scene.orchestrators import _sections
+from x32scene.orchestrators import _sections, _sections_routing
 from x32scene.orchestrators._schema import CHANNEL_KEYS, IEM_SEND_KEYS, PLAN_KEYS
 
 SCENE = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")
@@ -63,7 +63,7 @@ def plans_with_a_bool(value):
         yield f"output_patch.main.9.{key}", {"output_patch": {"main": {"9": {key: value}}}}
     for key in sorted(_sections.FX_KEYS - BOOL_KEYS):
         yield f"fx.1.{key}", {"fx": {"1": {key: value}}}
-    for key in sorted(_sections.ROUTING_KEYS - BOOL_KEYS):
+    for key in sorted(_sections_routing.ROUTING_KEYS - BOOL_KEYS):
         yield f"routing.{key}", {"routing": {key: value}}
     for key in sorted(IEM_SEND_KEYS - BOOL_KEYS):
         yield f"iem_sends.{key}", {"iem_sends": [{**IEM_BASE, key: value}]}

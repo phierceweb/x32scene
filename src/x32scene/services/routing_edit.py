@@ -6,15 +6,19 @@ from __future__ import annotations
 
 from ..model import HEADER_WIDTH, Scene, check_token
 from ..tables import (
-    OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, SOURCE_DOMAINS, decode_out_source, decode_source,
-    decode_tap, routing_block_names, routing_vocab,
+    AUX_BANK_USB, OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, SLOT_RETURNS, SOURCE_DOMAINS,
+    decode_out_source, decode_source, decode_tap, routing_block_names, routing_vocab,
 )
-from .routing import record_map, uout_start, user_out_readers
+from .routing import (
+    record_map, resolve_in_slot, resolve_in_slot_number, uout_start, user_out_readers,
+)
 
 ROUTING_PRESET_KEYS = ("IN", "AES50A", "AES50B", "CARD")   # what the console's library holds
 _SOURCE_KINDS = {"off": 0, "local": 1, "an": 1, "local input": 1, "aes50-a": 33, "a": 33,
                  "aes50a": 33, "aes50-b": 81, "b": 81, "aes50b": 81, "card": 129, "usb": 129,
                  "aux": 161, "aux in": 161}
+_INPUT_BY_NAME = {decode_source(n).lower(): n for n in range(169)}
+_SLOT_BY_NAME = {name.lower(): slot for slot, name in {**AUX_BANK_USB, **SLOT_RETURNS}.items()}
 
 
 def set_routing(scene: Scene, key: str, blocks: dict[str, str]) -> list[str]:
@@ -53,7 +57,7 @@ def set_routswitch(scene: Scene, mode: str) -> str:
 
 def encode_input_source(text: str | int) -> int:
     """An input source number from ``"AES50-A 3"``, ``"local 5"``, ``"card 7"``, ``"aux 2"``,
-    ``"off"`` or a bare number (0-168)."""
+    ``"off"``, the label ``inputs`` prints (``"AES50-A input 3"``) or a bare number (0-168)."""
     if isinstance(text, bool):   # bool passes isinstance(int): false would read as "no input"
         raise ValueError(f"input source must be a name or a number, got {text!r}")
     if isinstance(text, int) or str(text).strip().isdigit():
@@ -62,31 +66,64 @@ def encode_input_source(text: str | int) -> int:
             raise ValueError(f"input source number must be 0-168, got {n}")
         return n
     words = str(text).strip().lower().split()
-    if words == ["off"]:
-        return 0
+    if " ".join(words) in _INPUT_BY_NAME:
+        return _INPUT_BY_NAME[" ".join(words)]
     if len(words) < 2 or not words[-1].isdigit():
         raise ValueError(f"input source: '<kind> <n>' with kind local/aes50-a/aes50-b/card/aux,"
                          f" or a number; got {text!r}")
     kind, n = " ".join(words[:-1]), int(words[-1])
     base = _SOURCE_KINDS.get(kind)
     if base is None:
-        raise ValueError(f"unknown input kind {kind!r}; use local, aes50-a, aes50-b, card or aux")
+        raise ValueError(f"unknown input kind {kind!r}; use local, aes50-a, aes50-b, card, aux "
+                         "or a source `inputs` prints")
     hi = next(h - lo + 1 for lo, h, _ in SOURCE_DOMAINS if lo == base)
     if not 1 <= n <= hi:
         raise ValueError(f"{kind} inputs run 1-{hi}, got {n}")
     return base + n - 1
 
 
+def parse_channel_source(text: str | int) -> tuple[str, int]:
+    """``("slot", n)`` for a bare slot number 0-64, ``off``, or a slot ``inputs`` names
+    (``"Bus 4"``, ``"FX 1L"``, ``"USB player L"``); ``("input", num)`` for a source name
+    ``encode_input_source`` takes, which only a scene's routing turns into a slot."""
+    if isinstance(text, bool):
+        raise ValueError(f"channel source must be a name or a slot number, got {text!r}")
+    if isinstance(text, int) or str(text).strip().isdigit():
+        n = int(text)
+        if not 0 <= n <= 64:
+            raise ValueError(f"channel source slot must be 0-64, got {n}")
+        return "slot", n
+    if (key := " ".join(str(text).lower().split())) in _SLOT_BY_NAME:
+        return "slot", _SLOT_BY_NAME[key]
+    num = encode_input_source(text)
+    return ("slot", 0) if num == 0 else ("input", num)
+
+
+def channel_slot(scene: Scene, source: str | int, current: int | None = None) -> int:
+    """The ``/ch/NN/config`` source slot for ``source``: a bare number as given, a source
+    name as ``current`` when that slot already reads it, else the lowest slot whose
+    ``/config/routing/IN`` block reads it."""
+    kind, n = parse_channel_source(source)
+    if kind == "slot":
+        return n
+    slots = [s for s in range(1, 41) if s not in AUX_BANK_USB]
+    for slot in ([current] if current in slots else []) + slots:
+        if resolve_in_slot_number(scene, slot) == n:
+            return slot
+    raise ValueError(f"no input slot reads {decode_source(n)} under this scene's "
+                     "/config/routing/IN; re-patch an IN block to carry it, or give the slot 0-64")
+
+
 def set_input(scene: Scene, ch: int, source: str | int) -> str:
-    """Point a channel at an input source; returns the decoded name."""
+    """Point a channel at ``source`` through its slot (``channel_slot``); returns the slot and
+    the source it reads."""
     cfg = scene.get(f"/ch/{ch:02d}/config")
     if cfg is None:
         raise KeyError(f"no /ch/{ch:02d}/config")
     cfg.require(4)
-    num = encode_input_source(source)
-    cfg.args[-1] = str(num)
-    cfg.rebuild()
-    return decode_source(num)
+    slot = channel_slot(scene, source, int(cfg.args[-1]) if cfg.args[-1].isdigit() else None)
+    cfg.set_arg(len(cfg.args) - 1, str(slot))
+    return f"slot {slot} ({resolve_in_slot(scene, slot)})"
 
 
 _TAP_BY_NAME = {decode_tap(i).lower(): i for i in range(77)}

@@ -9,7 +9,7 @@ from __future__ import annotations
 from ..services import transforms as T
 from ..services.scopes import SCOPES
 from ..tables import SEND_STRIPS, strip_path
-from . import _sections, _sections_record
+from . import _sections, _sections_record, _sections_routing
 from ._sections import _numbered_key
 
 
@@ -85,7 +85,7 @@ def validate_plan(plan: dict) -> None:
     _validate_outputs(plan)
     _validate_sends(plan)
     _sections.validate_fx(plan)
-    _sections.validate_routing(plan)
+    _sections_routing.validate_routing(plan)
     _sections.validate_output_patch(plan)
     _sections_record.validate_record(plan)
 

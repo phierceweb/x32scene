@@ -1,12 +1,12 @@
 """Band-swap orchestrator — re-skin a template scene for a different band/lineup.
 
-One JSON plan drives retitle → channel presets → renames → head-amps → DCA reassignment
+One JSON plan drives retitle → routing and sources → presets → renames → head-amps → DCAs
 → IEM-mix copies → per-send trims → output routing via the single-concern transforms.
 ``verify`` then proves the result differs from the template only in plan-intended paths
 before ``run`` saves anything. That stage order is fixed and load-bearing: a copy replaces
 the destination send wholesale, so a trim only survives by running after it.
 
-Plan format::
+Plan format (every key: ``docs/band-plan.md``)::
 
     {
       "title": "Example Rig - 2026-07-04",
@@ -19,9 +19,6 @@ Plan format::
       "iem_copy":  [{"src": 1, "dst": 5}],     // duplicate a player's monitor mix
       "iem_sends": [{"strip": 23, "bus": 5, "level": -14.0}],   // trim one send in one mix
       "outputs":   {"9": 1, "10": 2},          // route physical output <- mix bus
-      // processing per channel (inside "channels"): "eq": {"2": {"freq": 100, "gain": 6}},
-      // "comp": {"thr": -18, "ratio": "3"}, "gate": {...}, "lowcut": {"on": true, "freq": 80},
-      // "pan": -30, "source": "aes50-a 3"
       "fx":       {"4": {"type": "HALL", "source": "MIX15,MIX16", "params": {"Decay": 2.1}},
                    "2": {"preset": "FX/Plate.efx"}},
       "routing":  {"switch": "REC", "IN": {"1-8": "A1-8"}, "preset": "Routing/Local.rou",
@@ -34,9 +31,9 @@ Plan format::
 Within a channel a preset applies first, then the plan's own values, so a named EQ band
 wins over the preset's. ``fx``: a ``preset`` or ``type`` resets the slot's parameters to
 the console's defaults before ``params``. ``routing``: the ``preset`` banks land first,
-then named blocks. ``record`` runs after ``routing``, so a track resolves through the plan's
-own CARD blocks. Every value is checked against the console's own vocabulary before a
-line is written.
+then named blocks. ``record`` and a channel ``source`` resolve through the plan's own CARD
+and IN blocks, and a head amp lands on the input the channel reads after both. Every value
+is checked against the console's own vocabulary before a line is written.
 
 An ``iem_sends`` record names a channel number or any send strip ("/auxin/05",
 "/fxrtn/03"), a level in dB (or ``"-oo"``; a quoted number like "-6.0" is not a level) and
@@ -67,7 +64,7 @@ from ..services.presets import (
     apply_preset, body_lines, mirrored_sends, partner_only_sends, preset_selects,
     unflagged_scopes,
 )
-from . import _linked_presets, _sections, _sections_record
+from . import _linked_presets, _sections, _sections_record, _sections_routing
 from ._schema import _send_strip, validate_plan
 from ..services.routing import channel_headamp_index, record_map
 from ..services.snippets import MIX_FIELD
@@ -149,6 +146,8 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
     recorded = dict(record_map(scene)) if plan.get("record") else None
     if "title" in plan:
         T.retitle_scene(scene, plan["title"])
+    _sections_routing.apply_routing(scene, plan)
+    _sections_routing.apply_sources(scene, plan)
     skipped: dict[int, list[str]] = {}
     for ch_s, spec in sorted(plan.get("channels", {}).items(), key=lambda kv: int(kv[0])):
         ch = int(ch_s)
@@ -165,7 +164,7 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
         if "gain_db" in spec or "phantom" in spec:
             idx = channel_headamp_index(scene, ch)
             if idx is None:
-                raise KeyError(f"channel {ch} has no head amp (card/aux source?)")
+                raise KeyError(f"channel {ch} has no head amp (a card, aux, FX, bus or OFF source)")
             T.set_headamp_index(scene, idx, spec.get("gain_db"), spec.get("phantom"))
         # linked=False: a plan names its channels explicitly, so a mirror would be a path
         # the plan never asked for
@@ -198,7 +197,6 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
     for out_s, bus in sorted(plan.get("outputs", {}).items(), key=lambda kv: int(kv[0])):
         T.route_output_from_bus(scene, int(out_s), int(bus))
     _sections.apply_fx(scene, plan)
-    _sections.apply_routing(scene, plan)
     _sections.apply_output_patch(scene, plan)
     record = _sections_record.apply_record(scene, plan, recorded)
     return {"lines_changed": sum(1 for ln in scene.lines if ln.dirty), "preset_skipped": skipped,
@@ -209,6 +207,7 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
 def allowed_paths(template: Scene, plan: dict) -> set[str]:
     """Every scene path the plan is ALLOWED to change (computed from the template)."""
     allowed: set[str] = set()
+    heads = _sections_routing.routed(template, plan)
     if "title" in plan and template.lines:
         allowed.add(template.lines[0].path)   # the header token is its own path: #2.7#..#4.0#
     for ch_s, spec in plan.get("channels", {}).items():
@@ -216,7 +215,7 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
         if "name" in spec:
             allowed.add(f"/ch/{ch:02d}/config")
         if "gain_db" in spec or "phantom" in spec:
-            idx = channel_headamp_index(template, ch)
+            idx = channel_headamp_index(heads, ch)
             if idx is not None:
                 allowed.add(f"/headamp/{idx:03d}")
         if "fader" in spec or "mute" in spec:
@@ -230,7 +229,7 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
                 bare = ln.path
                 if bare.startswith("/headamp"):
                     if selects(bare):
-                        idx = channel_headamp_index(template, ch)
+                        idx = channel_headamp_index(heads, ch)
                         if idx is not None:
                             allowed.add(f"/headamp/{idx:03d}")
                 elif selects(bare):
@@ -245,6 +244,7 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
     allowed.update(f"{path}/mix/{bus:02d}" for path, bus in _send_targets(template, plan))
     allowed.update(f"/outputs/main/{int(out_s):02d}" for out_s in plan.get("outputs", {}))
     allowed.update(_sections.allowed_sections(plan))
+    allowed.update(_sections_routing.allowed_routing(plan))
     allowed.update(_sections_record.allowed_record(plan))
     return allowed
 

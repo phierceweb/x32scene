@@ -48,7 +48,8 @@ def _add_fx_routing(sub, _out) -> None:
     s = sub.add_parser("set-input", help="point a channel at an input source")
     s.add_argument("scene")
     s.add_argument("ch", type=int)
-    s.add_argument("source", help='"local 5", "aes50-a 3", "card 7", "aux 2", off, or 0-168')
+    s.add_argument("source", help='"local 5", "aes50-a 3", "card 7", "aux 2" (the slot that reads '
+                   'it), any source `inputs` prints, off, or a slot 0-64')
     _out(s)
     s = sub.add_parser("set-output", help="an output's source, tap point and polarity")
     s.add_argument("scene")
