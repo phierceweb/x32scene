@@ -13,6 +13,7 @@ from .model import Scene
 from .services import channelfx as _cfx
 from .services import fx as _fx
 from .services import routing_edit as _rt
+from .services.routing import PLAY_NOTE, routing_switch
 from .services import transforms as T
 
 
@@ -97,7 +98,8 @@ def apply_edit(sc: Scene, args) -> str:
         _rt.set_routing(sc, args.key, blocks)
         return f"routing {args.key}: " + ", ".join(f"{k}={v}" for k, v in blocks.items())
     elif args.cmd == "set-input":
-        return f"ch{args.ch:02d} source -> {_rt.set_input(sc, args.ch, args.source)}"
+        note = f"; note: {PLAY_NOTE}" if routing_switch(sc) == "PLAY" else ""
+        return f"ch{args.ch:02d} source -> {_rt.set_input(sc, args.ch, args.source)}{note}"
     elif args.cmd == "set-output":
         inv = None if args.invert is None else args.invert == "on"
         words = _rt.set_output(sc, args.bank, args.n, src=args.src, pos=args.pos, invert=inv)

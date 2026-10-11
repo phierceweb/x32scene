@@ -11,12 +11,14 @@ from . import _json
 from . import _views_desk as _vdesk
 from ._cli_files import file_kind, load_checked
 from .services import load as _load
+from .services.load_keep import Keep
 from .services import osc as _osc
 
 
 def run_load(args) -> int:
-    """Exit 2 when the desk does not answer, 1 when a line is not read back as written,
-    130 on Ctrl-C; after writes went out, both say the desk may hold part of the file."""
+    """Exit 2 when the desk does not answer, 1 when a line is not read back as written or a
+    kept line changed, 130 on Ctrl-C; after writes went out, both say the desk may hold
+    part of the file."""
     kind = file_kind(args.file)
     if kind not in (None, "scn", "snp"):
         raise InvalidInputError(f"{args.file}: load takes a scene or a snippet, not a .{kind}")
@@ -26,9 +28,13 @@ def run_load(args) -> int:
     except ValueError as e:
         raise InvalidInputError(f"{args.file}: {e}; nothing written") from None
     name = os.path.basename(args.file)
+    keep = Keep(buses=args.keep_bus or [], globs=args.keep or [])
     try:
         result = _load.load_scene(target, args.ip, port=_osc.X32_PORT, timeout=args.timeout,
-                                  passes=args.passes)
+                                  passes=args.passes,
+                                  keep=keep if keep.buses or keep.globs else None)
+    except _load.Unloadable as e:
+        raise InvalidInputError(f"{args.file}: {e}; nothing written") from None
     except _osc.OscError as e:
         print(f"load failed: {e}; nothing was written", file=sys.stderr)
         return 2

@@ -50,6 +50,8 @@ def cmd_inputs(scene: Scene) -> None:
     for cs in _routing.channel_sources(scene):
         flag = "  <- USB/DAW" if "Card" in cs.source else ""
         print(f"  ch{cs.ch:02d} {cs.name:<14} slot {cs.slot:>2} -> {cs.source}{flag}")
+    if _routing.routing_switch(scene) == "PLAY":
+        print(f"  note: {_routing.PLAY_NOTE}")
 
 
 def cmd_record_map(scene: Scene) -> None:

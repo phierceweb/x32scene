@@ -86,7 +86,8 @@ def history_doc(lib: list[tuple[str, Scene]], paths: list[str]) -> dict:
 
 
 def inputs_doc(scene: Scene) -> dict:
-    return {"channels": [{"ch": cs.ch, "name": cs.name, "slot": cs.slot, "source": cs.source}
+    return {"switch": _routing.routing_switch(scene),
+            "channels": [{"ch": cs.ch, "name": cs.name, "slot": cs.slot, "source": cs.source}
                          for cs in _routing.channel_sources(scene)]}
 
 
@@ -200,4 +201,6 @@ def watch_summary_doc(summary: Summary, end: Scene, out: str | None, snip: Snipp
 def load_doc(path: str, result: LoadResult) -> dict:
     return {"file": path, "ok": result.ok, "passes": result.passes, "written": result.written,
             "stuck": diff_doc(result.stuck)["changes"], "unanswered": list(result.unanswered),
+            "kept": [{"what": w, "paths": list(ps)} for w, ps in result.kept],
+            "moved": diff_doc(result.moved)["changes"],
             "error": result.error, "interrupted": result.interrupted}

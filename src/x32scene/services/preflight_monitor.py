@@ -11,7 +11,8 @@ from __future__ import annotations
 from ..model import Scene
 from ..tables import OUTPUT_BANKS, SEND_STRIPS, decode_tap, send_is_live, tap_to_bus
 from .preflight_config import Finding, fail_unknown, mapping, want_bool, want_index
-from .routing import jack_outputs, output_reach, output_sources, routing_blocks, userrout
+from .routing import routing_blocks, userrout
+from .routing_out import jack_outputs, output_reach, output_sources
 
 SECTIONS = frozenset({"monitor"})
 _KEYS = frozenset({"physical_outputs", "stereo_pairs", "require_reachable",

@@ -526,7 +526,7 @@ oversights:
 | Item | Status |
 |---|---|
 | A partial `/config/routing/IN` `AUX` token | `AN1-2` verified on a console (firmware 4.06): `/-ha/NN/index` reported Local 1–2 on aux-ins 1–2 and no head amp on aux-ins 3–4. The other spans and prefixes (`A1-4`, `UIN1-6` …) are taken to follow the same rule, which Maillot's note that `AUX1-4` stands for all six also implies; not each observed |
-| `/config/userrout` enumerations | Published (Maillot v4.06). Earlier releases decoded `169`–`184` as mix buses and `167`/`168` as the USB player; they are output slots 1–16 and talkback |
+| `/config/userrout` enumerations | Published (Maillot v4.06). `167`/`168` are talkback and `169`–`184` output slots 1–16, not the USB player and mix buses their position suggests |
 | Output taps `20`–`25`, `58`–`65`, `74`–`76` | Published enumeration; every one written to a desk and read back as written (`20` and `75` through X32-Edit; the rest by OSC root write and `/node` read-back, firmware 4.06); none yet seen in a saved file |
 | Output taps `26`–`57` on the `main`, `aux`, `aes` and `rec` banks | Published; observed on `p16` only |
 | Gate and dynamics `keysrc` `1`–`64` | Published enumeration; only `0` observed. Whether `1`–`32` names a channel or an input slot is unverified |

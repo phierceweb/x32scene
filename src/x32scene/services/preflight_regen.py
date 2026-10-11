@@ -19,12 +19,13 @@ from .groups import GROUP_STRIPS, dca_members, dca_names, mute_members
 from .preflight import _ALL_SECTIONS, _SECTIONS, GAIN_TOLERANCE_DB, _in_main
 from .preflight_outputs import _SRC_MAX, out_path
 from .preflight_regen_sends import sends
-from .routing import (channel_headamp_index, output_sources, record_map, resolve_in_slot,
-                      routing_blocks, uin_in_index)
+from .routing import (channel_headamp_index, record_map, resolve_in_slot, routing_blocks,
+                      uin_in_index)
+from .routing_out import output_sources
 
 __all__ = ["dumps", "regenerate"]
 
-# every section inverts today; name one here, with why, before leaving it out
+# sections the generator leaves out, each with why
 _NOT_INVERTIBLE: frozenset[str] = frozenset()
 _NOT_INVERTED_KEYS = {
     # no scene line records the console model: written only when one is named

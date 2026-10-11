@@ -48,7 +48,8 @@ of all six aux ins.
 Every slot resolves through `/config/routing/IN`, whatever `/config/routing` holds. With the
 switch at `PLAY` the desk reads the `/config/routing/PLAY` blocks instead, so `inputs`,
 `report`, `preflight`, `set-input` and a plan's head amps describe the REC patch, not what
-the channels hear during playback.
+the channels hear during playback. `inputs` and `set-input` say so in a note when the
+switch is `PLAY`, and `inputs --json` carries the switch as `switch`.
 
 Once you have a source *number*, the head-amp index is `number − 1` for sources 1–128.
 Card, Aux, FX-return, bus and OFF sources have no head amp.

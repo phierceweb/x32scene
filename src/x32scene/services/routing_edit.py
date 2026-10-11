@@ -9,9 +9,8 @@ from ..tables import (
     AUX_BANK_USB, OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, SLOT_RETURNS, SOURCE_DOMAINS,
     decode_out_source, decode_source, decode_tap, routing_block_names, routing_vocab,
 )
-from .routing import (
-    record_map, resolve_in_slot, resolve_in_slot_number, uout_start, user_out_readers,
-)
+from .routing import record_map, resolve_in_slot, resolve_in_slot_number, uout_start
+from .routing_out import user_out_readers
 
 ROUTING_PRESET_KEYS = ("IN", "AES50A", "AES50B", "CARD")   # what the console's library holds
 _SOURCE_KINDS = {"off": 0, "local": 1, "an": 1, "local input": 1, "aes50-a": 33, "a": 33,

@@ -5,6 +5,7 @@ import unittest
 
 from x32scene import Scene
 from x32scene import routing as R
+from x32scene.services import routing_out as RO
 
 EXAMPLE = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")
 EXAMPLE_ALT = os.path.join(os.path.dirname(__file__), "fixtures", "example-alt.scn")
@@ -41,16 +42,16 @@ class RoutingTest(unittest.TestCase):
         self.assertEqual(R.userrout(self.sc, "in")[29], 160)
 
     def test_output_sources_per_bank(self):
-        self.assertEqual(R.output_sources(self.sc, "rec"), {1: 1, 2: 2})
-        self.assertEqual(R.output_sources(self.sc, "main")[9], 10)
+        self.assertEqual(RO.output_sources(self.sc, "rec"), {1: 1, 2: 2})
+        self.assertEqual(RO.output_sources(self.sc, "main")[9], 10)
 
     def test_output_reach_follows_both_indirections(self):
         # example.scn reaches virtual outs 9-16 through the AES50-A OUT9-16 block;
         # example-alt.scn through /config/userrout/out 177-184 under a UOUT block —
         # deleting either branch of the resolver reddens exactly one shipped fixture
-        reach = R.output_reach(self.sc)
+        reach = RO.output_reach(self.sc)
         self.assertEqual(reach[9], ["AES50-A 9"])
-        alt = R.output_reach(Scene.load(EXAMPLE_ALT))
+        alt = RO.output_reach(Scene.load(EXAMPLE_ALT))
         self.assertTrue(all(n in alt for n in range(9, 17)), alt)
         self.assertIn("user-out 9", alt[9][0])
 
@@ -58,11 +59,11 @@ class RoutingTest(unittest.TestCase):
         # /config/routing/OUT reads OUT1-4 … OUT13-16 on every console; counting it would
         # make every output trivially reachable and the check vacuous
         self.sc.get("/config/routing/AES50A").set_arg(1, "UOUT9-16")
-        self.assertNotIn(9, R.output_reach(self.sc))
+        self.assertNotIn(9, RO.output_reach(self.sc))
         self.assertEqual(R.routing_blocks(self.sc, "OUT")[2], "OUT9-12")
 
     def test_output_aes_mirrors(self):
-        m = R.output_aes_mirrors(self.sc)
+        m = RO.output_aes_mirrors(self.sc)
         self.assertEqual(m[9], ["AES50-A 9"])    # virtual out 9 -> AES50-A 9 (stagebox)
         # physical out 1 also leaves on AES50-A 1, and on AES50-B 31 through user-out 39
         self.assertEqual(m[1], ["AES50-A 1", "AES50-B 31 via user-out 39"])
@@ -89,6 +90,11 @@ class RoutingTest(unittest.TestCase):
         self.assertEqual(R.resolve_in_slot(self.sc, 38), "Aux In 6")
         self.assertEqual(R.resolve_in_slot(self.sc, 39), "USB player L")
         self.assertEqual(R.resolve_in_slot(self.sc, 40), "USB player R")
+
+    def test_a_slot_outside_0_to_64_is_unknown_not_off(self):
+        self.assertEqual(R.resolve_in_slot(self.sc, 0), "OFF")
+        self.assertEqual(R.resolve_in_slot(self.sc, 64), "Bus 16")
+        self.assertEqual([R.resolve_in_slot(self.sc, s) for s in (65, 99, -1)], ["?"] * 3)
 
     def test_a_partial_aux_token_remaps_only_its_span(self):
         aux = self.sc.get("/config/routing/IN")

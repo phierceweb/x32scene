@@ -13,7 +13,7 @@ import unittest
 from x32scene import Scene
 from x32scene.cli import main
 from x32scene.services.preflight import preflight
-from x32scene.services.routing import jack_outputs
+from x32scene.services.routing_out import jack_outputs
 
 EXAMPLE = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")
 

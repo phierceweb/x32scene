@@ -10,7 +10,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from tests.test_load import BASE, Desk, edited
+from tests.load_desk import BASE, Desk, edited
 from x32scene.cli import main
 from x32scene.model import Scene
 from x32scene.services import osc as O

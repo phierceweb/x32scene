@@ -99,6 +99,11 @@ with a one-sided send level and tap loaded and came back with both sides at the 
 channel's values, the odd side's edit gone. Recall from a USB stick on the desk has not
 been watched.
 
+The head amps follow the same rule when the `hadly` link preference is ON: a root write of
+`+6.0` to the head amp feeding the odd channel of a linked pair put `+6.0` on the head amp
+feeding the even channel within a second, and writing the first back took the second back
+with it (firmware 4.06, an AES50 stage-box pair).
+
 The consequence: **writing one side of a linked pair is not durable.** Anything that copies
 or sets a send must write **both sides** of a linked pair. x32scene does this by default and
 exposes `--no-link` to opt out; `preflight`'s `require_send_symmetry` checks a file for the
@@ -152,6 +157,15 @@ then unlink does not restore what bus N+1 had.
 Both directions keep every line's field count: send-line shape follows bus parity, not the
 link ([format.md](format.md#bus-sends--and-the-oddeven-field-count-invariant)).
 
+A **channel pair** linked by a `/config/chlink` root write (firmware 4.06, every link
+preference ON) followed the same rules: the even channel took the odd channel's on and level
+on every bus send and its colour (name and icon stayed), and the main pans and the odd-send
+pans went from `+0`/`+0` to `-100`/`+100` on both sides. The pair's EQ, dynamics and
+fader/mute were already equal, so that copy could not be seen. The copy is not instant: a
+line written to the pair within about 0.1 s of the link line was overwritten by it, while
+from 0.1 s on the write landed and mirrored its on and level to the other side, pans per
+side. After an unlink, writes 0 to 1 s later mirrored nothing.
+
 `x32scene set-bus-link` writes the same changes into a file. A file it wrote linking a pair
 has been loaded through X32-Edit, and a full pull afterwards matched the file with zero
 changed paths ([Getting a file onto the desk](#getting-a-file-onto-the-desk)).
@@ -170,6 +184,11 @@ Every effect type's order has since been corroborated against a line a console w
 desk's own effect library and the default parameter line it returns for each type — so
 all 61 read and write. The graphic EQs are the exception: their band gains decode but the
 band labels are the standard ISO series, not desk-verified, so writes are refused.
+
+Writing `/fx/N` with the type the slot already holds leaves `/fx/N/par` as it is. Writing
+another type had reset `/par` to that type's defaults by the first read, 15 ms after the
+write, and a `/par` line sent right after the type line held (0 to 0.5 s after it, firmware
+4.06).
 
 ## Getting a file onto the desk
 
@@ -232,6 +251,20 @@ Load of a full scene left two or three sends at their old values, a different fe
 time, and a second Load put them right — a line can go missing on the way, so a load is
 not a load until it is read back. A line the desk still answers with another value after
 the last pass is reported: its own grid (an EQ frequency, a pan) or a linked pair's mirror.
+After an FX type line and after a link line `load` waits half a second, since the desk
+follows each with writes of its own and a line written inside that window is lost to them
+([Linking or unlinking a pair](#linking-or-unlinking-a-pair)). A file that links a pair
+still takes two passes: the link moves lines the desk already held as the file has them
+(the pans, the even side's sends), so they are written only once the read-back finds them.
+For the same reason `load --keep-bus` and `--keep`, which leave lines as the desk holds
+them, keep the other side of every pair the desk links where it copies a write, and refuse
+a file that changes the link of a pair a kept line belongs to. A link line carries every
+pair's token, but a token re-sent unchanged moves nothing: the channel-link write above
+moved only the pair it changed while four linked pairs' `ON` tokens went out with it, and a
+`/config/chlink` or `/config/buslink` line written back token for token changed no path. They
+refuse a file that changes a `/config/linkcfg` preference gating a kept line on a linked
+pair as well, since whether changing a preference copies across a pair already linked has
+not been watched.
 A root write sets the node whatever the desk's safes say: with a channel safed
 (`/-show/showfile/show/chan32`), a root write of its pan still took. Safes govern recall,
 so a load through root writes ignores them, and so would ignore a scene header's own safes

@@ -13,13 +13,14 @@ from .iem import bus_link_group
 from .presets import apply_preset, extract_preset
 
 
-def bus_mix_paths(scene: Scene, bus: int) -> list[str]:
+def bus_mix_paths(scene: Scene, bus: int, *, group: tuple[int, ...] | None = None) -> list[str]:
     """Every path that makes up one monitor mix: the bus strip's own lines and each
-    sender's send to it, for both sides of a linked pair."""
+    sender's send to it, for both sides of a linked pair (``group`` names the sides when
+    the scene's own link line is not the one to trust)."""
     if not 1 <= bus <= 16:
         raise ValueError(f"bus must be 1-16, got {bus}")
     paths: list[str] = []
-    for b in bus_link_group(scene, bus):
+    for b in group or bus_link_group(scene, bus):
         strip = f"/bus/{b:02d}"
         paths += [ln.path for ln in scene.lines if ln.path == strip or ln.path.startswith(strip + "/")]
         paths += [f"{s}/mix/{b:02d}" for s in SEND_STRIPS if scene.get(f"{s}/mix/{b:02d}") is not None]

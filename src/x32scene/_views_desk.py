@@ -152,10 +152,14 @@ def cmd_load(result: LoadResult, target: Scene, name: str, passes: int) -> None:
     since a gain or phantom change is the one a load must not surprise anyone with."""
     for n, paths in enumerate(result.passes, start=1):
         print(f"pass {n}: {len(paths)} line(s) written")
+    if result.kept:
+        print("kept as the desk holds them: "
+              + ", ".join(f"{what} ({len(ps)} line(s))" for what, ps in result.kept))
+    held = f"{name} outside the kept lines" if result.kept else name
     if not result.passes and not (result.error or result.interrupted):
-        print(f"the desk already holds {name}: nothing written")
+        print(f"the desk already holds {held}: nothing written")
     elif result.ok:
-        print(f"the desk holds {name}: {result.written} line(s) written in "
+        print(f"the desk holds {held}: {result.written} line(s) written in "
               f"{len(result.passes)} pass(es)")
     if result.stuck:
         print(f"{len(result.stuck)} path(s) the desk answers with another value after "
@@ -165,6 +169,11 @@ def cmd_load(result: LoadResult, target: Scene, name: str, passes: int) -> None:
     if result.unanswered:
         head = ", ".join(result.unanswered[:8]) + (" …" if len(result.unanswered) > 8 else "")
         print(f"{len(result.unanswered)} path(s) not read back, so not verified: {head}")
+    if result.moved:
+        print(f"{len(result.moved)} kept path(s) changed during the load, by a copy of a "
+              "write or by hand:")
+        for c in result.moved:
+            print(f"  {c.path}\n    - {c.before}\n    + {c.after}")
     heads = sorted({p for paths in result.passes for p in paths if p.startswith("/headamp/")})
     if heads:
         print("head amps written: " + ", ".join(target.get(p).raw for p in heads))

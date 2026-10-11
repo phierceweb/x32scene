@@ -8,7 +8,8 @@ import unittest
 
 from x32scene import Scene
 from x32scene.services.preflight import preflight
-from x32scene.services.routing import output_reach, record_map, user_out_readers
+from x32scene.services.routing import record_map
+from x32scene.services.routing_out import output_reach, user_out_readers
 
 EXAMPLE = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")
 

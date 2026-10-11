@@ -56,6 +56,16 @@ def _passes(s: str) -> int:
     return v
 
 
+def _keep_bus(s: str) -> int:
+    try:
+        v = int(s)
+    except ValueError:
+        v = 0
+    if not 1 <= v <= 16:
+        raise argparse.ArgumentTypeError(f"--keep-bus wants a bus 1-16, got {s}")
+    return v
+
+
 def _add_live(sub) -> None:
     # resolved once: both live subparsers share it, and a malformed value warns once
     timeout_default = _bounded(resolve_float(None, "X32SCENE_TIMEOUT", default=0.5))
@@ -68,6 +78,12 @@ def _add_live(sub) -> None:
     s.add_argument("--timeout", type=_timeout, default=timeout_default, help=timeout_help)
     s.add_argument("--passes", type=_passes, default=3,
                    help="write-and-read-back rounds before giving up, 1-10 (default 3)")
+    s.add_argument("--keep-bus", type=_keep_bus, action="append", metavar="BUS",
+                   help="leave this mix as the desk holds it: the bus strip and every send "
+                        "into it, both sides of a pair the desk links (repeatable)")
+    s.add_argument("--keep", action="append", metavar="GLOB",
+                   help="leave the lines matching this path pattern as the desk holds "
+                        "them, such as '/ch/29/*' (repeatable)")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("pull",
                        help="pull the running desk's state via OSC (paths from a reference scene)")

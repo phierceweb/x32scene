@@ -169,6 +169,9 @@ Nothing here writes to the desk; `watch` only subscribes to its change reports
   with another value, such as a frequency snapped to its grid. It writes only what a scene
   or snippet carries, and refuses a file whose own header marks a group safe or leaves a
   line outside its masks, since a recall would skip those.
+- `load --keep-bus N` loads a file but leaves one mix as the desk holds it, both sides of
+  a linked pair; `--keep GLOB` does the same for any path pattern. One scene then serves
+  either running order of a night, and a mix tweaked live survives the changeover.
 - Either way: load-test, save the desk's state back, and `diff`. The desk snaps some
   values to its own grid; the diff shows exactly what it kept.
 

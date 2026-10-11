@@ -3,6 +3,35 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.8.0] — 2026-10-11
+
+### Changed
+- Requires `pf-core~=0.26.0`.
+- `load` waits after a `/config/*link` line as it does after an FX type line
+  (`services/load.py`, `SETTLE`).
+- Library: the output side of `services.routing` (`output_sources`, `outputs_from_buses`,
+  `output_aes_mirrors`, `output_reach`, `jack_outputs`, `user_out_readers`) is
+  `services.routing_out`.
+
+### Added
+- `load --keep-bus BUS` and `--keep GLOB` leave a mix or a path pattern as the desk holds
+  it, with each line the desk copies a write onto: the other side of a linked pair, as
+  `/config/linkcfg` gates it, and a linked channel's head amp. Kept lines are never
+  written and are read back with the rest; one that changed during the load, or that the
+  first read or the last missed, exits 1. Refused before any write: a file that changes
+  the link of a pair a kept line belongs to or changes a `/config/linkcfg` preference that
+  gates a kept line on a linked pair, and a `--keep-bus` mix the file has no line of; exit 2
+  with nothing written when the desk does not answer a link line or `/config/linkcfg`.
+  Library: `load_keep.Keep`, `load.Unloadable`, `LoadResult.kept` and `.moved`,
+  `transplant.bus_mix_paths(group=)`, `channelfx.link_pref_on`.
+- `inputs` and `set-input` print a note when `/config/routing` is `PLAY`; `inputs --json`
+  carries the switch as `switch`. Library: `routing.routing_switch`.
+
+### Fixed
+- `NOTICE` gives pf-core's license as Apache-2.0.
+- A channel source slot outside 0–64 reads `?` in `inputs`, `report` and `preflight`, not
+  `OFF`.
+
 ## [0.7.0] — 2026-10-03
 
 ### Changed

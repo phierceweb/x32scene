@@ -9,7 +9,7 @@ import unittest
 
 from x32scene import Scene
 from x32scene.cli import main
-from x32scene.services.routing import output_aes_mirrors, output_reach
+from x32scene.services.routing_out import output_aes_mirrors, output_reach
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
 ALT = os.path.join(FIXTURES, "example-alt.scn")

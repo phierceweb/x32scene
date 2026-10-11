@@ -308,7 +308,7 @@ What it cannot write:
   to any group.
 
 `_NOT_INVERTIBLE` in `services/preflight_regen.py` names any section the generator leaves
-out; today it is empty.
+out.
 
 ## Where the real one lives
 

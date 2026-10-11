@@ -10,7 +10,8 @@ import unittest
 
 from x32scene import Scene
 from x32scene.services import routing_edit as RT
-from x32scene.services.routing import record_map, user_out_readers
+from x32scene.services.routing import record_map
+from x32scene.services.routing_out import user_out_readers
 from x32scene.tables import decode_out_source
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")

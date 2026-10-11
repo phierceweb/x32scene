@@ -12,7 +12,7 @@ from x32scene import Scene
 from x32scene.model import Line
 from x32scene.services import buslink as BL
 from x32scene.services.diff import diff
-from x32scene.services.routing import outputs_from_buses
+from x32scene.services.routing_out import outputs_from_buses
 from x32scene.tables import SEND_STRIPS
 
 EXAMPLE = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")

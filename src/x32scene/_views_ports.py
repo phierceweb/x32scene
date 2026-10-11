@@ -5,7 +5,7 @@ edit reaches. Presentation only."""
 from __future__ import annotations
 
 from .model import Scene
-from .services import routing as _routing
+from .services import routing_out as _rout
 from .services.buses import bus_names
 from .services.buslink import BusLinkEdit
 from .services.stage import stage_entries
@@ -19,12 +19,12 @@ def ports_rows(scene: Scene, bank: str = "main", stage: dict | None = None,
     """One dict per output line of ``bank`` (every bank for "all"): bank, n, src, label,
     bus, pos, invert, mirrors, the sidecar entry (or None), ``physical``: whether a rear
     jack within the jack count carries a main output (None elsewhere or without a count),
-    and ``jack``: which one (:func:`routing.jack_outputs`)."""
+    and ``jack``: which one (:func:`routing_out.jack_outputs`)."""
     if bank not in BANKS:
         raise ValueError(f"bank must be one of {', '.join(BANKS)}, got {bank!r}")
     names = bus_names(scene)
-    mirrors = _routing.output_aes_mirrors(scene)
-    jacks = _routing.jack_outputs(scene, physical) if physical is not None else {}
+    mirrors = _rout.output_aes_mirrors(scene)
+    jacks = _rout.jack_outputs(scene, physical) if physical is not None else {}
     entries = stage_entries(stage) if stage else {}
     rows = []
     for b, (size, fields) in OUTPUT_BANKS.items():
@@ -69,7 +69,7 @@ def cmd_ports(scene: Scene, physical: int | None = None, *, bank: str = "main",
               "config to label physical vs virtual):")
     elif physical == 0:
         print("Outputs (main 1-16 = virtual: no rear jacks)")
-    elif _routing.jack_outputs(scene, physical) != {n: n for n in range(1, physical + 1)}:
+    elif _rout.jack_outputs(scene, physical) != {n: n for n in range(1, physical + 1)}:
         print(f"Outputs ({physical} rear jacks, as /config/routing/OUT patches them; the rest "
               "virtual):")
     elif physical >= 16:
@@ -101,7 +101,7 @@ def bus_link_lines(scene: Scene, edit: BusLinkEdit) -> list[str]:
     strip = [p for p in edit.changed if p.startswith("/bus/")]
     lines.append(f"  {len(strip)} bus line(s) changed" + (":" if strip else ""))
     lines += [f"    {p}" for p in strip]
-    feeds = _routing.outputs_from_buses(scene, (a, b))
+    feeds = _rout.outputs_from_buses(scene, (a, b))
     if not feeds:
         lines.append(f"  no output is fed from bus {a} or {b}")
     else:

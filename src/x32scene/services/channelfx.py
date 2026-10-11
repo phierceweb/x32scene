@@ -81,7 +81,7 @@ def pair_linked(scene: Scene, path: str) -> str | None:
     return f"{fam}/{(n + 1 if n % 2 else n - 1):02d}"
 
 
-def _link_pref_on(scene: Scene, pref: str) -> bool:
+def link_pref_on(scene: Scene, pref: str) -> bool:
     ln = scene.get("/config/linkcfg")
     i = LINKCFG[pref]
     return bool(ln) and i < len(ln.args) and ln.args[i] == "ON"
@@ -93,7 +93,7 @@ def link_targets(scene: Scene, strip: int | str, pref: str,
     partner = pair_linked(scene, path)
     if partner is None or linked is False:
         return [path]
-    if linked or _link_pref_on(scene, pref):
+    if linked or link_pref_on(scene, pref):
         return [path, partner]
     return [path]
 

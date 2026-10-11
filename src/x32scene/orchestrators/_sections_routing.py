@@ -1,6 +1,6 @@
-"""The routing section and the channel sources of a band-setup plan. Both apply before any
-other stage, so a head amp the plan or a preset sets is the one the channel reads in the
-finished scene."""
+"""The routing section and the channel sources of a band-setup plan. Both apply right after
+the title, before every other stage, so a head amp the plan or a preset sets is the one the
+channel reads in the finished scene."""
 
 from __future__ import annotations
 
