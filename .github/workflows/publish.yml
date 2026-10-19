@@ -47,7 +47,7 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: ruff check src tests
-      - run: python -m pf_core.guards
+      - run: python -m pw_foundation.guards
       - run: pytest -q -n auto
 
   publish:

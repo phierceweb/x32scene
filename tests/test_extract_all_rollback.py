@@ -150,7 +150,7 @@ class WriteRaceTest(unittest.TestCase):
         return sorted(n for n in os.listdir(self.dir) if n.startswith(".x32scene-"))
 
     def test_a_file_that_appeared_is_kept_and_nothing_is_written(self):
-        from pf_core.exceptions import InvalidInputError
+        from pw_foundation.exceptions import InvalidInputError
         with open(self.b, "wb") as fh:
             fh.write(b"USER-B")
         with self.assertRaises(InvalidInputError) as cm:
@@ -162,7 +162,7 @@ class WriteRaceTest(unittest.TestCase):
         self.assertEqual(self._left(), [])
 
     def test_a_directory_that_appeared_is_kept(self):
-        from pf_core.exceptions import InvalidInputError
+        from pw_foundation.exceptions import InvalidInputError
         os.makedirs(os.path.join(self.a, "keep"))
         with self.assertRaises(InvalidInputError):
             self._write(replaceable={self.a})

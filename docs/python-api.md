@@ -34,7 +34,7 @@ presentation and exception boundary — do not import them; they print and raise
 terminal.
 
 **The library never logs and never prints.** It raises `ValueError` / `KeyError` for a bad
-value or a missing path and leaves the decision to the caller. Logging and the pf-core
+value or a missing path and leaves the decision to the caller. Logging and the pw-foundation
 exception boundary are adopted at the CLI only.
 
 ## Scene and Line

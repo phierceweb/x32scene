@@ -11,8 +11,8 @@ import sys
 import tempfile
 from collections.abc import Collection
 
-from pf_core.exceptions import InvalidInputError
-from pf_core.utils.io import atomic_write_bytes
+from pw_foundation.exceptions import InvalidInputError
+from pw_foundation.utils.io import atomic_write_bytes
 
 from .model import CR_ENDINGS, Scene, read_file
 from .services import validate as _validate

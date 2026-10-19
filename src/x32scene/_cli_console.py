@@ -3,7 +3,7 @@ config's ``monitor.physical_outputs``."""
 
 from __future__ import annotations
 
-from pf_core.exceptions import InvalidInputError
+from pw_foundation.exceptions import InvalidInputError
 
 from .services import console_models as _models
 from .services import preflight as _preflight

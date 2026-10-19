@@ -3,7 +3,7 @@ shared by the edit commands and `snippet --edit`."""
 
 from __future__ import annotations
 
-from pf_core.exceptions import InvalidInputError
+from pw_foundation.exceptions import InvalidInputError
 
 from ._cli_files import read_lf
 from ._cli_presets import apply_preset_edit

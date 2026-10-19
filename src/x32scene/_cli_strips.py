@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from collections import Counter
 
-from pf_core.exceptions import InvalidInputError
+from pw_foundation.exceptions import InvalidInputError
 
 from ._cli_files import file_kind, load_checked, refuse_overwrite
 from .model import Scene

@@ -23,7 +23,7 @@ you don't need to attach the scene itself.
 ## Setup
 
 ```bash
-bin/run setup          # venv (needs python3.12 on PATH), editable install, pf-core docs link
+bin/run setup          # venv (needs python3.12 on PATH), editable install, pw-foundation docs link
 bin/run pytest -n auto # the suite across every core; drop -n to debug one test
 bin/run lint
 ```
@@ -33,8 +33,8 @@ bin/run lint
 - **Verify against real hardware or a real file.** Decoding claims need evidence — a scene
   the console wrote, or a console re-save that confirms a value took. A value that is
   in-range but wrong-*format* can be silently rejected by the desk.
-- **One concern per file.** `bin/run lint` runs pf-core's structural gate; the limits are
-  pf-core's `GuardsConfig` defaults. If a file is over, split it rather than grandfathering it.
+- **One concern per file.** `bin/run lint` runs pw-foundation's structural gate; the limits are
+  pw-foundation's `GuardsConfig` defaults. If a file is over, split it rather than grandfathering it.
 - Single-domain operations go in `services/`; multi-step workflows in `orchestrators/`;
   presentation in the `_views*` modules. The library layer stays free of logging and CLI
   concerns.

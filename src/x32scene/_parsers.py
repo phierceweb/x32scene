@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 
-from pf_core.utils.env import resolve_str
+from pw_foundation.utils.env import resolve_str
 
 from . import __version__
 from .services.scopes import SCOPES

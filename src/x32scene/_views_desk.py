@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import time
 
-from pf_core.exceptions import InvalidInputError
+from pw_foundation.exceptions import InvalidInputError
 
 from ._views import _fields_text, print_by_strip
 from .model import Scene

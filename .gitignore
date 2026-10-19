@@ -45,5 +45,5 @@ logs/
 .superpowers/
 CLAUDE.md
 
-# pf-core docs symlink (bin/run setup recreates it)
-docs/pf-core
+# pw-foundation docs symlink (bin/run setup recreates it)
+docs/pw-foundation

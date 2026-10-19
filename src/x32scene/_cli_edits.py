@@ -6,7 +6,7 @@ from __future__ import annotations
 import os
 import sys
 
-from pf_core.exceptions import InvalidInputError
+from pw_foundation.exceptions import InvalidInputError
 
 from ._cli_files import (clean, load_checked, read_checked, refuse_overwrite, write_all,
                          write_into)

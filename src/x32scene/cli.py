@@ -10,8 +10,8 @@ from __future__ import annotations
 import os
 import sys
 
-from pf_core.exceptions import FlowException, InvalidInputError
-from pf_core.log import get_logger, setup_logging
+from pw_foundation.exceptions import FlowException, InvalidInputError
+from pw_foundation.log import get_logger, setup_logging
 
 from . import _json
 from . import _json_views
@@ -183,7 +183,7 @@ def _run(argv: list[str] | None = None) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI entry point: pf-core logging + exception boundary. Console stays quiet
+    """CLI entry point: pw-foundation logging + exception boundary. Console stays quiet
     (runs log at debug); set ``LOG_FILE=path`` for a JSON-lines audit trail."""
     setup_logging(app_logger_name="x32scene")
     start_run()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 
-from pf_core.exceptions import InvalidInputError
+from pw_foundation.exceptions import InvalidInputError
 
 from . import _json
 from . import _json_views

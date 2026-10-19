@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from pf_core.exceptions import InvalidInputError
+from pw_foundation.exceptions import InvalidInputError
 
 from . import _json
 from ._cli_console import with_console

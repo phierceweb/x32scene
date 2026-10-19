@@ -8,7 +8,7 @@ import io
 import os
 import shlex
 
-from pf_core.exceptions import InvalidInputError
+from pw_foundation.exceptions import InvalidInputError
 
 from . import _views
 from ._cli_files import load_checked, refuse_overwrite

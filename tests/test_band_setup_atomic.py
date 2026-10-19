@@ -11,7 +11,7 @@ import tempfile
 import unittest
 from unittest import mock
 
-from pf_core.utils.io import atomic_write_bytes
+from pw_foundation.utils.io import atomic_write_bytes
 
 from x32scene.cli import main
 from x32scene.orchestrators import band_swap

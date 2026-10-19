@@ -152,7 +152,7 @@ and its load-test loop before trusting a generated file at a gig.
 pip install x32scene
 ```
 
-Python 3.12 or newer, one dependency ([pf-core](https://pypi.org/project/pf-core/)).
+Python 3.12 or newer, one dependency ([pw-foundation](https://pypi.org/project/pw-foundation/)).
 Releases are tagged; `main` is the development line. Release notes:
 [CHANGELOG.md](https://github.com/phierceweb/x32scene/blob/main/CHANGELOG.md).
 
@@ -218,7 +218,7 @@ The library map is [docs/python-api.md](https://github.com/phierceweb/x32scene/b
 git clone https://github.com/phierceweb/x32scene && cd x32scene
 bin/run setup          # venv, editable install
 bin/run pytest -n auto # the suite, across every core
-bin/run lint           # ruff + the pf-core structural gate
+bin/run lint           # ruff + the pw-foundation structural gate
 bin/run x32scene …     # the CLI, with .env loaded
 ```
 
@@ -240,13 +240,13 @@ index, maintained beside the docs.
 - [preflight-config.md](https://github.com/phierceweb/x32scene/blob/main/docs/preflight-config.md) — the JSON expected-config `preflight` checks against: every section and what each catches
 - [stage-sidecar.md](https://github.com/phierceweb/x32scene/blob/main/docs/stage-sidecar.md) — recording which jack and which person each output feeds, and what `preflight` checks against it
 
-## Built on pf-core
+## Built on pw-foundation
 
-x32scene is built on [pf-core](https://github.com/phierceweb/pf-core)
-([PyPI](https://pypi.org/project/pf-core/)), a Python foundation for LLM-facing
-applications. x32scene uses its atomic-write utilities, structured logging, exception
-boundary and config-from-env, and its structural gate, which fails the build when a file
-outgrows its line budget.
+x32scene is built on [pw-foundation](https://github.com/phierceweb/pw-foundation)
+([PyPI](https://pypi.org/project/pw-foundation/)), a dependency-light Python foundation:
+logging, exceptions, configuration from the environment, pure utilities and a structural build
+gate. x32scene uses its atomic-write utilities, structured logging, exception boundary and
+config-from-env, and the gate, which fails the build when a file outgrows its line budget.
 
 For other phierceweb projects, see [github.com/phierceweb](https://github.com/phierceweb).
 

@@ -47,7 +47,7 @@ class CliTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {"X32SCENE_TIMEOUT": "1.25"}):
             self.assertEqual(timeout(), 1.25)
             self.assertEqual(timeout("--timeout", "2"), 2.0)
-        # malformed env falls back rather than raising (pf-core resolve_float)
+        # malformed env falls back rather than raising (pw-foundation resolve_float)
         with mock.patch.dict(os.environ, {"X32SCENE_TIMEOUT": "soon"}):
             self.assertEqual(timeout(), 0.5)
 

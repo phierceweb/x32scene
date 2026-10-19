@@ -4,9 +4,9 @@
 #   bin/run pytest [args]     run the test suite in the venv
 #   bin/run python [args]     one-off venv'd python
 #   bin/run pip|ruff [args]   pip / ruff in the venv
-#   bin/run pf-doctor [args]  pf-core runtime attestation (--release before a tag)
-#   bin/run lint              ruff check + pf-core structural gate (300 soft / 500 hard)
-#   bin/run setup             install editable + link pf-core docs
+#   bin/run pw-doctor [args]  pw-foundation runtime attestation (--release before a tag)
+#   bin/run lint              ruff check + pw-foundation structural gate (300 soft / 500 hard)
+#   bin/run setup             install editable + pw-setup (docs link, rules)
 #   bin/run x32scene [args]   the CLI
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,23 +18,21 @@ if [ -f "$ROOT/.env" ]; then set -a; . "$ROOT/.env"; set +a; fi
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
-  pytest|python|pip|ruff|pf-guards|pf-doctor|pf-setup)
+  pytest|python|pip|ruff|pw-guards|pw-doctor|pw-setup)
     exec "$ROOT/.venv/bin/$cmd" "$@" ;;
   x32scene) exec "$PY" -m x32scene.cli "$@" ;;
   setup)
     [ -d "$ROOT/.venv" ] || python3.12 -m venv "$ROOT/.venv"
     "$PY" -m pip install -q --upgrade pip
     "$PY" -m pip install -q -e ".[dev]"
-    mkdir -p docs
-    ln -sfn "$("$PY" -c 'import pf_core, pathlib; print(pathlib.Path(pf_core.__file__).parent / "docs")')" \
-       docs/pf-core 2>/dev/null || true
+    "$ROOT/.venv/bin/pw-setup"   # docs/pw-foundation link, starter rules, editor links, gate config
     echo "setup OK"
     ;;
   lint)
     "$ROOT/.venv/bin/ruff" check src tests
-    "$PY" -m pf_core.guards          # roots come from .pf-guards.toml
+    "$PY" -m pw_foundation.guards          # roots come from .pw-guards.toml
     echo "lint OK"
     ;;
-  ""|--help|-h) echo "usage: bin/run {setup|pytest|python|pip|ruff|lint|pf-doctor|x32scene} [args]" ;;
+  ""|--help|-h) echo "usage: bin/run {setup|pytest|python|pip|ruff|lint|pw-doctor|x32scene} [args]" ;;
   *) echo "unknown command: $cmd" >&2; exit 2 ;;
 esac

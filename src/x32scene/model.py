@@ -13,7 +13,7 @@ import re
 from dataclasses import dataclass
 from itertools import pairwise
 
-from pf_core.utils.io import atomic_write_bytes
+from pw_foundation.utils.io import atomic_write_bytes
 
 
 def write_file(path: str, data: bytes) -> None:

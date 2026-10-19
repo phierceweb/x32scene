@@ -3,6 +3,13 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.9.0] — 2026-10-18
+
+### Changed
+- Requires `pw-foundation~=1.0` in place of `pf-core`.
+- `bin/run lint` and CI run `python -m pw_foundation.guards`, configured by `.pw-guards.toml`.
+- `NOTICE` credits pw-foundation.
+
 ## [0.8.0] — 2026-10-11
 
 ### Changed
