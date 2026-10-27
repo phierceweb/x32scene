@@ -82,6 +82,9 @@ def cmd_desk(info: DeskInfo) -> None:
                 print(f"  {k:<18} {prefs[k]}")
     if info.show:
         print(f"show  {info.show}")
+    if info.slots is None:
+        print("memory slots: not read (--no-library)")
+        return
     for kind in ("scene", "snippet", "cue", *LIB_KINDS):
         slots = info.slots.get(kind, [])
         label = LIB_KINDS.get(kind, kind + "s")

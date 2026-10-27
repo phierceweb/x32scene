@@ -20,6 +20,7 @@ truth, and it is worth running before you trust any generated scene at a gig.
 - [Linking or unlinking a pair](#linking-or-unlinking-a-pair)
 - [Effect parameter order is real but type-specific](#effect-parameter-order-is-real-but-type-specific)
 - [Getting a file onto the desk](#getting-a-file-onto-the-desk)
+- [The desk's own show memory](#the-desks-own-show-memory)
 - [The load test — the only ground truth](#the-load-test--the-only-ground-truth)
 
 ## The scene name comes from the filename, not the header
@@ -274,7 +275,30 @@ and a snippet's masks: `load` refuses such a file rather than write what a recal
 
 X32-Edit's Load pushes a file's lines from the computer. Loading the same file from a USB
 stick on the desk is the other route, through the desk's own recall and its header masks;
-the body is identical either way, but that route has not been watched.
+the body is identical either way, but that route has not been watched. A snippet saved into
+a desk slot and recalled from there does honour them ([below](#the-desks-own-show-memory)).
+
+## The desk's own show memory
+
+The Show Control → Mixer tabs hold 100 scene, 100 snippet and 100 cue slots, all reachable
+over OSC (observed on firmware 4.06). `x32scene desk` lists the occupied ones.
+
+- `/save scene N "name" "notes"` and `/save snippet N "name"` write the desk's live state
+  into slot N. A snippet slot captures its `eventtyp` categories for exactly the strips its
+  masks select: a slot filtered to Send 9–12 on the channels, aux-ins and FX returns, saved
+  and then recalled, moved those sends and nothing else. The Preamp HA category follows the
+  channel mask the same way, so a snippet recalls head amps only for the channels it names.
+  Send 1–8 is one category: a snippet cannot carry some of a strip's sends into buses 1–8
+  without all of them.
+- `/delete scene N` and `/delete snippet N` clear a slot.
+- `/-action/gocue N` fires cue slot N (an action the protocol text does not list; observed).
+  The recall lands without the *Confirm Pop-Ups →
+  Scene Load* prompt, which X32-Edit's Go and the desk's own Mixer Cues Load wait for while
+  `/-prefs/confirm_sceneload` is ON; that preference is writable over OSC.
+- `/add cue` left slot 001 empty between the first and second cue added; writing the
+  `/-show/showfile/cue/NNN/*` fields directly gives contiguous slots. A cue slot's `/node`
+  reply has no hasdata field, unlike a scene, snippet or library slot: an empty one reads
+  `0 "" 0 -1 -1 0 1 0 0`.
 
 ## The load test — the only ground truth
 

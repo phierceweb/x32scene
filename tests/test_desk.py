@@ -23,18 +23,23 @@ LINES = ['/-show/showfile/scene/000 "Opener" "" %000000110 1',
          '/-libs/mon/001 1 "Empty" 3 %0000000000000000 1']
 
 
-def fake_pull(ip, paths, **kw):
-    out = []
-    for p in paths:
-        if p in STAT:
-            out.append(f"/{p} {STAT[p]}")
-        elif p.startswith("-prefs/"):
-            out.append(f"/{p} " + {"-prefs/name": '"X32-TEST"', "-prefs/clockrate": "48K"}.get(p, "OFF"))
-        elif p == "-show/showfile/show":
-            out.append('/-show/showfile/show "Tour" 0 0 0 0 0 0 0 0 0 0 "4.06"')
-        else:
-            out.extend(ln for ln in LINES if ln.split(" ")[0] == "/" + p)
-    return out, []
+def pull_from(lines):
+    def fake_pull(ip, paths, **kw):
+        out = []
+        for p in paths:
+            if p in STAT:
+                out.append(f"/{p} {STAT[p]}")
+            elif p.startswith("-prefs/"):
+                out.append(f"/{p} " + {"-prefs/name": '"X32-TEST"', "-prefs/clockrate": "48K"}.get(p, "OFF"))
+            elif p == "-show/showfile/show":
+                out.append('/-show/showfile/show "Tour" 0 0 0 0 0 0 0 0 0 0 "4.06"')
+            else:
+                out.extend(ln for ln in lines if ln.split(" ")[0] == "/" + p)
+        return out, []
+    return fake_pull
+
+
+fake_pull = pull_from(LINES)
 
 
 class WordsTest(unittest.TestCase):
@@ -67,11 +72,39 @@ class ReadDeskTest(unittest.TestCase):
         self.assertIn("on: gate, eq, dyn", info.slots["ch"][0][2])
         self.assertNotIn(1, [i for i, _, _ in info.slots["scene"]])   # hasdata 0 is skipped
 
-    def test_no_library(self):
+    def test_a_cue_is_listed_without_a_hasdata_field(self):
+        """A cue reply ends at midipara2 (the protocol gives cues no hasdata child); the
+        empty slot reads 0 "" 0 -1 -1 0 1 0 0."""
+        cues = ['/-show/showfile/cue/000 100 "CCC" 0 -1 -1 0 1 0 0',
+                '/-show/showfile/cue/001 110 "Ccc" 1 1 -1 0 1 0 0',
+                '/-show/showfile/cue/002 200 "DDD" 0 2 3 0 1 0 0',
+                '/-show/showfile/cue/003 0 "" 0 -1 -1 0 1 0 0',
+                '/-show/showfile/cue/004 0 "" 0 -1 -1 1 1 5 0',   # numbered 0, a program change only
+                '/-show/showfile/cue/005 0 "" 0 -1 -1',           # an empty slot, cut short
+                '/-show/showfile/cue/006 0 "" 0 -1',
+                '/-show/showfile/cue/007 0',
+                '/-show/showfile/cue/008 5']                       # a number alone is a cue
+        with mock.patch.object(D, "xinfo", return_value=("", "N", "M", "F")), \
+             mock.patch.object(D, "pull_lines", side_effect=pull_from(cues)):
+            info = D.read_desk("10.0.0.2")
+        self.assertEqual([(i, n) for i, n, _ in info.slots["cue"]],
+                         [(0, "CCC"), (1, "Ccc"), (2, "DDD"), (4, ""), (8, "")])
+        self.assertEqual(info.slots["cue"][1][2], "cue 1.1.0, scene 1, skip")
+        self.assertEqual(info.slots["cue"][2][2], "cue 2.0.0, scene 2, snippet 3")
+
+    def test_a_read_library_with_every_slot_empty_is_an_empty_dict(self):
+        empty = ['/-show/showfile/scene/000 "" "" %000000000 0',
+                 '/-show/showfile/cue/000 0 "" 0 -1 -1 0 1 0 0']
+        with mock.patch.object(D, "xinfo", return_value=("", "N", "M", "F")), \
+             mock.patch.object(D, "pull_lines", side_effect=pull_from(empty)):
+            info = D.read_desk("10.0.0.2")
+        self.assertEqual(info.slots, {})
+
+    def test_no_library_leaves_slots_unread(self):
         with mock.patch.object(D, "xinfo", return_value=("", "N", "M", "F")), \
              mock.patch.object(D, "pull_lines", side_effect=fake_pull):
             info = D.read_desk("10.0.0.2", library=False)
-        self.assertEqual(info.slots, {})
+        self.assertIsNone(info.slots)
 
 
 class XinfoTest(unittest.TestCase):
@@ -120,7 +153,19 @@ class DeskCliTest(unittest.TestCase):
                 self.assertEqual(main(["desk", "--ip", "10.0.0.2", "--json", "--no-library"]), 0)
             doc = json.loads(buf.getvalue())
             self.assertEqual(doc["state"]["expansion card"], "X-Live")
-            self.assertEqual(doc["slots"], {})
+            self.assertIsNone(doc["slots"])
+
+    def test_no_library_says_the_slots_were_not_read(self):
+        """Counts of 0 for slots never asked for read as an empty desk."""
+        with mock.patch.object(D, "xinfo", return_value=("10.0.0.2", "X32-TEST", "X32RACK", "4.06")), \
+             mock.patch.object(D, "pull_lines", side_effect=fake_pull):
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                self.assertEqual(main(["desk", "--ip", "10.0.0.2", "--no-library"]), 0)
+        out = buf.getvalue()
+        self.assertNotIn("scenes: 0", out)
+        self.assertNotIn("cues: 0", out)
+        self.assertIn("not read", out)
 
     def test_needs_an_ip(self):
         with mock.patch.dict("os.environ", {"X32SCENE_IP": ""}):

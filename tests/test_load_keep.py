@@ -141,7 +141,7 @@ class KeepServiceTest(unittest.TestCase):
         for keep, said in ((Keep(globs=["/nope/*"]), "'/nope/*' matches no line"),
                            (Keep(buses=[17]), "--keep-bus wants a bus 1-16, got 17")):
             with self.subTest(said):
-                with mock.patch.object(L.osc, "pull_scene_like", side_effect=AssertionError("asked")), \
+                with mock.patch.object(L.osc_pull, "pull_scene_like", side_effect=AssertionError("asked")), \
                      self.assertRaises(L.Unloadable) as cm:
                     load_scene(Scene.parse(BASE), "127.0.0.1", keep=keep)
                 self.assertIn(said, str(cm.exception))

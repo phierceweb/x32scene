@@ -10,7 +10,8 @@ import unittest
 from x32scene import Scene
 from x32scene.cli import main
 from x32scene.services.diff import diff
-from x32scene.services.presets import apply_preset, extract_preset, header_sections
+from x32scene.services.preset_header import header_sections
+from x32scene.services.presets import apply_preset, extract_preset
 from x32scene.services.routing import channel_headamp_index
 from x32scene.services.scopes import scope_of
 

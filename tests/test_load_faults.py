@@ -179,7 +179,7 @@ class LoadCliReviewTest(unittest.TestCase):
 
     def test_ctrl_c_during_the_start_pull_says_nothing_was_written(self):
         path = self.file("a.scn", edited(ch_01_mix_01="/ch/01/mix/01 ON -9.0 +0 PRE 0"))
-        with mock.patch("x32scene.services.load.osc.pull_scene_like", side_effect=KeyboardInterrupt):
+        with mock.patch("x32scene.services.load.osc_pull.pull_scene_like", side_effect=KeyboardInterrupt):
             rc, out, err, writes = self.run_load(FaultyDesk(), path)
         self.assertEqual(rc, 130)
         self.assertIn("stopped before anything was written", err)

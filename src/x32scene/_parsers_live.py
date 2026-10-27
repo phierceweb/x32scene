@@ -95,7 +95,8 @@ def _add_live(sub) -> None:
     s.add_argument("--timeout", type=_timeout, default=timeout_default, help=timeout_help)
     s = sub.add_parser("desk", help="read the running desk: identity, state, preferences and "
                                     "what its memory holds (read-only)")
-    s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None))
+    s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None),
+                   help="console IP (or set X32SCENE_IP)")
     s.add_argument("--timeout", type=_timeout, default=timeout_default, help=timeout_help)
     s.add_argument("--no-library", action="store_true", help="skip the 700 slot queries")
     s.add_argument("--json", action="store_true")
@@ -103,7 +104,8 @@ def _add_live(sub) -> None:
                                       "short window (read-only)")
     s.add_argument("what", nargs="?", default="inputs",
                    **_choice("inputs", "buses", "outputs", "sends", "fx", "monitor", "recorder"))
-    s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None))
+    s.add_argument("--ip", default=resolve_str(None, "X32SCENE_IP", default=None),
+                   help="console IP (or set X32SCENE_IP)")
     s.add_argument("--seconds", type=_meter_seconds, default=1.0,
                    help="window to watch (default 1.0)")
     s.add_argument("--scene", help="a scene to name the strips from")

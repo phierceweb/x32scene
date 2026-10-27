@@ -11,7 +11,7 @@ import unittest
 
 from x32scene import Scene
 from x32scene.cli import main
-from x32scene.orchestrators.band_swap import _preset_text
+from x32scene.orchestrators._plan_files import preset_text
 from x32scene.services.presets import apply_preset
 
 SCENE = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")
@@ -53,7 +53,7 @@ class CrlfPresetTest(unittest.TestCase):
 
     def test_a_plan_preset_is_read_verbatim_and_refused(self):
         with self.assertRaisesRegex(ValueError, "crlf.chn: CR line endings"):
-            _preset_text({"_dir": self.dir}, {"preset": "crlf.chn"})
+            preset_text({"_dir": self.dir}, {"preset": "crlf.chn"})
 
     def test_a_plan_preset_with_cr_is_a_plan_error_naming_it(self):
         plan = os.path.join(self.dir, "plan.json")

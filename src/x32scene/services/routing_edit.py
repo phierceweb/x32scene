@@ -9,7 +9,8 @@ from ..tables import (
     AUX_BANK_USB, OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, SLOT_RETURNS, SOURCE_DOMAINS,
     decode_out_source, decode_source, decode_tap, routing_block_names, routing_vocab,
 )
-from .routing import record_map, resolve_in_slot, resolve_in_slot_number, uout_start
+from .routing import (input_bank, record_map, resolve_in_slot, resolve_in_slot_number,
+                      uout_start)
 from .routing_out import user_out_readers
 
 ROUTING_PRESET_KEYS = ("IN", "AES50A", "AES50B", "CARD")   # what the console's library holds
@@ -100,8 +101,8 @@ def parse_channel_source(text: str | int) -> tuple[str, int]:
 
 def channel_slot(scene: Scene, source: str | int, current: int | None = None) -> int:
     """The ``/ch/NN/config`` source slot for ``source``: a bare number as given, a source
-    name as ``current`` when that slot already reads it, else the lowest slot whose
-    ``/config/routing/IN`` block reads it."""
+    name as ``current`` when that slot already reads it, else the lowest slot whose block in
+    the bank ``/config/routing`` selects reads it."""
     kind, n = parse_channel_source(source)
     if kind == "slot":
         return n
@@ -109,8 +110,10 @@ def channel_slot(scene: Scene, source: str | int, current: int | None = None) ->
     for slot in ([current] if current in slots else []) + slots:
         if resolve_in_slot_number(scene, slot) == n:
             return slot
+    bank = input_bank(scene)
     raise ValueError(f"no input slot reads {decode_source(n)} under this scene's "
-                     "/config/routing/IN; re-patch an IN block to carry it, or give the slot 0-64")
+                     f"/config/routing/{bank}; re-patch one of its blocks to carry it, or give "
+                     "the slot 0-64")
 
 
 def set_input(scene: Scene, ch: int, source: str | int) -> str:

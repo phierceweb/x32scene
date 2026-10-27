@@ -73,6 +73,18 @@ def test_every_flag_is_in_its_own_commands_rows():
     assert not missing, f"flags missing from their command's rows in docs/cli.md: {missing}"
 
 
+def test_every_variable_a_flag_falls_back_to_is_in_that_commands_help():
+    env = CLI_MD.read_text().split("\n## Environment", 1)[1].split("\n## ", 1)[0]
+    flagless = set(re.findall(r"`([A-Z0-9_]+)`", re.search(r"`--help`; (.*?) back no flag", env, re.S)[1]))
+    real, lacking = _subparsers(), []
+    for var, used_by in re.findall(r"^\| `([A-Z0-9_]+)` \| (.*?) \|", env, re.M):
+        for cmd in re.findall(r"`([a-z-]+)`", used_by):
+            if var not in flagless and cmd in real and not any(
+                    var in (a.help or "") for a in real[cmd]._actions):
+                lacking.append(f"{cmd}: {var}")
+    assert lacking == []
+
+
 def test_the_intro_documents_force_for_every_writing_command():
     assert _names(_intro(), "--force") and "Every writing command takes that flag" in _intro()
     lacking = sorted(name for name, sp in _subparsers().items()

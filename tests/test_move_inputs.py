@@ -228,6 +228,15 @@ class MoveInputsCliTest(unittest.TestCase):
         self.assertIn("no head amp", daw)
         self.assertIn(f"wrote {self.out}", out)
 
+    def test_a_move_onto_the_input_already_read_is_reported_unchanged(self):
+        rc, out, _ = self._run("25:9", "--to", "A")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("moved 0 channel(s)", out)
+        self.assertRegex(out, r"ch25 .*AES50-A input 9 -> AES50-A input 9 +already reads it; unchanged")
+        self.assertNotIn("carried", out)
+        with open(SCENE) as a, open(self.out) as b:
+            self.assertEqual(a.read(), b.read())
+
     def test_an_invalid_move_writes_nothing(self):
         rc, _, err = self._run("1:13", "2:49", "--to", "A")
         self.assertEqual(rc, 1)

@@ -13,13 +13,14 @@ from .model import Scene
 from .services import preset_library as _lib
 from .services.channelfx import pair_linked
 from .services import presets as _presets
+from .services.preset_header import unflagged_scopes
 
 
 def apply_preset_edit(sc: Scene, args) -> str:
     text = read_lf(args.preset)
     mirrored = _presets.mirrored_sends(sc, args.ch, text, args.scope)
     n = _presets.apply_preset(sc, args.ch, text, args.scope)
-    skipped = _presets.unflagged_scopes(text, args.scope)
+    skipped = unflagged_scopes(text, args.scope)
     notes = [f"skipped {', '.join(skipped)}: the preset header does not flag them present"
              ] if skipped else []
     own = f"/ch/{args.ch:02d}/"

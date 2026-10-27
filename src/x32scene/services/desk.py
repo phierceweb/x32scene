@@ -9,8 +9,8 @@ from dataclasses import dataclass, field
 
 from ..model import Line
 from ..tables_fx import FX_DISPLAY_TYPE, decode_fx
-from .osc import (GIVE_UP, X32_PORT, OscError, decode_message, desk_address, encode_message,
-                  pull_lines)
+from .osc import X32_PORT, OscError, decode_message, desk_address, encode_message
+from .osc_pull import GIVE_UP, pull_lines
 
 _STAT = ["selidx", "chfaderbank", "grpfaderbank", "sendsonfader", "solo", "usbmounted",
          "remote", "xcardtype", "xcardsync", "screen/screen", "tape/state", "tape/file",
@@ -22,6 +22,7 @@ _XCARD = {0: "none", 1: "X-UF", 2: "X-USB", 3: "X-DANTE", 4: "X-ADAT", 5: "X-MAD
           6: "DN32-USB", 7: "DN32-DANTE", 8: "DN32-ADAT", 9: "DN32-MADI", 10: "X-Live", 11: "X-WSG"}
 _TAPE = {0: "stop", 1: "pause", 2: "play", 3: "pause record", 4: "record", 5: "fast forward",
          6: "rewind"}
+_EMPTY_CUE = {0: "0", 1: '""', 3: "-1", 4: "-1", 5: "0"}   # numb, name, scene, snippet, miditype
 LIB_KINDS = {"ch": "channel presets", "fx": "effect presets", "r": "routing presets",
              "mon": "DP48 presets"}
 
@@ -35,7 +36,7 @@ class DeskInfo:
     stat: dict[str, str] = field(default_factory=dict)
     prefs: dict[str, str] = field(default_factory=dict)
     show: str = ""
-    slots: dict[str, list[tuple[int, str, str]]] = field(default_factory=dict)  # kind -> (idx, name, extra)
+    slots: dict[str, list[tuple[int, str, str]]] | None = None  # kind -> (idx, name, extra); None: not read
 
 
 def xinfo(ip: str, *, port: int = X32_PORT, timeout: float = 1.0) -> tuple[str, str, str, str]:
@@ -103,6 +104,8 @@ def state_words(stat: dict[str, str]) -> dict[str, str]:
 
 def read_desk(ip: str, *, port: int = X32_PORT, timeout: float = 0.6,
               library: bool = True) -> DeskInfo:
+    """Identity, state and preferences, then with ``library`` every occupied memory slot;
+    without it ``slots`` stays None."""
     info = DeskInfo(ip)
     _, info.name, info.model, info.firmware = xinfo(ip, port=port, timeout=max(timeout, 1.0))
     # /xinfo has answered, so three silent status paths mean a device that answers no /node
@@ -119,13 +122,20 @@ def read_desk(ip: str, *, port: int = X32_PORT, timeout: float = 0.6,
              + [f"-libs/{k}/{n:03d}" for k in LIB_KINDS for n in range(1, 101)])
     lines, _ = pull_lines(ip, paths, port=port, timeout=timeout, fail_fast=3,
                           give_up=GIVE_UP)
+    info.slots = {}
     for ln in lines:
         parsed = Line.parse(ln)
         path, args = parsed.path, parsed.args
-        if not args or args[-1] != "1":
-            continue   # hasdata 0
         parts = path.strip("/").split("/")
         kind = parts[-2] if parts[0] == "-libs" else parts[2]
+        if not args:
+            continue
+        if kind == "cue":
+            # a cue has no hasdata field; the empty slot reads 0 "" 0 -1 -1 0 1 0 0
+            if all(args[i] == v for i, v in _EMPTY_CUE.items() if i < len(args)):
+                continue
+        elif args[-1] != "1":
+            continue   # hasdata 0
         idx = int(parts[-1])
         name = next((a.strip('"') for a in args if a.startswith('"')), "")
         info.slots.setdefault(kind, []).append((idx, name, slot_words(kind, args)))
@@ -137,7 +147,7 @@ def slot_words(kind: str, args: list[str]) -> str:
     sections or effect type; a cue's number and what it recalls."""
     from .headers import decode_header   # local: headers imports nothing from here
     if kind == "cue":
-        # numb "name" skip scene snippet miditype midichan midipara1 midipara2 hasdata
+        # numb "name" skip scene snippet miditype midichan midipara1 midipara2
         numb = args[0] if args else "?"
         num = f"{int(numb) // 100}.{int(numb) // 10 % 10}.{int(numb) % 10}" if numb.isdigit() else numb
         scene = args[3] if len(args) > 3 else "-1"

@@ -50,8 +50,12 @@ def cmd_inputs(scene: Scene) -> None:
     for cs in _routing.channel_sources(scene):
         flag = "  <- USB/DAW" if "Card" in cs.source else ""
         print(f"  ch{cs.ch:02d} {cs.name:<14} slot {cs.slot:>2} -> {cs.source}{flag}")
-    if _routing.routing_switch(scene) == "PLAY":
+    switch = _routing.routing_switch(scene)
+    if switch == "PLAY":
         print(f"  note: {_routing.PLAY_NOTE}")
+    elif switch not in (None, "REC"):
+        print(f"  note: /config/routing is {switch!r}, not REC or PLAY: sources resolve through "
+              "the IN bank")
 
 
 def cmd_record_map(scene: Scene) -> None:
@@ -234,11 +238,13 @@ def _headamp_level(args: tuple[str, ...]) -> str:
 def cmd_move_inputs(scene: Scene, moves: list[InputMove], out: str, *,
                     move_gain: bool = True) -> None:
     """One line per re-sourced channel: from where, to where, and the new input's head amp."""
-    print(f"moved {len(moves)} channel(s); wrote {out}")
+    print(f"moved {sum(m.new_source != m.old_source for m in moves)} channel(s); wrote {out}")
     for m in moves:
         cfg = scene.get(f"/ch/{m.ch:02d}/config")
         name = cfg.args[0].strip('"') if cfg and cfg.args else ""
-        if m.headamp is None:
+        if m.new_source == m.old_source:
+            amp = "already reads it; unchanged"
+        elif m.headamp is None:
             amp = "no head-amp line for the new input"
         else:
             level = _headamp_level(m.headamp)

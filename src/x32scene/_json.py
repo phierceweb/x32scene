@@ -169,8 +169,9 @@ def desk_doc(info: DeskInfo) -> dict:
     return {"ip": info.ip, "name": info.name, "model": info.model, "firmware": info.firmware,
             "state": state_words(info.stat), "stat": info.stat, "prefs": info.prefs,
             "show": info.show,
-            "slots": {k: [{"index": i, "name": n, "fields": e} for i, n, e in v]
-                      for k, v in info.slots.items()}}
+            "slots": None if info.slots is None else {
+                k: [{"index": i, "name": n, "fields": e} for i, n, e in v]
+                for k, v in info.slots.items()}}
 
 
 def meters_doc(peaks: Peaks, scene: Scene | None) -> dict:

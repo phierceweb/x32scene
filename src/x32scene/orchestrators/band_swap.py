@@ -54,90 +54,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ..model import Scene, read_file
+from ..model import Scene
 from ..services import iem as I
 from ..services import transforms as T
 from ..services.diff import diff
 from ..services.groups import set_dca
-from ..services.jsonfile import read_json
-from ..services.presets import (
-    apply_preset, body_lines, mirrored_sends, partner_only_sends, preset_selects,
-    unflagged_scopes,
-)
-from . import _linked_presets, _sections, _sections_record, _sections_routing
-from ._schema import _send_strip, validate_plan
+from ..services.preset_header import body_lines, preset_selects, unflagged_scopes
+from ..services.presets import apply_preset, mirrored_sends, partner_only_sends
 from ..services.routing import channel_headamp_index, record_map
 from ..services.snippets import MIX_FIELD
-from ..tables import SEND_STRIPS
-
-
-def load_plan(path: str | Path) -> dict:
-    p = Path(path)
-    plan = read_json(p)
-    if not isinstance(plan, dict):
-        raise ValueError(f"{p}: plan must be a JSON object, got {type(plan).__name__}")
-    plan["_dir"] = p.parent
-    return plan
-
-
-def plan_inputs(plan: dict) -> list[str]:
-    """Every file the plan reads besides itself: presets named by a channel, an FX slot
-    or the routing section."""
-    base = Path(plan.get("_dir", "."))
-    specs = [s for key in ("channels", "fx") if isinstance(plan.get(key), dict)
-             for s in plan[key].values() if isinstance(s, dict)]
-    if isinstance(plan.get("routing"), dict):
-        specs.append(plan["routing"])
-    out = []
-    for spec in specs:
-        name = spec.get("preset")
-        if isinstance(name, str):
-            q = Path(name)
-            out.append(str(q if q.is_absolute() else base / q))
-    return out
-
-
-def _send_targets(scene: Scene, plan: dict) -> dict[tuple[str, int], tuple[dict, tuple]]:
-    """Every send line the plan's ``iem_sends`` write, mapped to ``(set_iem_send kwargs,
-    the target the record itself named)``.
-
-    apply_plan and allowed_paths both expand through this, so the write set and the
-    whitelist cannot drift. They agree on link state because no plan key writes
-    /config/chlink or /config/buslink.
-    """
-    targets: dict[tuple[str, int], tuple[dict, tuple]] = {}
-    for rec in plan.get("iem_sends", []):
-        named = (_send_strip(rec["strip"]), int(rec["bus"]))
-        kwargs = {"on": rec.get("on"),
-                  "level_db": T.parse_level(rec["level"]) if "level" in rec else None}
-        for tgt in I.iem_send_targets(scene, named[0], named[1]):
-            if tgt != named and scene.get(f"{tgt[0]}/mix/{tgt[1]:02d}") is None:
-                continue   # a mirror the scene lacks is not the plan's problem
-            if tgt in targets:
-                other = targets[tgt][1]
-                raise ValueError(
-                    f"iem_sends: {named[0]} -> bus {named[1]} and {other[0]} -> bus "
-                    f"{other[1]} both write {tgt[0]} bus {tgt[1]} — a stereo-linked pair "
-                    "shares one send, so name only one side of it")
-            targets[tgt] = (kwargs, named)
-    return targets
-
-
-def _preset_text(plan: dict, spec: dict) -> str:
-    p = Path(spec["preset"])
-    if not p.is_absolute():
-        p = Path(plan.get("_dir", ".")) / p
-    try:
-        text = read_file(str(p))
-    except OSError as e:
-        raise ValueError(f"preset {p}: {e.strerror}") from e
-    except ValueError as e:
-        raise ValueError(f"preset {e}") from None   # read_file's message opens with the path
-    try:
-        Scene.parse(text)
-    except ValueError as e:
-        raise ValueError(f"preset {p}: {e}") from None
-    return text
+from . import (
+    _linked_presets, _plan_files, _sections, _sections_record, _sections_routing,
+    _sections_sends,
+)
+from ._plan_files import load_plan as load_plan, plan_inputs as plan_inputs
+from ._schema import validate_plan
 
 
 def apply_plan(scene: Scene, plan: dict) -> dict:
@@ -155,7 +86,7 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
             raise KeyError(f"channel {ch} not in scene")
         # preset first: a full-scope preset carries /config, and the plan's name must win
         if "preset" in spec:
-            text = _preset_text(plan, spec)
+            text = _plan_files.preset_text(plan, spec)
             apply_preset(scene, ch, text, spec.get("scopes"))
             if unflagged := unflagged_scopes(text, spec.get("scopes")):
                 skipped[ch] = unflagged
@@ -181,19 +112,7 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
                     raise KeyError(f"channel {ch} has no /grp line for DCA {d}")
                 continue
             set_dca(scene, ch, d, ch in want)
-    for cp in plan.get("iem_copy", []):
-        I.copy_iem_mix(scene, int(cp["src"]), int(cp["dst"]))
-    # after iem_copy: a copy replaces the destination send wholesale, erasing a trim
-    for (path, bus), (kw, named) in _send_targets(scene, plan).items():
-        line = scene.get(f"{path}/mix/{bus:02d}")
-        if line is None:
-            raise KeyError(f"no send {path}->bus{bus}")
-        line.require(1)
-        # only the send the plan NAMED has to be on: a mirror may sit OFF on its own
-        if (path, bus) == named and kw["on"] is None and line.args[0] == "OFF":
-            raise ValueError(f"iem_sends: {path} -> bus {bus}: send is OFF, so a level "
-                             'alone changes nothing — add "on": true')
-        I.set_iem_send(scene, path, bus, **kw)
+    _sections_sends.apply_sends(scene, plan)
     for out_s, bus in sorted(plan.get("outputs", {}).items(), key=lambda kv: int(kv[0])):
         T.route_output_from_bus(scene, int(out_s), int(bus))
     _sections.apply_fx(scene, plan)
@@ -201,7 +120,7 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
     record = _sections_record.apply_record(scene, plan, recorded)
     return {"lines_changed": sum(1 for ln in scene.lines if ln.dirty), "preset_skipped": skipped,
             "record": record,
-            "preset_partners": _linked_presets.unmatched_partners(scene, plan, _preset_text)}
+            "preset_partners": _linked_presets.unmatched_partners(scene, plan, _plan_files.preset_text)}
 
 
 def allowed_paths(template: Scene, plan: dict) -> set[str]:
@@ -222,7 +141,7 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
             allowed.add(f"/ch/{ch:02d}/mix")
         allowed.update(_sections.allowed_channel_proc(ch, spec))
         if "preset" in spec:
-            text = _preset_text(plan, spec)
+            text = _plan_files.preset_text(plan, spec)
             selects = preset_selects(text, spec.get("scopes"))
             allowed.update(p for p, _ in mirrored_sends(template, ch, text, spec.get("scopes")))
             for ln in body_lines(text):   # the parser apply_preset uses, so both agree
@@ -237,11 +156,7 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
                     allowed.add(f"/ch/{ch:02d}{'/mix' if split else bare}")
     if plan.get("dca"):
         allowed.update(f"/ch/{ch:02d}/grp" for ch in range(1, 33))
-    for cp in plan.get("iem_copy", []):
-        # exactly the buses the copy writes: a wider grant lets a stray send pass unflagged
-        for bus in I.copy_iem_dst_buses(template, int(cp["src"]), int(cp["dst"])):
-            allowed.update(f"{strip}/mix/{bus:02d}" for strip in SEND_STRIPS)
-    allowed.update(f"{path}/mix/{bus:02d}" for path, bus in _send_targets(template, plan))
+    allowed.update(_sections_sends.allowed_sends(template, plan))
     allowed.update(f"/outputs/main/{int(out_s):02d}" for out_s in plan.get("outputs", {}))
     allowed.update(_sections.allowed_sections(plan))
     allowed.update(_sections_routing.allowed_routing(plan))
@@ -252,15 +167,9 @@ def allowed_paths(template: Scene, plan: dict) -> set[str]:
 def mirrored_paths(template: Scene, plan: dict) -> set[str]:
     """Send paths the plan writes only because the console mirrors a stereo-linked pair:
     no ``iem_sends`` record, ``iem_copy`` destination or other key names them."""
-    mirrors, named = set(), set()
-    for (path, bus), (_, rec) in _send_targets(template, plan).items():
-        (named if (path, bus) == rec else mirrors).add(f"{path}/mix/{bus:02d}")
-    for cp in plan.get("iem_copy", []):
-        dst = int(cp["dst"])
-        for bus in I.copy_iem_dst_buses(template, int(cp["src"]), dst):
-            (named if bus == dst else mirrors).update(f"{s}/mix/{bus:02d}" for s in SEND_STRIPS)
+    mirrors, named = _sections_sends.mirrored_and_named(template, plan)
     presets = {p for ch_s, spec in plan.get("channels", {}).items() if "preset" in spec
-               for p in partner_only_sends(template, int(ch_s), _preset_text(plan, spec),
+               for p in partner_only_sends(template, int(ch_s), _plan_files.preset_text(plan, spec),
                                            spec.get("scopes"))}
     rest = {k: v for k, v in plan.items() if k not in ("iem_sends", "iem_copy")}
     return (mirrors | presets) - named - (allowed_paths(template, rest) - presets)

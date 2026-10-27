@@ -12,6 +12,7 @@ from unittest import mock
 from tests.test_osc import CANNED, FakeConsole
 from x32scene.cli import main
 from x32scene.services import osc as O
+from x32scene.services import osc_pull as P
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 SCENE = os.path.join(FIX, "example.scn")
@@ -132,9 +133,9 @@ class LiveDiffJsonTest(unittest.TestCase):
         return path
 
     def _pull(self, argv):
-        real = functools.partial(O.pull_scene_like, port=self.console.port)
+        real = functools.partial(P.pull_scene_like, port=self.console.port)
         with tempfile.TemporaryDirectory() as d, \
-                mock.patch.object(O, "pull_scene_like", real):
+                mock.patch.object(P, "pull_scene_like", real):
             return run(["live-diff", self._reference(d), "--ip", "127.0.0.1",
                         "--timeout", "0.1", *argv])
 
@@ -160,7 +161,7 @@ class LiveDiffJsonTest(unittest.TestCase):
 
     def test_failed_pull_exits_2_with_nothing_on_stdout(self):
         with tempfile.TemporaryDirectory() as d, \
-                mock.patch.object(O, "pull_scene_like", side_effect=O.OscError("no reply")):
+                mock.patch.object(P, "pull_scene_like", side_effect=O.OscError("no reply")):
             rc, out, err = run(["live-diff", self._reference(d), "--ip", "127.0.0.1",
                                 "--json"])
         self.assertEqual((rc, out), (2, ""))

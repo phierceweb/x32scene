@@ -9,6 +9,7 @@ from . import _json_views
 from . import _views
 from ._cli_files import load_checked, refuse_overwrite
 from .services import osc as _osc
+from .services import osc_pull as _pull
 
 
 def run_pull(args) -> int:
@@ -17,7 +18,7 @@ def run_pull(args) -> int:
         refuse_overwrite(args.out, args.reference, force=args.force)
     ref = load_checked(args.reference if args.cmd == "pull" else args.scene)
     try:
-        live, unanswered = _osc.pull_scene_like(ref, args.ip, timeout=args.timeout)
+        live, unanswered = _pull.pull_scene_like(ref, args.ip, timeout=args.timeout)
     except _osc.OscError as e:
         print(f"pull failed: {e}", file=sys.stderr)
         return 2

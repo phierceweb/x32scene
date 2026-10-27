@@ -92,7 +92,7 @@ Any other key is an error. Keys beginning `_` are comments and are ignored.
 | `fader` | −90…+10 dB, or `"-oo"` / `"oo"` (synonyms here) |
 | `mute` | `true`/`false`; `true` = muted |
 | `pan` | −100…+100 |
-| `source` | an input source in words (`"local 5"`, `"aes50-a 3"`, `"card 7"`, `"aux 2"`, `"off"`, or any source `inputs` prints), written as the channel's own slot when that already reads it, else the lowest slot the IN routing reads it on, after the plan's own `routing`; or a slot number 0–64. A source no slot reads raises |
+| `source` | an input source in words (`"local 5"`, `"aes50-a 3"`, `"card 7"`, `"aux 2"`, `"off"`, or any source `inputs` prints), written as the channel's own slot when that already reads it, else the lowest slot that reads it in the bank the switch selects (`IN`, or `PLAY` under `PLAY`), after the plan's own `routing`; or a slot number 0–64. A source no slot reads raises |
 | `lowcut` | `{on, freq}` |
 | `eq` | band `"1"`–`"6"` → `{type, freq, gain, q}` |
 | `comp` | `{thr, ratio, makeup, attack, release}` |
@@ -197,7 +197,9 @@ Slots 5–8 are inserts: they take only the 34 insert-style types and have no `s
 ```
 
 `preset` banks land first, then named blocks. `banks` limits which banks the preset
-contributes and is only meaningful beside a `preset`. `switch` is `REC` or `PLAY`.
+contributes and is only meaningful beside a `preset`. `switch` is `REC` or `PLAY`. A
+worded `source` is looked up in the bank the scene's switch selects after the plan's
+`routing`; under `PLAY`, route the `PLAY` bank to carry it.
 
 Every block token is checked against the console's vocabulary for that bank and block —
 `x32scene vocab routing KEY` lists it. A token the desk would not accept is a plan error,

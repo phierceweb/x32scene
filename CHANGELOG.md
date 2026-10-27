@@ -3,6 +3,53 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.10.0] — 2026-10-25
+
+### Changed
+- Library: the `.chn` header model of `services.presets` (`body_lines`, `preset_header`,
+  `header_sections`, `header_scopes`, `preset_selects`, `unflagged_scopes`) is
+  `services.preset_header`; the `/node` pull of `services.osc` (`pull_lines`,
+  `pull_scene_like`, `GIVE_UP`, `PROBE`) is `services.osc_pull`.
+- `inputs`, `report`, `preflight`, `preflight --regenerate`, `set-input`, `move-inputs`, a
+  band plan's head amps and `load --keep`'s head-amp widening resolve a channel's source
+  through the bank `/config/routing` selects: `IN`, or `PLAY` when the switch is `PLAY`.
+  The `inputs` and `set-input` note under `PLAY` says the PLAY bank was read; a `set-input`
+  source no block of that bank reads exits 1 naming the bank.
+  Library: `routing.input_bank`; `bank=` on `unwritten_in_block`, `uin_in_index` and
+  `resolve_in_slot_number` reads the other bank; `routing_switch` returns the token as
+  written, and `inputs` notes one that is neither `REC` nor `PLAY`.
+- CI and publish run on `ubuntu-24.04` and the Node 24 releases of the actions, SHA-pinned:
+  `checkout` v7.0.1, `setup-python` v7.1.0, `upload-artifact` v7.0.2, `download-artifact`
+  v8.0.2; `gh-action-pypi-publish` v1.14.3.
+
+### Fixed
+- `desk` lists cues: a cue reply carries no hasdata field. A slot is empty when its number,
+  name, scene, snippet and MIDI type read as the empty slot, a reply cut short included.
+- `desk --ip` and `meters --ip` say they fall back to `X32SCENE_IP`.
+- `move-inputs` counts readers through both banks, naming the bank of a reading the strip's
+  live slot does not cover: a user-in slot another strip reads through either, and, when
+  gain travels, an input any strip still reads once the batch is applied — a channel in the
+  batch included, for a reading its move does not rewrite. The "move it too" hint comes
+  only when moving would end every such reading, from a channel slot no other strip shares.
+  A bank with no routing line names no reader; a routing line that does not carry its five
+  blocks, or a missing live-bank line, refuses the move. A move onto the input the channel
+  already reads changes nothing and is reported as unchanged.
+- A strip on the USB-player slots 39–40 reads no routed input under any aux token: no
+  user-in slot, no source number, no head amp. Library: `uin_in_index` is None and
+  `resolve_in_slot_number` 0 for 39–40.
+- `load --keep` widens a kept head amp to its linked partner as the desk reads them before
+  and after the write: every kept line, the other side of a kept pair included, stays the
+  desk's in that model.
+- `desk --no-library` says the memory slots were not read; `--json` gives `slots` as
+  `null`. Library: `DeskInfo.slots` is None when `read_desk(..., library=False)`.
+
+### Docs
+- `console-behavior.md`: the desk's own show memory — `/save`, `/delete`, `/add cue`,
+  `/-action/gocue`, `confirm_sceneload`, and what a snippet slot recalls (its categories for
+  the strips its masks select; Send 1–8 is one category).
+- Version headings link to their compare pages (0.1.0 to its release); `cli.md` says which
+  variables `--help` carries.
+
 ## [0.9.0] — 2026-10-18
 
 ### Changed
@@ -516,3 +563,14 @@ First release.
 ### Docs
 - `docs/capabilities.md`, `format.md`, `console-behavior.md` (including how a file reaches
   the desk and what the desk snaps or rejects), `routing.md`, `stage-sidecar.md`.
+
+[0.10.0]: https://github.com/phierceweb/x32scene/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/phierceweb/x32scene/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/phierceweb/x32scene/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/phierceweb/x32scene/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/phierceweb/x32scene/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/phierceweb/x32scene/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/phierceweb/x32scene/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/phierceweb/x32scene/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/phierceweb/x32scene/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/phierceweb/x32scene/releases/tag/v0.1.0

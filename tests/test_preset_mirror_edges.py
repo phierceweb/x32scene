@@ -12,7 +12,8 @@ import unittest
 from x32scene import Scene
 from x32scene.cli import main
 from x32scene.services import preset_library as lib
-from x32scene.services.presets import apply_preset, body_lines, mirrored_sends
+from x32scene.services.preset_header import body_lines
+from x32scene.services.presets import apply_preset, mirrored_sends
 
 FIX = os.path.join(os.path.dirname(__file__), "fixtures")
 SCENE = os.path.join(FIX, "example.scn")

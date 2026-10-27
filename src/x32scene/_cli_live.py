@@ -11,6 +11,7 @@ from . import _views_desk as _vdesk
 from ._cli_files import load_checked, refuse_overwrite
 from .services import buslink as _buslink
 from .services import osc as _osc
+from .services import osc_pull as _pull
 from .services import snippets as _snippets
 from .services import watch as _watch
 
@@ -26,7 +27,7 @@ def run_watch(args) -> int:
         pulled: dict[str, float] = {}
         trips: list[float | None] = []
         try:
-            start, unanswered = _osc.pull_scene_like(ref, args.ip, port=port, timeout=args.timeout,
+            start, unanswered = _pull.pull_scene_like(ref, args.ip, port=port, timeout=args.timeout,
                                                      asked=pulled, round_trips=trips, between=sub)
             sub()
         except _osc.OscError as e:

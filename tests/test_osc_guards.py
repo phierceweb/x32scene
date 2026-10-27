@@ -8,7 +8,8 @@ from unittest import mock
 
 from tests.test_osc import CANNED, FakeConsole
 from x32scene.services import osc as O
-from x32scene.services.osc import encode_message, node_line, pull_lines
+from x32scene.services.osc import encode_message, node_line
+from x32scene.services.osc_pull import pull_lines
 
 
 class SlowReplyTest(unittest.TestCase):

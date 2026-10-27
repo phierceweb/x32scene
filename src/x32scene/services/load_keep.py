@@ -5,6 +5,7 @@ link preferences a file must not rewrite around them."""
 from __future__ import annotations
 
 import re
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 
 from ..model import Line, Scene
@@ -24,8 +25,8 @@ _HEADAMP = re.compile(r"^/headamp/(\d{3})$")
 _GATE = {"preamp": "hadly", "delay": "hadly", "eq": "eq", "dyn": "dyn", "gate": "dyn",
          "insert": "dyn", "grp": "fdrmute", "mix": "fdrmute"}
 _UNGATED = re.compile(r"^(mix/\d\d|(dyn|gate)/filter)$")
-_HEADAMP_ROUTING = ("/config/routing/IN", "/config/userrout/in",
-                    *(f"/ch/{c:02d}/config" for c in range(1, 33)))
+_HEADAMP_ROUTING = ("/config/routing", "/config/routing/IN", "/config/routing/PLAY",
+                    "/config/userrout/in", *(f"/ch/{c:02d}/config" for c in range(1, 33)))
 
 
 def _other(n: int) -> int:
@@ -52,13 +53,15 @@ def _pair(strip: str) -> str:
 
 class _Mirror:
     """Where the desk copies a write: across the pairs ``desk`` links, under the link
-    preferences and head-amp routing of the desk or of the file written over it."""
+    preferences and head-amp routing of the desk or of the file written over it, a
+    ``kept`` line staying the desk's."""
 
-    def __init__(self, target: Scene, desk: Scene):
+    def __init__(self, target: Scene, desk: Scene, kept: AbstractSet[str] = frozenset()):
         self.desk = desk
         self.prefs = {p: link_pref_on(desk, p) or link_pref_on(target, p) for p in LINKCFG}
         lines = {ln.path: ln for ln in desk.lines if ln.path}
-        lines.update((ln.path, ln) for ln in target.lines if ln.path.startswith("/"))
+        lines.update((ln.path, ln) for ln in target.lines
+                     if ln.path.startswith("/") and ln.path not in kept)
         self.heads: dict[int, set[tuple[str, str | None]]] = {}
         for view in (desk, Scene(list(lines.values()))):
             for ch in range(1, 33):
@@ -127,7 +130,18 @@ class Keep:
         write onto. Raises ValueError for a mix the file has no line of, for a link change
         on a pair a kept line belongs to, and for a link preference the load would change
         that decides what a kept line's linked pair shares."""
-        mirror = _Mirror(target, desk)
+        # a strip line widens by the desk's links alone, so the first pass settles which
+        # config lines are kept and the second models the head amps with them as the desk's
+        out, _ = self._widen(target, desk, set(glob_paths(target, self.globs)))
+        out, mirror = self._widen(target, desk, {p for _, ps in out for p in ps})
+        kept = {p for _, ps in out for p in ps}
+        self._refuse(target, desk, mirror, kept)
+        self._refuse_prefs(target, desk, mirror, kept)
+        return out
+
+    def _widen(self, target: Scene, desk: Scene,
+               kept: set[str]) -> tuple[list[tuple[str, list[str]]], _Mirror]:
+        mirror = _Mirror(target, desk, kept=kept)
         order = {ln.path: i for i, ln in enumerate(target.lines)}
         out: list[tuple[str, list[str]]] = []
         done: set[tuple[int, ...]] = set()
@@ -144,10 +158,7 @@ class Keep:
             matched = glob_paths(target, [g])
             paths = mirror.widen(matched, order)
             out.append((g if len(paths) == len(matched) else f"{g} and its linked sides", paths))
-        kept = {p for _, ps in out for p in ps}
-        self._refuse(target, desk, mirror, kept)
-        self._refuse_prefs(target, desk, mirror, kept)
-        return out
+        return out, mirror
 
     @staticmethod
     def _refuse(target: Scene, desk: Scene, mirror: _Mirror, kept: set[str]) -> None:

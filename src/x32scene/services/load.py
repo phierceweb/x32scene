@@ -17,7 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from ..model import Line, Scene
-from . import osc
+from . import osc, osc_pull
 from .diff import Change
 from .headers import decode_header
 from .load_keep import Keep
@@ -93,7 +93,7 @@ def holds(desk: Line | None, want: Line) -> bool:
 
 def _resolve_keep(keep: Keep, target: Scene, live: Scene, ip: str, port: int,
                   timeout: float) -> list[tuple[str, list[str]]]:
-    more, _ = osc.pull_lines(ip, [p.lstrip("/") for p in keep.desk_paths(target)
+    more, _ = osc_pull.pull_lines(ip, [p.lstrip("/") for p in keep.desk_paths(target)
                                   if live.get(p) is None], port=port, timeout=timeout)
     desk = Scene([ln for ln in live.lines if ln.path.startswith("/")]
                  + [Line.parse(raw) for raw in more])
@@ -130,7 +130,7 @@ def load_scene(target: Scene, ip: str, *, port: int = osc.X32_PORT, timeout: flo
         raise Unloadable(str(e)) from None
     want = {ln.path: ln for ln in target.lines if ln.path.startswith("/")}
     # fail_fast=1: a single silent path probes the desk, so a one-line file never writes blind
-    live, missing = osc.pull_scene_like(target, ip, port=port, timeout=timeout, fail_fast=1)
+    live, missing = osc_pull.pull_scene_like(target, ip, port=port, timeout=timeout, fail_fast=1)
     unknown = {"/" + p for p in missing}
     result = LoadResult()
     kept: set[str] = set()
@@ -153,8 +153,8 @@ def load_scene(target: Scene, ip: str, *, port: int = osc.X32_PORT, timeout: flo
                     sleep(SETTLE if _SETTLES.match(path) else gap)
                 sleep(READ_BACK)
                 ask = [p.lstrip("/") for p in want if p not in result.unanswered]
-                lines, _ = osc.pull_lines(ip, ask, port=port, timeout=timeout, fail_fast=1,
-                                          give_up=osc.GIVE_UP)
+                lines, _ = osc_pull.pull_lines(ip, ask, port=port, timeout=timeout, fail_fast=1,
+                                          give_up=osc_pull.GIVE_UP)
                 got = {ln.path: ln for ln in map(Line.parse, lines)}
                 result.unanswered += [p for p in todo if p in unknown and p not in got]
                 unknown -= set(todo)

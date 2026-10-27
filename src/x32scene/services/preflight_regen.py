@@ -19,8 +19,8 @@ from .groups import GROUP_STRIPS, dca_members, dca_names, mute_members
 from .preflight import _ALL_SECTIONS, _SECTIONS, GAIN_TOLERANCE_DB, _in_main
 from .preflight_outputs import _SRC_MAX, out_path
 from .preflight_regen_sends import sends
-from .routing import (channel_headamp_index, record_map, resolve_in_slot, routing_blocks,
-                      uin_in_index)
+from .routing import (channel_headamp_index, input_bank, record_map, resolve_in_slot,
+                      routing_blocks, uin_in_index)
 from .routing_out import output_sources
 
 __all__ = ["dumps", "regenerate"]
@@ -55,7 +55,7 @@ def _resolvable(scene: Scene, slot: int) -> bool:
     resolver fills an absent one with a default the desk need not hold."""
     if not 1 <= slot <= 40:
         return True
-    if (slot - 1) // 8 >= len(routing_blocks(scene, "IN")):
+    if (slot - 1) // 8 >= len(routing_blocks(scene, input_bank(scene))):
         return False
     idx = uin_in_index(scene, slot)
     uin = scene.get("/config/userrout/in")

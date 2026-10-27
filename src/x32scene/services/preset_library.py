@@ -15,7 +15,8 @@ from dataclasses import dataclass, field
 
 from ..model import HEADER_RE, Scene, read_file
 from . import validate
-from .presets import extract_preset, mirrored_sends, preset_selects, unflagged_scopes
+from .preset_header import preset_selects, unflagged_scopes
+from .presets import extract_preset, mirrored_sends
 from .routing import channel_headamp_index
 from .snippets import MIX_FIELD
 
@@ -41,7 +42,7 @@ class Drift:
 class PresetCheck:
     """One preset file's verdict. ``channels`` holds the match, or every candidate when
     AMBIGUOUS; ``uncompared`` the paths that had nothing to compare against; ``skipped``
-    the scopes the header leaves out (:func:`~.presets.unflagged_scopes`)."""
+    the scopes the header leaves out (:func:`~.preset_header.unflagged_scopes`)."""
 
     file: str
     status: str

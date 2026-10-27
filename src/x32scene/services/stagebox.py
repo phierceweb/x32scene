@@ -10,8 +10,8 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 from ..model import Line, Scene
-from ..tables import decode_source, routing_block_names
-from .routing import resolve_in_slot_number, uin_in_index, unwritten_in_block
+from ..tables import ROUTING_BLOCKS, decode_source, routing_block_names
+from .routing import input_bank, resolve_in_slot_number, uin_in_index, unwritten_in_block
 
 _PORT_BASE = {"A": 32, "B": 80}
 
@@ -51,8 +51,9 @@ def _plan_move(scene: Scene, ch: int, aes_input: int, port: str) -> tuple[int, i
     if not 1 <= slot <= 32:
         raise ValueError(f"ch{ch:02d} source slot {slot} is out of range — nothing to move")
     if (tok := unwritten_in_block(scene, slot)) is not None:
-        raise ValueError(f"ch{ch:02d} slot {slot}: /config/routing/IN block "
-                         f"{routing_block_names('IN')[(slot - 1) // 8]} is {tok!r}, a token the "
+        bank = input_bank(scene)
+        raise ValueError(f"ch{ch:02d} slot {slot}: /config/routing/{bank} block "
+                         f"{routing_block_names(bank)[(slot - 1) // 8]} is {tok!r}, a token the "
                          "console does not write — nothing to move")
     idx = uin_in_index(scene, slot)
     if idx is None:
@@ -61,44 +62,90 @@ def _plan_move(scene: Scene, ch: int, aes_input: int, port: str) -> tuple[int, i
     uin = scene.get("/config/userrout/in")
     if uin is None or not 0 <= idx < len(uin.args):
         raise ValueError(f"userrout/in index {idx} out of range — "
-                         "malformed /config/routing/IN block?")
+                         f"malformed /config/routing/{input_bank(scene)} block?")
     return idx, _PORT_BASE[port] + aes_input, resolve_in_slot_number(scene, slot)
 
 
-def _readers(scene: Scene) -> Iterator[tuple[str, int, int | None, int]]:
-    """Every channel and aux-in: (family, number, user-in index or None, source number)."""
-    for fam, count in (("ch", 32), ("auxin", 8)):
-        for n in range(1, count + 1):
-            cfg = scene.get(f"/{fam}/{n:02d}/config")
-            if cfg and cfg.args and cfg.args[-1].isdigit():
-                slot = int(cfg.args[-1])
-                yield fam, n, uin_in_index(scene, slot), resolve_in_slot_number(scene, slot)
+def _check_banks(scene: Scene) -> None:
+    """A routing line that does not carry its five blocks leaves readers uncounted, so no
+    move is reasoned about under one; the live bank's line is required, the other's may be
+    absent."""
+    for bank in ("IN", "PLAY"):
+        line = scene.get(f"/config/routing/{bank}")
+        if line is None and bank != input_bank(scene):
+            continue
+        blocks = list(line.args) if line else []
+        if len(blocks) != ROUTING_BLOCKS[bank]:
+            what = ("is missing" if line is None
+                    else f"carries {len(blocks)} block(s), not {ROUTING_BLOCKS[bank]}")
+            raise ValueError(f"/config/routing/{bank} {what} — nothing to move")
+
+
+def _readers(scene: Scene) -> Iterator[tuple[str, int, str, int | None, int, int]]:
+    """Every channel and aux-in under each bank: (family, number, bank, user-in index or
+    None, source number, slot). ``/config/userrout/in`` serves IN and PLAY alike, so a slot's
+    readers through either bank count; a bank with no routing line names none."""
+    for bank in ("IN", "PLAY"):
+        if scene.get(f"/config/routing/{bank}") is None:
+            continue
+        for fam, count in (("ch", 32), ("auxin", 8)):
+            for n in range(1, count + 1):
+                cfg = scene.get(f"/{fam}/{n:02d}/config")
+                if cfg and cfg.args and cfg.args[-1].isdigit():
+                    slot = int(cfg.args[-1])
+                    yield (fam, n, bank, uin_in_index(scene, slot, bank=bank),
+                           resolve_in_slot_number(scene, slot, bank=bank), slot)
 
 
 def _check_batch(scene: Scene, plans: dict[int, tuple[int, int, int]], move_gain: bool) -> None:
-    readers = list(_readers(scene))
+    readers, live = list(_readers(scene)), input_bank(scene)
+    rewritten = {idx for idx, new, old in plans.values() if new != old}
+    live_idx = {(fam, n): i for fam, n, bank, i, _, _ in readers if bank == live}
+    live_slot = {(fam, n): slot for fam, n, bank, _, _, slot in readers if bank == live}
+    strips_on: dict[int, set[tuple[str, int]]] = {}
+    for fam, n, _, i, _, _ in readers:
+        if i is not None:
+            strips_on.setdefault(i, set()).add((fam, n))
+
+    def names(hits: list[tuple[str, int, str, int | None]]) -> str:
+        """One name per strip; a reading its live slot does not cover is named by its bank."""
+        banks: dict[tuple[str, int], set[str]] = {}
+        for fam, n, bank, i in hits:
+            covered = bank != live and i is not None and i == live_idx.get((fam, n))
+            banks.setdefault((fam, n), set()).update(() if covered else (bank,))
+        return ", ".join(f"{fam}{n:02d}" + ("" if bs <= {live} else
+                                            f" ({'both banks' if len(bs) > 1 else bs.pop() + ' bank'})")
+                         for (fam, n), bs in banks.items())
+
     onto: dict[int, int] = {}
     for ch, (idx, new, old) in plans.items():
         if new in onto:
             raise ValueError(f"ch{onto[new]:02d} and ch{ch:02d} both move to "
                              f"{decode_source(new)}")
         onto[new] = ch
-        shared = [f"{fam}{n:02d}" for fam, n, i, _ in readers
+        if new == old:
+            continue   # the slot keeps its value and the head amp stays: nothing to check
+        shared = [(fam, n, bank, i) for fam, n, bank, i, _, _ in readers
                   if i == idx and (fam, n) != ("ch", ch)]
         if shared:
             raise ValueError(f"ch{ch:02d} shares user-in slot {idx + 1} with "
-                             f"{', '.join(shared)}: moving one would re-source them all")
+                             f"{names(shared)}: moving one would re-source them all")
         if move_gain and _headamp(scene, old) is not None:
-            staying = [(fam, n, i) for fam, n, i, src in readers
-                       if src == new and not (fam == "ch" and n in plans)]
+            # a reading survives the batch unless it goes through a user-in slot the batch
+            # rewrites; a direct block, or a slot the batch leaves alone, keeps reading it
+            staying = [(fam, n, bank, i) for fam, n, bank, i, src, _ in readers
+                       if src == new and i not in rewritten]
             if staying:
-                names = ", ".join(f"{fam}{n:02d}" for fam, n, _ in staying)
-                # only a channel on a user-in slot is something this batch could also move
-                also = (f"move {names} too, or " if all(fam == "ch" and i is not None
-                                                        for fam, _, i in staying) else "")
+                who = names(staying)
+                # moving a strip rewrites its live slot, which ends a reading through that
+                # index in either bank and no other; it needs a channel slot nobody shares
+                movable = all(fam == "ch" and i is not None and i == live_idx.get((fam, n))
+                              and 1 <= live_slot.get((fam, n), 0) <= 32
+                              and strips_on[i] == {(fam, n)} for fam, n, _, i in staying)
+                also = f"move {who} too, or " if movable else ""
                 raise ValueError(
-                    f"{decode_source(new)} still feeds {names}: carrying ch{ch:02d}'s head "
-                    f"amp there would change {names}'s gain and phantom — {also}move "
+                    f"{decode_source(new)} still feeds {who}: carrying ch{ch:02d}'s head amp "
+                    f"there would change the gain and phantom of {who} — {also}move "
                     f"ch{ch:02d} without carrying the gain")
 
 
@@ -107,11 +154,15 @@ def move_to_stagebox(scene: Scene, moves: Iterable[tuple[int, int]], *, port: st
     """Re-source each (channel, stage-box input 1-48) on ``port`` 'A' or 'B'.
 
     All-or-nothing: every move is checked before a line changes. Refused besides a bad
-    channel or input: a channel listed twice, two channels onto one input, a user-in slot
-    another channel or aux-in also reads, and — when gain travels — an input a channel or
-    aux-in outside the batch still reads. An absent channel line is a KeyError. Head amps
-    are read before any is written, so chained and swapped moves each carry their own.
+    channel or input: a routing line short of its blocks or a missing live-bank line, a
+    channel listed twice, two channels onto one input, a user-in slot another strip reads
+    through either bank, and — when gain travels — an input any strip still reads through
+    either bank once the batch is applied, a batch channel included for a reading its move
+    does not rewrite. A move onto the input the channel already reads changes nothing. An
+    absent channel line is a KeyError. Head amps are read before any is written, so chained
+    and swapped moves each carry their own.
     """
+    _check_banks(scene)
     plans: dict[int, tuple[int, int, int]] = {}
     for ch, aes_input in moves:
         if ch in plans:
@@ -125,7 +176,7 @@ def move_to_stagebox(scene: Scene, moves: Iterable[tuple[int, int]], *, port: st
     for ch, (idx, new, old) in plans.items():
         uin.set_arg(idx, str(new))
         dest = _headamp(scene, new)
-        carried = dest is not None and old in carry
+        carried = dest is not None and old in carry and new != old
         if carried and dest.args != carry[old]:
             dest.args = list(carry[old])
             dest.rebuild()

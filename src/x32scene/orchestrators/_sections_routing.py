@@ -47,7 +47,8 @@ def apply_routing(scene: Scene, plan: dict) -> None:
 
 
 def apply_sources(scene: Scene, plan: dict) -> None:
-    """Channel ``source`` keys, after ``routing``: a name resolves through the plan's IN blocks."""
+    """Channel ``source`` keys, after ``routing``: a name resolves through the bank the plan's
+    switch selects."""
     for ch_s, spec in plan.get("channels", {}).items():
         if "source" in spec:
             _rt.set_input(scene, int(ch_s), spec["source"])

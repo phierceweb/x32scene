@@ -14,6 +14,7 @@ from tests.load_desk import BASE, Desk, edited
 from x32scene.cli import main
 from x32scene.model import Scene
 from x32scene.services import osc as O
+from x32scene.services import osc_pull as P
 from x32scene.services.load import load_scene
 
 SNIP_HEAD = '#4.0# "S" 64 1 0 0 1'    # fader/pan, channel 1 only
@@ -70,7 +71,7 @@ class LoadScopeTest(unittest.TestCase):
 
 class UnansweredPathsTest(unittest.TestCase):
     def test_a_path_named_unanswered_is_not_asked_again(self):
-        real, asked = O.pull_lines, []
+        real, asked = P.pull_lines, []
 
         def recording(ip, paths, **kw):
             asked.append(list(paths))
@@ -78,7 +79,7 @@ class UnansweredPathsTest(unittest.TestCase):
         text = edited(ch_01_mix_01="/ch/01/mix/01 ON  -9.0 +0 PRE 0",
                       extra='/ch/33/config "Ghost" 1 YE 33')
         with Desk(drop_writes=["/ch/01/mix/01"], lacks=["/ch/33/config"]) as desk, \
-             mock.patch.object(O, "pull_lines", recording):
+             mock.patch.object(P, "pull_lines", recording):
             r = load_scene(Scene.parse(text), "127.0.0.1", port=desk.port, timeout=0.2,
                            sleep=lambda s: None)
         self.assertEqual(r.unanswered, ["/ch/33/config"])

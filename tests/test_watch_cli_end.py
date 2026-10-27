@@ -13,6 +13,7 @@ from unittest import mock
 from tests.test_watch_cli import EQ_UP, MIX_DOWN, MIX_START, REF_TEXT, WatchCliBase, WatchConsole
 from x32scene.model import Scene
 from x32scene.services import osc as O
+from x32scene.services import osc_pull as P
 from x32scene.services.snippets import make_snippet
 
 BUSLINK_REF = REF_TEXT + "/config/buslink OFF OFF OFF OFF OFF OFF OFF OFF\n"
@@ -42,7 +43,7 @@ class WatchEndTest(WatchCliBase):
         self.assertEqual([c["path"] for c in summary["net"]], ["/ch/01/eq/1"])
 
     def test_ctrl_c_during_the_start_pull_exits_cleanly(self):
-        with mock.patch.object(O, "pull_scene_like", side_effect=KeyboardInterrupt):
+        with mock.patch.object(P, "pull_scene_like", side_effect=KeyboardInterrupt):
             rc, out, err = self.watch(WatchConsole(), "--seconds", "5")
         self.assertEqual(rc, 0)
         self.assertEqual(out, "")

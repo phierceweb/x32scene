@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 from ..model import Line
-from .presets import header_sections
+from .preset_header import header_sections
 from .snippets import read_header as _snippet_header
 
 SCENE_SAFES = ("Talkback", "Effects", "Mix Buses", "Chan Process", "Configuration",

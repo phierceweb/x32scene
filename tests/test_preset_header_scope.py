@@ -11,8 +11,8 @@ from x32scene import Scene
 from x32scene.cli import main
 from x32scene.orchestrators.band_swap import allowed_paths, run
 from x32scene.services.preset_library import DRIFT, check_preset
-from x32scene.services.presets import (apply_preset, extract_preset, header_scopes,
-                                       preset_header, unflagged_scopes)
+from x32scene.services.preset_header import header_scopes, preset_header, unflagged_scopes
+from x32scene.services.presets import apply_preset, extract_preset
 
 EXAMPLE = os.path.join(os.path.dirname(__file__), "fixtures", "example.scn")
 

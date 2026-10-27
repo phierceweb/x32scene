@@ -28,7 +28,9 @@ PLAN = {
     },
     "fx": {"4": {"type": "HALL", "source": "MIX15,MIX16", "params": {"Decay": 2.1}},
            "2": {"preset": EFX}},
-    "routing": {"switch": "PLAY", "IN": {"1-8": "A1-8"}, "preset": ROU, "banks": ["CARD"]},
+    # a source is looked up in the PLAY bank: IN 1-8 no longer reads AES50-A 3, so slot 3 proves it
+    "routing": {"switch": "PLAY", "IN": {"1-8": "AN1-8"}, "PLAY": {"1-8": "A1-8"},
+                "preset": ROU, "banks": ["CARD"]},
     "output_patch": {"main": {"11": {"src": "bus 12", "pos": "PRE+M"}},
                      "p16": {"1": {"src": "direct out ch 5"}},
                      "rec": {"1": {"src": "main r"}}},
@@ -49,7 +51,8 @@ class SectionsApplyTest(unittest.TestCase):
         self.assertEqual(set(self.report["changed"]), {
             "/ch/01/preamp", "/ch/01/eq/2", "/ch/01/dyn", "/ch/01/gate", "/ch/05/config",
             "/ch/05/mix", "/fx/4", "/fx/4/source", "/fx/4/par", "/fx/2", "/fx/2/par",
-            "/config/routing", "/config/routing/IN", "/outputs/main/11", "/outputs/p16/01",
+            "/config/routing", "/config/routing/IN", "/config/routing/PLAY", "/outputs/main/11",
+            "/outputs/p16/01",
             "/outputs/rec/01"})   # CARD from the preset equals the fixture, so it is unchanged
 
     def test_channel_values(self):
@@ -57,7 +60,7 @@ class SectionsApplyTest(unittest.TestCase):
         self.assertEqual(self.sc.get("/ch/01/dyn").args[4:6], ["-18.0", "3.0"])
         self.assertEqual(self.sc.get("/ch/01/gate").args[2:4], ["-45.0", "40.0"])
         self.assertEqual(self.sc.get("/ch/01/preamp").args[2:5], ["ON", "24", "40"])
-        self.assertEqual(self.sc.get("/ch/05/config").args[-1], "3")   # the plan's IN 1-8=A1-8
+        self.assertEqual(self.sc.get("/ch/05/config").args[-1], "3")   # the plan's PLAY 1-8=A1-8
         self.assertEqual(self.sc.get("/ch/05/mix").args[3], "-25")
 
     def test_fx_routing_and_outputs(self):
@@ -66,7 +69,8 @@ class SectionsApplyTest(unittest.TestCase):
         self.assertEqual(self.sc.get("/fx/4/par").args[1], "2.10")
         self.assertEqual(self.sc.get("/fx/2").args, ["PLAT"])
         self.assertEqual(self.sc.get("/config/routing").args, ["PLAY"])
-        self.assertEqual(self.sc.get("/config/routing/IN").args[0], "A1-8")
+        self.assertEqual(self.sc.get("/config/routing/IN").args[0], "AN1-8")
+        self.assertEqual(self.sc.get("/config/routing/PLAY").args[0], "A1-8")
         self.assertEqual(self.sc.get("/outputs/main/11").args[:2], ["15", "PRE+M"])
         self.assertEqual(self.sc.get("/outputs/p16/01").args[0], "30")
         self.assertEqual(self.sc.get("/outputs/rec/01").args[0], "2")
@@ -132,6 +136,15 @@ class GainFollowsSourceTest(unittest.TestCase):
     def test_gain_and_phantom_follow_a_new_source(self):
         tmpl, sc, rep = self._run({"channels": {"5": {"source": "aes50-a 3", "gain_db": 22.5,
                                                       "phantom": True}}})
+        self.assertEqual(sc.get("/headamp/034").args, ["+22.5", "ON"])
+        self.assertEqual(sc.get("/headamp/004").args, tmpl.get("/headamp/004").args)
+        self.assertEqual(rep["unexpected"], [])
+
+    def test_gain_and_phantom_follow_a_new_source_under_play(self):
+        tmpl, sc, rep = self._run({"routing": {"switch": "PLAY", "PLAY": {"1-8": "A1-8"}},
+                                   "channels": {"5": {"source": "aes50-a 3", "gain_db": 22.5,
+                                                      "phantom": True}}})
+        self.assertEqual(sc.get("/ch/05/config").args[-1], "3")
         self.assertEqual(sc.get("/headamp/034").args, ["+22.5", "ON"])
         self.assertEqual(sc.get("/headamp/004").args, tmpl.get("/headamp/004").args)
         self.assertEqual(rep["unexpected"], [])

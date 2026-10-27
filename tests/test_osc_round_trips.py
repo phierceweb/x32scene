@@ -5,7 +5,7 @@ import unittest
 
 from tests.test_osc import CANNED, FakeConsole
 from x32scene.model import Scene
-from x32scene.services.osc import pull_lines, pull_scene_like
+from x32scene.services.osc_pull import pull_lines, pull_scene_like
 
 PATHS = list(CANNED)
 

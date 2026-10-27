@@ -8,9 +8,9 @@ from unittest import mock
 
 from x32scene.model import Scene
 from x32scene.services import osc as O
-from x32scene.services.osc import (
-    decode_message, encode_message, pull_lines, pull_scene_like,
-)
+from x32scene.services import osc_pull as P
+from x32scene.services.osc import decode_message, encode_message
+from x32scene.services.osc_pull import pull_lines, pull_scene_like
 
 CANNED = {
     "ch/01/config": '/ch/01/config "Kick" 2 YEi 1',
@@ -183,7 +183,7 @@ class SenderTest(unittest.TestCase):
         console.start()
         try:
             # the console really does answer on loopback; claim the desk lives elsewhere
-            with mock.patch.object(O, "desk_address", return_value="10.0.0.99"):
+            with mock.patch.object(P, "desk_address", return_value="10.0.0.99"):
                 lines, missing = pull_lines("127.0.0.1", ["ch/01/config"],
                                             port=console.port, timeout=0.3, retries=0)
             self.assertEqual(lines, [])
