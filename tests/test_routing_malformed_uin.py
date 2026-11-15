@@ -50,10 +50,11 @@ class MalformedInBlockTest(unittest.TestCase):
         self.assertEqual(resolve_in_slot(with_in_line("A17-24"), 1), "AES50-A input 17")
         self.assertIsNone(unwritten_in_block(with_in_line("UIN9-16"), 1))
 
-    def test_an_absent_in_line_keeps_the_user_in_default(self):
+    def test_an_absent_in_line_has_no_token_and_no_source(self):
         sc = with_in_line(None)
         self.assertIsNone(unwritten_in_block(sc, 1))
-        self.assertEqual(uin_in_index(sc, 1), 0)
+        self.assertIsNone(uin_in_index(sc, 1))
+        self.assertEqual(resolve_in_slot(sc, 1), "?")
 
     def test_move_inputs_names_the_block_and_token(self):
         for tok in ("UIN0-7", "UIN"):

@@ -22,6 +22,7 @@ class Console(threading.Thread):
         super().__init__(daemon=True)
         self.absent, self.xinfo, self.node = set(absent), xinfo, node
         self.received: list[str] = []
+        self.asked: list[str] = []   # each /node query's path
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("127.0.0.1", 0))
         self.sock.settimeout(0.05)
@@ -36,6 +37,8 @@ class Console(threading.Thread):
                 continue
             addr, args = decode_message(data)
             self.received.append(addr)
+            if addr == "/node":
+                self.asked.append(args[0])
             if addr == "/xinfo" and self.xinfo:
                 self.sock.sendto(encode_message("/xinfo", ["127.0.0.1", "X32-TEST", "X32", "4.06"]),
                                  client)

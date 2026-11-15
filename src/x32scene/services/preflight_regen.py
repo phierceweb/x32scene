@@ -51,8 +51,8 @@ def _numeric(scene: Scene, path: str) -> bool:
 
 
 def _resolvable(scene: Scene, slot: int) -> bool:
-    """Is every routing line the input slot resolves through present and readable? The
-    resolver fills an absent one with a default the desk need not hold."""
+    """Is every routing line the input slot resolves through present and readable? A slot
+    its routing line does not reach has no source to write."""
     if not 1 <= slot <= 40:
         return True
     if (slot - 1) // 8 >= len(routing_blocks(scene, input_bank(scene))):

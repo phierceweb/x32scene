@@ -181,7 +181,8 @@ class Keep:
 
     @staticmethod
     def _refuse_prefs(target: Scene, desk: Scene, mirror: _Mirror, kept: set[str]) -> None:
-        """Whether changing a preference copies across a pair already linked is unwatched."""
+        """Turning ``eq``, ``dyn`` or ``fdrmute`` ON copied one side of a pair already linked
+        onto the other; a change either way to a preference gating a kept line is refused."""
         want, have = target.get(LINKCFG_PATH), desk.get(LINKCFG_PATH)
         if LINKCFG_PATH in kept or want is None:
             return

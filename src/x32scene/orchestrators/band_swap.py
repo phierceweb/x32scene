@@ -1,53 +1,10 @@
-"""Band-swap orchestrator — re-skin a template scene for a different band/lineup.
+"""Band-swap orchestrator: re-skin a template scene for a different band or lineup from one
+JSON plan (every key, and the stage order: ``docs/band-plan.md``).
 
-One JSON plan drives retitle → routing and sources → presets → renames → head-amps → DCAs
-→ IEM-mix copies → per-send trims → output routing via the single-concern transforms.
-``verify`` then proves the result differs from the template only in plan-intended paths
-before ``run`` saves anything. That stage order is fixed and load-bearing: a copy replaces
-the destination send wholesale, so a trim only survives by running after it.
-
-Plan format (every key: ``docs/band-plan.md``)::
-
-    {
-      "title": "Example Rig - 2026-07-04",
-      "channels": {
-        "1":  {"name": "Kick", "gain_db": 20.0, "phantom": false},
-        "20": {"name": "Gtr 2", "preset": "Channel/Guitar.chn", "scopes": ["eq", "comp"],
-               "fader": "-oo", "mute": true}
-      },
-      "dca":       {"3": [19, 20, 21, 22]},    // full member list per listed DCA
-      "iem_copy":  [{"src": 1, "dst": 5}],     // duplicate a player's monitor mix
-      "iem_sends": [{"strip": 23, "bus": 5, "level": -14.0}],   // trim one send in one mix
-      "outputs":   {"9": 1, "10": 2},          // route physical output <- mix bus
-      "fx":       {"4": {"type": "HALL", "source": "MIX15,MIX16", "params": {"Decay": 2.1}},
-                   "2": {"preset": "FX/Plate.efx"}},
-      "routing":  {"switch": "REC", "IN": {"1-8": "A1-8"}, "preset": "Routing/Local.rou",
-                   "banks": ["CARD"]},
-      "output_patch": {"main": {"9": {"src": "bus 12", "pos": "PRE+M"}},
-                       "p16":  {"1": {"src": "direct out ch 5"}}},
-      "record":   {"5": "Output 9", "17": "local 1"}   // card record track <- source
-    }
-
-Within a channel a preset applies first, then the plan's own values, so a named EQ band
-wins over the preset's. ``fx``: a ``preset`` or ``type`` resets the slot's parameters to
-the console's defaults before ``params``. ``routing``: the ``preset`` banks land first,
-then named blocks. ``record`` and a channel ``source`` resolve through the plan's own CARD
-and IN blocks, and a head amp lands on the input the channel reads after both. Every value
-is checked against the console's own vocabulary before a line is written.
-
-An ``iem_sends`` record names a channel number or any send strip ("/auxin/05",
-"/fxrtn/03"), a level in dB (or ``"-oo"``; a quoted number like "-6.0" is not a level) and
-/or ``on``. Both value fields are independent, so a level alone trims a send where it sits
-and ``on`` alone cannot be used to add a channel blind — putting a strip into a mix takes
-both. A level alone on a send that is currently OFF raises: it would change nothing
-audible. Each record writes every send the console mirrors it to — both sides of a stereo
-bus pair and of a stereo strip pair — so name only one side of a pair, or the two records
-collide.
-
-``outputs`` reaches ``/outputs/main/1-16`` only; the ``/outputs/aux`` bank is not routable
-from a plan.
-
-Preset paths are resolved relative to the plan file's directory (absolute paths win).
+The stages run through the single-concern transforms in a fixed order that is load-bearing:
+a copy replaces the destination send wholesale, so a trim only survives by running after
+it. ``verify`` then proves the result differs from the template only in plan-intended paths
+before ``run`` saves anything.
 """
 
 from __future__ import annotations
@@ -95,7 +52,8 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
         if "gain_db" in spec or "phantom" in spec:
             idx = channel_headamp_index(scene, ch)
             if idx is None:
-                raise KeyError(f"channel {ch} has no head amp (a card, aux, FX, bus or OFF source)")
+                raise KeyError(f"channel {ch} has no head amp: its source is a card, aux, FX, "
+                               "bus or OFF, or one `inputs` reads as ?")
             T.set_headamp_index(scene, idx, spec.get("gain_db"), spec.get("phantom"))
         # linked=False: a plan names its channels explicitly, so a mirror would be a path
         # the plan never asked for

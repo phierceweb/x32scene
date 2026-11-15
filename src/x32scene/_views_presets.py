@@ -29,7 +29,8 @@ def cmd_presets_diff(results: list[_lib.PresetCheck]) -> None:
         for d in r.drift:
             print(f"    {d.path}  {_tokens(d.preset)} -> {_tokens(d.scene)}")
         for path in r.uncompared:
-            print(f"    {path}  not compared: the channel's source has no head amp")
+            print(f"    {path}  not compared: the channel's source has no head amp, or "
+                  "`inputs` reads it as ?")
         if r.skipped:
             print(f"    skipped {', '.join(r.skipped)}: the preset header does not flag them "
                   "present")

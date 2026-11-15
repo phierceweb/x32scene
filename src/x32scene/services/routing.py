@@ -17,7 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..model import Scene
-from ..tables import (AUX_BANK_USB, SLOT_RETURNS, decode_out_source,
+from ..tables import (AUX_BANK_USB, ROUTING_BLOCKS, SLOT_RETURNS, decode_out_source,
                       decode_source, routing_block_names, routing_vocab)
 
 
@@ -60,6 +60,17 @@ def input_bank(scene: Scene) -> str:
 PLAY_NOTE = "the routing switch is PLAY: sources resolve through the PLAY bank, not the IN bank"
 
 
+def in_line_fault(scene: Scene, bank: str, *, short_only: bool = False) -> str | None:
+    """What is wrong with ``/config/routing/<bank>`` when it does not carry its blocks:
+    ``is missing``, or ``carries N block(s), not 5``. None for a whole line, and with
+    ``short_only`` for one too long, which still reaches every slot."""
+    line = scene.get(f"/config/routing/{bank}")
+    if line is None:
+        return "is missing"
+    n, want = len(line.args), ROUTING_BLOCKS[bank]
+    return None if n == want or short_only and n > want else f"carries {n} block(s), not {want}"
+
+
 def _in_blocks(scene: Scene, bank: str | None = None) -> list[str]:
     return routing_blocks(scene, bank or input_bank(scene))
 
@@ -87,16 +98,23 @@ def _aux_past_span(scene: Scene, slot: int, bank: str | None = None) -> int | No
     return None
 
 
+def _unreached(scene: Scene, slot: int, bank: str | None = None) -> bool:
+    """Routed slot 1-38 lies past the end of its bank's line, or the line is absent."""
+    return 1 <= slot <= 38 and (slot - 1) // 8 >= len(_in_blocks(scene, bank))
+
+
 def uin_in_index(scene: Scene, slot: int, *, bank: str | None = None) -> int | None:
     """0-based /config/userrout/in index feeding ``slot``, honoring the UIN block's own range
-    (``UIN9-16`` on bank 0 maps slot 1 -> index 8); None for a non-UIN or Aux In slot and
-    for 39-40, the USB player. ``bank`` as for :func:`unwritten_in_block`."""
-    if (not 1 <= slot <= 38 or unwritten_in_block(scene, slot, bank=bank) is not None
+    (``UIN9-16`` on bank 0 maps slot 1 -> index 8); None for a non-UIN or Aux In slot, for
+    39-40, the USB player, and for a slot its routing line does not reach. ``bank`` as for
+    :func:`unwritten_in_block`."""
+    if (not 1 <= slot <= 38 or _unreached(scene, slot, bank)
+            or unwritten_in_block(scene, slot, bank=bank) is not None
             or _aux_past_span(scene, slot, bank) is not None):
         return None
     blocks = _in_blocks(scene, bank)
     b = (slot - 1) // 8
-    block = blocks[b] if b < len(blocks) else "UIN"
+    block = blocks[b]
     if block.rstrip("0123456789-") != "UIN":
         return None
     digits = "".join(c for c in block.split("-")[0] if c.isdigit())
@@ -123,9 +141,11 @@ def decode_direct_block(block: str, offset: int) -> int:
 def resolve_in_slot_number(scene: Scene, slot: int, *, bank: str | None = None) -> int:
     """Resolve a 1-based input slot to its physical source *number*, 0 = OFF. Slots 1-32 are
     the channel banks, 33-38 the aux ins; 39-40 (the USB player) and 41-64 read no routed
-    input and give 0. Offset blocks (``A17-24``, ``UIN9-16``) and a partial ``AUX`` token
-    (``AN1-2``) are honored. ``bank`` as for :func:`unwritten_in_block`."""
-    if not 1 <= slot <= 38 or unwritten_in_block(scene, slot, bank=bank) is not None:
+    input and give 0, as does a slot its routing line does not reach. Offset blocks
+    (``A17-24``, ``UIN9-16``) and a partial ``AUX`` token (``AN1-2``) are honored. ``bank``
+    as for :func:`unwritten_in_block`."""
+    if (not 1 <= slot <= 38 or _unreached(scene, slot, bank)
+            or unwritten_in_block(scene, slot, bank=bank) is not None):
         return 0
     if (aux := _aux_past_span(scene, slot, bank)) is not None:
         return aux
@@ -135,19 +155,20 @@ def resolve_in_slot_number(scene: Scene, slot: int, *, bank: str | None = None) 
         return uin[idx] if 0 <= idx < len(uin) else 0
     blocks = _in_blocks(scene, bank)
     b = (slot - 1) // 8
-    block = blocks[b] if b < len(blocks) else "UIN"
-    return decode_direct_block(block, (slot - 1) - 8 * b)
+    return decode_direct_block(blocks[b], (slot - 1) - 8 * b)
 
 
 def resolve_in_slot(scene: Scene, slot: int) -> str:
     """Resolve a channel source slot (0-64) to a source label. Slots 39/40 are the aux
-    bank's USB player and 41-64 the FX returns and buses, which no routed-input number names."""
+    bank's USB player and 41-64 the FX returns and buses, which no routed-input number names.
+    ``?`` for a slot outside 0-64, and for one whose block holds a token the console does not
+    write or lies past the end of its routing line."""
     if not 0 <= slot <= 64:
         return "?"
     named = AUX_BANK_USB.get(slot) or SLOT_RETURNS.get(slot)
     if named:
         return named
-    if unwritten_in_block(scene, slot) is not None:
+    if unwritten_in_block(scene, slot) is not None or _unreached(scene, slot):
         return "?"
     return decode_source(resolve_in_slot_number(scene, slot))
 

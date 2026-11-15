@@ -3,6 +3,28 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.11.0] — 2026-11-14
+
+### Changed
+- A channel slot whose block `/config/routing/IN` does not reach (`PLAY` under `PLAY`),
+  the line missing or short of its five blocks, names no source: `inputs` and `report`
+  read `?`, and no head amp is found for it, so `preflight` fails a `gain` or `phantom`
+  expected of it, a preset's head-amp line is skipped as for a card source, and a plan's
+  `gain_db` or `phantom` is refused. `set-input` by a source name finds no such slot, its
+  refusal saying when the line is missing or short. Library: `uin_in_index` is None and
+  `resolve_in_slot_number` 0 for it; `routing.in_line_fault` says what a bank's line lacks.
+
+### Fixed
+- An `X32SCENE_TIMEOUT` that is not a number prints one `x32scene: warning: …` line on
+  stderr and falls back to 0.5, as an out-of-range value does; the line says what the
+  value must be.
+
+### Docs
+- `console-behavior.md`: a linked channel pair mirrors a write to an EQ band, the dynamics
+  line, the fader and the delay under its link preference, in both directions; turning
+  `eq`, `dyn` or `fdrmute` ON copied the odd channel onto the even across a pair already
+  linked, and turning one OFF moved nothing. Observed on a desk, firmware 4.06.
+
 ## [0.10.0] — 2026-10-25
 
 ### Changed
@@ -57,7 +79,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - `bin/run lint` and CI run `python -m pw_foundation.guards`, configured by `.pw-guards.toml`.
 - `NOTICE` credits pw-foundation.
 
-## [0.8.0] — 2026-10-11
+## 0.8.0 — 2026-10-11
 
 ### Changed
 - Requires `pf-core~=0.26.0`.
@@ -86,7 +108,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 - A channel source slot outside 0–64 reads `?` in `inputs`, `report` and `preflight`, not
   `OFF`.
 
-## [0.7.0] — 2026-10-03
+## 0.7.0 — 2026-10-03
 
 ### Changed
 - `set-input` and a band plan's channel `source`: a bare number is the slot itself (0–64),
@@ -110,7 +132,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   `move-inputs`, in the slot `set-input` or a plan `source` picks, and in the head amp a
   plan's `gain_db` writes.
 
-## [0.6.0] — 2026-09-30
+## 0.6.0 — 2026-09-30
 
 ### Added
 - `load FILE`: a scene or snippet onto the running desk over OSC. Writes every line the
@@ -133,7 +155,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
 ### Fixed
 - A stage sidecar that fails validation names its file.
 
-## [0.5.0] — 2026-09-24
+## 0.5.0 — 2026-09-24
 
 ### Added
 - `ports --json` carries `physical_outputs` and a per-output `physical` flag (`explain --json`
@@ -247,7 +269,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   read off the desk; a `.shw` cue line's MIDI fields (type, channel, two parameters) and the
   `show` line's ten scene-safe bitmaps, the latter set and read back on a desk.
 
-## [0.4.0] — 2026-09-14
+## 0.4.0 — 2026-09-14
 
 ### Added
 - `swap-strips SCENE A B`, `move-strip SCENE FROM --to TO` and `reorder-strips SCENE
@@ -381,7 +403,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   file); `GEQ`/`GEQ2` band order and gain form; output taps `20` and `75`; X32-Edit reads
   a preset header x32scene writes.
 
-## [0.3.0] — 2026-09-12
+## 0.3.0 — 2026-09-12
 
 ### Added
 - `preflight SCENE --regenerate OUT.json`: writes the expected-config SCENE satisfies instead
@@ -468,7 +490,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [S
   row names that the command does not take, a doc missing from the index, a
   table-of-contents entry with no heading, or a relative link to a missing file.
 
-## [0.2.0] — 2026-09-07
+## 0.2.0 — 2026-09-07
 
 ### Added
 - Every file named on the command line is checked for the shape of its kind, and a
@@ -510,7 +532,7 @@ shares the prefix.
 - `desk` keeps `--timeout` as an upper bound while filtering replies by sender.
 - `pull` with a reference carrying no queryable paths returns empty.
 
-## [0.1.0] — 2026-09-07
+## 0.1.0 — 2026-09-07
 
 First release.
 
@@ -564,13 +586,6 @@ First release.
 - `docs/capabilities.md`, `format.md`, `console-behavior.md` (including how a file reaches
   the desk and what the desk snaps or rejects), `routing.md`, `stage-sidecar.md`.
 
+[0.11.0]: https://github.com/phierceweb/x32scene/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/phierceweb/x32scene/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/phierceweb/x32scene/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/phierceweb/x32scene/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/phierceweb/x32scene/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/phierceweb/x32scene/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/phierceweb/x32scene/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/phierceweb/x32scene/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/phierceweb/x32scene/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/phierceweb/x32scene/compare/v0.1.0...v0.2.0
-[0.1.0]: https://github.com/phierceweb/x32scene/releases/tag/v0.1.0
+[0.9.0]: https://github.com/phierceweb/x32scene/releases/tag/v0.9.0

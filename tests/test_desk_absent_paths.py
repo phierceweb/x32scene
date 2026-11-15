@@ -47,9 +47,11 @@ class AbsentPathsTest(unittest.TestCase):
     def test_a_desk_lacking_the_first_library_slots_is_read_on(self):
         with Console(absent=FIRST_SLOTS) as desk:
             D.read_desk("127.0.0.1", port=desk.port, timeout=0.05)
-            asked = desk.received.count("/node")
-        self.assertEqual(asked, len(D._STAT) + len(PREFS) + 1 + 300 + 100 * len(D.LIB_KINDS)
-                         + len(FIRST_SLOTS) + 1)   # + the probe that finds the desk there
+        # distinct paths: a reply later than the timeout costs a retry, not a path
+        self.assertEqual(len(set(desk.asked)), len(D._STAT) + len(PREFS) + 1 + 300
+                         + 100 * len(D.LIB_KINDS) + 1)   # + the probe that finds the desk there
+        for slot in FIRST_SLOTS:
+            self.assertGreaterEqual(desk.asked.count(slot), 2, slot)   # an absent path is retried
 
     def test_a_desk_that_goes_silent_after_its_status_still_fails_fast(self):
         with Fading(answers=len(D._STAT)) as desk:

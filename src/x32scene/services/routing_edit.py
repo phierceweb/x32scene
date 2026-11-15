@@ -9,8 +9,8 @@ from ..tables import (
     AUX_BANK_USB, OUTPUT_BANKS, OUTPUT_POS, ROUTING_BLOCKS, SLOT_RETURNS, SOURCE_DOMAINS,
     decode_out_source, decode_source, decode_tap, routing_block_names, routing_vocab,
 )
-from .routing import (input_bank, record_map, resolve_in_slot, resolve_in_slot_number,
-                      uout_start)
+from .routing import (in_line_fault, input_bank, record_map, resolve_in_slot,
+                      resolve_in_slot_number, uout_start)
 from .routing_out import user_out_readers
 
 ROUTING_PRESET_KEYS = ("IN", "AES50A", "AES50B", "CARD")   # what the console's library holds
@@ -111,9 +111,10 @@ def channel_slot(scene: Scene, source: str | int, current: int | None = None) ->
         if resolve_in_slot_number(scene, slot) == n:
             return slot
     bank = input_bank(scene)
+    hint = (f", which {fault}; give" if (fault := in_line_fault(scene, bank, short_only=True))
+            else "; re-patch one of its blocks to carry it, or give")
     raise ValueError(f"no input slot reads {decode_source(n)} under this scene's "
-                     f"/config/routing/{bank}; re-patch one of its blocks to carry it, or give "
-                     "the slot 0-64")
+                     f"/config/routing/{bank}{hint} the slot 0-64")
 
 
 def set_input(scene: Scene, ch: int, source: str | int) -> str:

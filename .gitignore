@@ -43,6 +43,7 @@ logs/
 .claude/
 .cursor/
 .superpowers/
+.cbmignore
 CLAUDE.md
 
 # pw-foundation docs symlink (bin/run setup recreates it)

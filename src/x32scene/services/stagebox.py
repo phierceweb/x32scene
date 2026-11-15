@@ -10,8 +10,9 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 
 from ..model import Line, Scene
-from ..tables import ROUTING_BLOCKS, decode_source, routing_block_names
-from .routing import input_bank, resolve_in_slot_number, uin_in_index, unwritten_in_block
+from ..tables import decode_source, routing_block_names
+from .routing import (in_line_fault, input_bank, resolve_in_slot_number, uin_in_index,
+                      unwritten_in_block)
 
 _PORT_BASE = {"A": 32, "B": 80}
 
@@ -71,13 +72,9 @@ def _check_banks(scene: Scene) -> None:
     move is reasoned about under one; the live bank's line is required, the other's may be
     absent."""
     for bank in ("IN", "PLAY"):
-        line = scene.get(f"/config/routing/{bank}")
-        if line is None and bank != input_bank(scene):
+        if scene.get(f"/config/routing/{bank}") is None and bank != input_bank(scene):
             continue
-        blocks = list(line.args) if line else []
-        if len(blocks) != ROUTING_BLOCKS[bank]:
-            what = ("is missing" if line is None
-                    else f"carries {len(blocks)} block(s), not {ROUTING_BLOCKS[bank]}")
+        if (what := in_line_fault(scene, bank)) is not None:
             raise ValueError(f"/config/routing/{bank} {what} — nothing to move")
 
 

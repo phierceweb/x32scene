@@ -302,7 +302,7 @@ What it cannot write:
   it reads is present and the scene passes it, and `false` or left out of the list
   otherwise. A value read from a missing, short or unreadable line is left out: one absent
   send line drops that bus's `tap`, and a non-numeric gain drops that `gain`. A routing
-  line the resolver would otherwise fill with a default drops what resolves through it: a
+  line that is missing, or does not reach a slot, drops what resolves through it: a
   channel's `source`, `gain` and `phantom`, or a `record` track. One strip without its
   `/grp` line drops `members` from every DCA or mute group, since any strip could belong
   to any group.

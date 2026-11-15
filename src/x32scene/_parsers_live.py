@@ -6,19 +6,9 @@ import argparse
 import math
 import sys
 
-from pw_foundation.utils.env import resolve_float, resolve_str
+from pw_foundation.utils.env import resolve_str
 
 from ._parsers_edit import _choice
-
-
-def _bounded(v: float, default: float = 0.5) -> float:
-    """The same bounds as the flag, for a value that came from the environment: argparse's
-    type= validates what is typed, never a default."""
-    if math.isfinite(v) and 0 < v <= 3600:
-        return v
-    print(f"x32scene: warning: X32SCENE_TIMEOUT={v!r} out of range; using {default}",
-          file=sys.stderr)
-    return default
 
 
 def _seconds(s: str, what: str, limit: float) -> float:
@@ -36,6 +26,19 @@ def _timeout(s: str) -> float:
     """settimeout() raises OverflowError for inf or a huge float — an ArithmeticError the
     CLI boundary does not catch, so the value is bounded here instead."""
     return _seconds(s, "timeout", 3600)
+
+
+def _timeout_default(default: float = 0.5) -> float:
+    """``X32SCENE_TIMEOUT`` through the flag's own check: argparse's type= validates what is
+    typed, never a default."""
+    raw = resolve_str(None, "X32SCENE_TIMEOUT", default=None)
+    if raw is None:
+        return default
+    try:
+        return _timeout(raw.strip())
+    except argparse.ArgumentTypeError as e:
+        print(f"x32scene: warning: X32SCENE_TIMEOUT: {e}; using {default}", file=sys.stderr)
+        return default
 
 
 def _meter_seconds(s: str) -> float:
@@ -68,7 +71,7 @@ def _keep_bus(s: str) -> int:
 
 def _add_live(sub) -> None:
     # resolved once: both live subparsers share it, and a malformed value warns once
-    timeout_default = _bounded(resolve_float(None, "X32SCENE_TIMEOUT", default=0.5))
+    timeout_default = _timeout_default()
     timeout_help = "seconds to wait for each path's reply (or set X32SCENE_TIMEOUT)"
     s = sub.add_parser("load", help="load a scene or snippet onto the running desk, reading "
                                     "it back and writing again until the desk holds it")

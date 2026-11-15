@@ -3,7 +3,7 @@
 import unittest
 from unittest import mock
 
-from tests.test_watch_cli import WatchCliBase, WatchConsole
+from tests.watch_console import WatchCliBase, WatchConsole
 from x32scene.services import watch as W
 
 

@@ -10,7 +10,8 @@ import time
 import unittest
 from unittest import mock
 
-from tests.test_watch_cli import EQ_UP, MIX_DOWN, MIX_START, REF_TEXT, WatchCliBase, WatchConsole
+from tests.watch_console import (EQ_UP, MIX_DOWN, MIX_START, READ_BACK, REF_TEXT, WatchCliBase,
+                                 WatchConsole)
 from x32scene.model import Scene
 from x32scene.services import osc as O
 from x32scene.services import osc_pull as P
@@ -95,7 +96,7 @@ class UnansweredTest(WatchCliBase):
         out_snp = os.path.join(self.tmp, "stale.snp")
         console = WatchConsole(lose={"/ch/01/mix": 2},
                                script=[(0.1, MIX_DOWN, ["/ch/01/mix/fader"]),
-                                       (0.4, EQ_UP, ["/ch/01/eq/1/g"]),
+                                       (READ_BACK, EQ_UP, ["/ch/01/eq/1/g"]),
                                        (0.1, MIX_START, ["/ch/01/mix/fader"])])
         rc, out, _ = self.watch(console, "--seconds", "1.2", "--snippet", out_snp)
         self.assertEqual(rc, 0)
@@ -126,7 +127,7 @@ class LinkFailureTest(WatchCliBase):
             return real_send(link, addr, args)
 
         console = WatchConsole(script=[(0.2, MIX_DOWN, ["/ch/01/mix/fader"]),
-                                       (0.6, EQ_UP, ["/ch/01/eq/1/g"])])
+                                       (READ_BACK, EQ_UP, ["/ch/01/eq/1/g"])])
         with mock.patch.object(O.UdpTransport, "send", send):
             return self.watch(console, "--seconds", "5", *argv)
 
@@ -217,7 +218,7 @@ class SnippetJsonTest(WatchCliBase):
     def test_no_net_change_says_nothing_was_written(self):
         out_snp = os.path.join(self.tmp, "none.snp")
         snip = self.summary(WatchConsole(script=[(0.1, MIX_DOWN, ["/ch/01/mix/fader"]),
-                                                 (0.25, MIX_START, ["/ch/01/mix/fader"])]),
+                                                 (READ_BACK, MIX_START, ["/ch/01/mix/fader"])]),
                             "--snippet", out_snp)
         self.assertEqual(snip, {"file": out_snp, "written": False, "lines": 0, "skipped": []})
         self.assertFalse(os.path.exists(out_snp))

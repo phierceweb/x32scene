@@ -41,6 +41,9 @@ A block carries its own range offset, so `UIN9-16` sitting in bank 0 maps slot 1
 `userrout/in` index 8, not index 0. Getting this wrong shifts every channel by eight.
 A hand-edited token the console does not write at that block (`UIN`, `UIN0-7`, `A0-7`)
 names no source: its slots read `?` in `inputs`, and `move-inputs` refuses them.
+Nor does a slot whose block the line does not reach, in a file whose routing line is
+missing or short of its five blocks: it reads `?`, feeds no head amp, and no source name
+finds it in `set-input`.
 
 The fifth block, `AUX`, remaps only as many aux slots as its token names: `AN1-2` puts
 Local 1–2 on slots 33–34, and slots 35–38 stay Aux In 3–6. `AUX1-4` is the console's spelling

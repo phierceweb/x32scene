@@ -487,7 +487,10 @@ desk leaves a field a line does not reach), and `presets-diff` compares the four
 
 The head-amp index inside a `.chn` is fixed at save time (`/headamp/000`). Applying that
 preset to a channel on a different physical input means **remapping the index** —
-`apply_preset` does this for you.
+`apply_preset` does this for you. Only a local or AES50 input has a head amp. A channel on
+any other source, or one `inputs` reads as `?`, has nowhere for that line: `apply-preset`
+and a plan `preset` skip it without a refusal, `extract-preset` writes none, and
+`presets-diff` lists it as not compared.
 
 The same checkboxes apply to "Save as scene", so a `.scn` can legitimately be partial.
 

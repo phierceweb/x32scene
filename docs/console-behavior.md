@@ -105,6 +105,12 @@ The head amps follow the same rule when the `hadly` link preference is ON: a roo
 feeding the even channel within a second, and writing the first back took the second back
 with it (firmware 4.06, an AES50 stage-box pair).
 
+A linked channel pair's processing follows its link preference the same way. With the
+preference ON, a root write to either channel appeared on the other at once: an EQ band
+under `eq`, the dynamics line under `dyn`, the fader under `fdrmute` (the pan stayed per
+side) and the delay under `hadly`. With `eq`, `dyn` or `fdrmute` OFF the same write stayed
+on the channel it was written to (firmware 4.06; `hadly` OFF was not tried).
+
 The consequence: **writing one side of a linked pair is not durable.** Anything that copies
 or sets a send must write **both sides** of a linked pair. x32scene does this by default and
 exposes `--no-link` to opt out; `preflight`'s `require_send_symmetry` checks a file for the
@@ -166,6 +172,13 @@ fader/mute were already equal, so that copy could not be seen. The copy is not i
 line written to the pair within about 0.1 s of the link line was overwritten by it, while
 from 0.1 s on the write landed and mirrored its on and level to the other side, pans per
 side. After an unlink, writes 0 to 1 s later mirrored nothing.
+
+**Changing a link preference** on a pair already linked (firmware 4.06, the same channel
+pair): turning `eq`, `dyn` or `fdrmute` OFF moved nothing. Turning one back ON copied at
+once, with nothing written: the pair had been left unequal by a write to the odd channel
+while the preference was OFF, and the even channel took the odd channel's EQ band,
+dynamics line or fader. A pair whose even channel was the one written was not tried, and
+`hadly` was not toggled.
 
 `x32scene set-bus-link` writes the same changes into a file. A file it wrote linking a pair
 has been loaded through X32-Edit, and a full pull afterwards matched the file with zero
@@ -264,8 +277,9 @@ pair's token, but a token re-sent unchanged moves nothing: the channel-link writ
 moved only the pair it changed while four linked pairs' `ON` tokens went out with it, and a
 `/config/chlink` or `/config/buslink` line written back token for token changed no path. They
 refuse a file that changes a `/config/linkcfg` preference gating a kept line on a linked
-pair as well, since whether changing a preference copies across a pair already linked has
-not been watched.
+pair as well, in either direction: turning `eq`, `dyn` or `fdrmute` ON copied one side of
+a pair already linked onto the other, turning one OFF moved nothing, and `hadly` was not
+toggled ([Linking or unlinking a pair](#linking-or-unlinking-a-pair)).
 A root write sets the node whatever the desk's safes say: with a channel safed
 (`/-show/showfile/show/chan32`), a root write of its pan still took. Safes govern recall,
 so a load through root writes ignores them, and so would ignore a scene header's own safes

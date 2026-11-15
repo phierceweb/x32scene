@@ -6,7 +6,7 @@ import time
 import unittest
 from unittest import mock
 
-from tests.test_watch_cli import MIX_DOWN, MIX_START, WatchCliBase, WatchConsole
+from tests.watch_console import MIX_DOWN, MIX_START, WatchCliBase, WatchConsole
 from x32scene.services import watch as W
 
 
