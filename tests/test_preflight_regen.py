@@ -13,6 +13,7 @@ from x32scene.services.preflight import (_ALL_SECTIONS, GAIN_TOLERANCE_DB, cover
                                          load_expected, preflight)
 from x32scene.services.preflight_regen import (_NOT_INVERTED_KEYS, _NOT_INVERTIBLE, dumps,
                                                regenerate)
+from x32scene.services.routing import resolve_in_slot
 from x32scene.tables import SEND_STRIPS
 
 from tests.preflight_scene import fails
@@ -23,6 +24,7 @@ EXAMPLE_ALT = os.path.join(FIXTURES, "example-alt.scn")
 EXAMPLE_CONFIG = os.path.join(os.path.dirname(__file__), "..", "config",
                               "example-preflight.json")
 DAY = date(2026, 9, 12)
+IN_LINE = "/config/routing/IN UIN1-8 UIN9-16 A1-8 UIN25-32 AUX1-4"
 
 
 def _generated(path: str) -> dict:
@@ -202,6 +204,18 @@ class InversionTest(unittest.TestCase):
                 doc = json.loads(dumps(regenerate(sc, EXAMPLE, DAY)))
                 self.assertEqual(preflight(sc, doc), preflight(sc, {}))
                 self.assertTrue(preflight(sc, {}))
+
+    def test_a_usb_player_channel_keeps_its_source_under_a_short_in_line(self):
+        text = _fixture_text().replace('/ch/30/config "Click" 1 WHi 30',
+                                       '/ch/30/config "Click" 1 WHi 39')
+        for case, line in {"whole": IN_LINE, "four blocks": IN_LINE.rsplit(" ", 1)[0],
+                           "missing": None}.items():
+            with self.subTest(line=case):
+                sc = (Scene.parse(text.replace(IN_LINE, line)) if line
+                      else _without(text, "/config/routing/IN "))
+                doc = json.loads(dumps(regenerate(sc, EXAMPLE, DAY)))
+                self.assertEqual(doc["channels"]["30"]["source"], resolve_in_slot(sc, 39))
+                self.assertEqual(preflight(sc, doc), preflight(sc, {}))
 
     def test_a_policy_the_scene_breaks_is_written_false(self):
         text = _fixture_text().replace("/outputs/aux/02 15 ", "/outputs/aux/02 16 ")

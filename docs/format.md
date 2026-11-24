@@ -115,8 +115,8 @@ model only populates as many as it has jacks (an X32 Rack fills `000`–`015` an
 **Channel → headamp** is not 1:1 in general. The last token of
 `/ch/NN/config "Name" icon colour SRC` is a source *slot*; resolve it through the routing
 indirection first ([routing.md](routing.md)), then subtract one:
-`headamp index = source number − 1` for input sources 1–128. Card, Aux, FX-return, bus
-and OFF sources have no head amp at all.
+`headamp index = source number − 1` for input sources 1–128, the local and AES50 inputs.
+No other source has a head amp.
 
 ## Strip lines, field by field
 
@@ -490,7 +490,9 @@ preset to a channel on a different physical input means **remapping the index** 
 `apply_preset` does this for you. Only a local or AES50 input has a head amp. A channel on
 any other source, or one `inputs` reads as `?`, has nowhere for that line: `apply-preset`
 and a plan `preset` skip it without a refusal, `extract-preset` writes none, and
-`presets-diff` lists it as not compared.
+`presets-diff` lists it as not compared. Where the line is written, `apply-preset` and a
+plan `preset` refuse one that is not two fields: a gain from −12.0 to +60.0 written like
+`+19.0`, then `ON` or `OFF`.
 
 The same checkboxes apply to "Save as scene", so a `.scn` can legitimately be partial.
 

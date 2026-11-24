@@ -17,7 +17,7 @@ from . import (preflight_groups, preflight_links, preflight_monitor, preflight_o
 from .jsonfile import read_json
 from .preflight_config import (Finding, fail_unknown, mapping, numbered_items, spec,
                                want_bool, want_number, want_str)
-from .routing import channel_headamp_index, record_map, resolve_in_slot
+from .routing import channel_headamp_index, config_slot, record_map, resolve_in_slot
 from .stage import stage_entries
 
 __all__ = ["GAIN_TOLERANCE_DB", "Finding", "coverage", "load_expected", "physical_outputs",
@@ -64,7 +64,7 @@ def _check_channel(scene: Scene, ch: int, exp: dict, tol: float, out: list[Findi
         out.append(Finding("FAIL", area, f'name "{name}" != expected "{want}"', cfg_path))
     want = want_str(exp, "source", area, out)
     if want is not None:
-        src = resolve_in_slot(scene, int(cfg.args[-1]))
+        src = resolve_in_slot(scene, config_slot(cfg))
         if src != want:
             out.append(Finding("FAIL", area, f"source {src} != expected {want}", cfg_path))
     want_main = want_bool(exp, "in_main", area, out)

@@ -204,10 +204,13 @@ class SnippetDestinationTest(WatchCliBase):
 
 
 class SnippetJsonTest(WatchCliBase):
-    def summary(self, console, *argv):
+    def document(self, console, *argv):
         rc, out, _ = self.watch(console, "--seconds", "0.8", "--json", *argv)
         self.assertEqual(rc, 0)
-        return json.loads(out.splitlines()[-1])["snippet"]
+        return json.loads(out.splitlines()[-1])
+
+    def summary(self, console, *argv):
+        return self.document(console, *argv)["snippet"]
 
     def test_written(self):
         out_snp = os.path.join(self.tmp, "w.snp")
@@ -217,10 +220,12 @@ class SnippetJsonTest(WatchCliBase):
 
     def test_no_net_change_says_nothing_was_written(self):
         out_snp = os.path.join(self.tmp, "none.snp")
-        snip = self.summary(WatchConsole(script=[(0.1, MIX_DOWN, ["/ch/01/mix/fader"]),
+        doc = self.document(WatchConsole(script=[(0.1, MIX_DOWN, ["/ch/01/mix/fader"]),
                                                  (READ_BACK, MIX_START, ["/ch/01/mix/fader"])]),
                             "--snippet", out_snp)
-        self.assertEqual(snip, {"file": out_snp, "written": False, "lines": 0, "skipped": []})
+        self.assertEqual((doc["logged"], doc["transient"]), (2, 1))
+        self.assertEqual(doc["snippet"],
+                         {"file": out_snp, "written": False, "lines": 0, "skipped": []})
         self.assertFalse(os.path.exists(out_snp))
 
     def test_a_change_no_snippet_can_carry_names_what_was_skipped(self):

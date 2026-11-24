@@ -18,6 +18,7 @@ from .preset_header import body_lines, preset_header, preset_selects, sections_o
 from .routing import channel_headamp_index
 from .scopes import SCOPES, scope_of
 from .snippets import MIX_FIELD
+from .transforms import HEADAMP_MAX_DB, HEADAMP_MIN_DB, headamp_fields_ok
 
 _STRIP_EQ_BANDS = re.compile(r"^/eq/[56](?: |$)", re.MULTILINE)
 
@@ -115,7 +116,8 @@ def apply_preset(scene: Scene, ch: int, chn_text: str,
 
     Only paths whose scope is selected AND present in the preset are written; with no
     ``scopes`` a header's section flags select them (:func:`preset_selects`). The preset's
-    head-amp is remapped from its stored index onto the target channel's head-amp index.
+    head-amp is remapped from its stored index onto the target channel's head-amp index;
+    one that would be written and is not a gain in range and ON or OFF raises ValueError.
     A send on a stereo-linked bus pair is written to both buses (:func:`mirrored_sends`); a
     send line short of its bus's fields (a ``#2.1#`` desk preset's) keeps the target's rest.
     CR line endings, EQ bands 5-6 (a bus, matrix or main strip), or a selected send line
@@ -132,6 +134,12 @@ def apply_preset(scene: Scene, ch: int, chn_text: str,
         if bus is not None and selects(ln.path) and not 2 <= len(ln.args) <= send_line_fields(bus):
             raise ValueError(f"preset {ln.path} carries {len(ln.args)} field(s): a send to bus "
                              f"{bus} carries on and level, and at most {send_line_fields(bus)}")
+        if (ln.path.startswith("/headamp") and selects(ln.path)
+                and (idx := channel_headamp_index(scene, ch)) is not None
+                and scene.get(f"/headamp/{idx:03d}") and not headamp_fields_ok(ln.args)):
+            raise ValueError(f"preset {ln.raw}: a head-amp line carries a gain from "
+                             f"{HEADAMP_MIN_DB:+.1f} to {HEADAMP_MAX_DB:+.1f} written like "
+                             "+19.0, then ON or OFF")
     mirrors = mirrored_sends(scene, ch, chn_text, scopes)
     by_path = {ln.path: ln for ln in lines}
     for path, src in mirrors:

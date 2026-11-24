@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..model import Scene
+from ..model import Line, Scene
 from ..tables import (AUX_BANK_USB, ROUTING_BLOCKS, SLOT_RETURNS, decode_out_source,
                       decode_source, routing_block_names, routing_vocab)
 
@@ -103,6 +103,12 @@ def _unreached(scene: Scene, slot: int, bank: str | None = None) -> bool:
     return 1 <= slot <= 38 and (slot - 1) // 8 >= len(_in_blocks(scene, bank))
 
 
+def _uin_unread(scene: Scene, slot: int) -> bool:
+    """The slot reads the user patch at an index ``/config/userrout/in`` does not hold."""
+    idx = uin_in_index(scene, slot)
+    return idx is not None and idx >= len(userrout(scene, "in"))
+
+
 def uin_in_index(scene: Scene, slot: int, *, bank: str | None = None) -> int | None:
     """0-based /config/userrout/in index feeding ``slot``, honoring the UIN block's own range
     (``UIN9-16`` on bank 0 maps slot 1 -> index 8); None for a non-UIN or Aux In slot, for
@@ -161,28 +167,39 @@ def resolve_in_slot_number(scene: Scene, slot: int, *, bank: str | None = None) 
 def resolve_in_slot(scene: Scene, slot: int) -> str:
     """Resolve a channel source slot (0-64) to a source label. Slots 39/40 are the aux
     bank's USB player and 41-64 the FX returns and buses, which no routed-input number names.
-    ``?`` for a slot outside 0-64, and for one whose block holds a token the console does not
-    write or lies past the end of its routing line."""
+    ``?`` for a slot outside 0-64, for one whose block holds a token the console does not
+    write or lies past the end of its routing line, and for a user-in slot the user patch
+    does not hold."""
     if not 0 <= slot <= 64:
         return "?"
     named = AUX_BANK_USB.get(slot) or SLOT_RETURNS.get(slot)
     if named:
         return named
-    if unwritten_in_block(scene, slot) is not None or _unreached(scene, slot):
+    if (unwritten_in_block(scene, slot) is not None or _unreached(scene, slot)
+            or _uin_unread(scene, slot)):
         return "?"
     return decode_source(resolve_in_slot_number(scene, slot))
+
+
+def config_slot(cfg: Line) -> int:
+    """The source slot ending a ``/ch/NN/config`` line; ValueError naming the line when its
+    last field is no number."""
+    try:
+        return int(cfg.args[-1])
+    except ValueError as e:
+        raise ValueError(f"{cfg.path} ends in {cfg.args[-1]!r}, not a source slot") from e
 
 
 def channel_headamp_index(scene: Scene, ch: int) -> int | None:
     """The /headamp index feeding a channel, or None if its source has no head amp.
 
-    Index is source number - 1 for sources 1-128; Card/Aux/OFF sources have none.
+    Index is source number - 1 for sources 1-128, the local and AES50 inputs; no other
+    source has one.
     """
     cfg = scene.get(f"/ch/{ch:02d}/config")
     if not cfg or not cfg.args:
         return None
-    slot = int(cfg.args[-1])
-    num = resolve_in_slot_number(scene, slot)
+    num = resolve_in_slot_number(scene, config_slot(cfg))
     return num - 1 if 1 <= num <= 128 else None
 
 
@@ -201,7 +218,7 @@ def channel_sources(scene: Scene) -> list[ChannelSource]:
         if not cfg or not cfg.args:
             continue
         name = cfg.args[0].strip('"')
-        slot = int(cfg.args[-1])
+        slot = config_slot(cfg)
         out.append(ChannelSource(ch, name, slot, resolve_in_slot(scene, slot)))
     return out
 

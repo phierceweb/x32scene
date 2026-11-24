@@ -108,8 +108,8 @@ Every other numeric value must be a JSON number; a quoted number is refused rath
 coerced, because a quoted level is how a plan silently kills a send.
 
 Naming `gain_db` or `phantom` on a channel whose source, after the plan's `routing` and
-`source`, is a card, an aux, an FX return, a bus or OFF raises: those sources have no head
-amp. So does a channel whose source `inputs` reads as `?`. A `preset` carrying a head-amp
+`source`, is not a local or AES50 input raises: no other source has a head amp. So does a
+channel whose source `inputs` reads as `?`. A `preset` carrying a head-amp
 line is not refused there: that line is skipped. See [format.md](format.md#the-number-one-trap-gain-and-phantom-are-not-on-the-channel).
 
 **Processing written by a plan does not mirror to a stereo-linked partner.** A plan names

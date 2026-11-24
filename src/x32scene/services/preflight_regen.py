@@ -19,7 +19,7 @@ from .groups import GROUP_STRIPS, dca_members, dca_names, mute_members
 from .preflight import _ALL_SECTIONS, _SECTIONS, GAIN_TOLERANCE_DB, _in_main
 from .preflight_outputs import _SRC_MAX, out_path
 from .preflight_regen_sends import sends
-from .routing import (channel_headamp_index, input_bank, record_map, resolve_in_slot,
+from .routing import (_unreached, channel_headamp_index, record_map, resolve_in_slot,
                       routing_blocks, uin_in_index)
 from .routing_out import output_sources
 
@@ -53,9 +53,7 @@ def _numeric(scene: Scene, path: str) -> bool:
 def _resolvable(scene: Scene, slot: int) -> bool:
     """Is every routing line the input slot resolves through present and readable? A slot
     its routing line does not reach has no source to write."""
-    if not 1 <= slot <= 40:
-        return True
-    if (slot - 1) // 8 >= len(routing_blocks(scene, input_bank(scene))):
+    if _unreached(scene, slot):
         return False
     idx = uin_in_index(scene, slot)
     uin = scene.get("/config/userrout/in")

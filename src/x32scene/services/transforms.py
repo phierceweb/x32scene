@@ -6,6 +6,9 @@ Channel/bus indices are 1-based and formatted two digits to match the file (``/c
 
 from __future__ import annotations
 
+import re
+from collections.abc import Sequence
+
 from ..model import HEADER_RE, Line, Scene
 from .channelfx import link_targets
 from .stagebox import move_input_to_stagebox, move_inputs_to_stagebox  # noqa: F401
@@ -48,6 +51,16 @@ def rename_channel(scene: Scene, ch: int, name: str) -> None:
 # ---- preamp (headamp = analog record gain + phantom) ------------------------
 # the XLR head amp's 72 dB span; no -oo, unlike a fader
 HEADAMP_MIN_DB, HEADAMP_MAX_DB = -12.0, 60.0
+
+
+_HEADAMP_GAIN = re.compile(r"[+-](?:0|[1-9]\d?)\.\d", re.ASCII)
+
+
+def headamp_fields_ok(args: Sequence[str]) -> bool:
+    """Are these a ``/headamp`` line's two fields: an in-range gain as an ASCII sign, one or
+    two digits with no leading zero and one decimal (its 0.5 dB step unchecked), then ON or OFF?"""
+    return (len(args) == 2 and _HEADAMP_GAIN.fullmatch(args[0]) is not None
+            and HEADAMP_MIN_DB <= float(args[0]) <= HEADAMP_MAX_DB and args[1] in ("ON", "OFF"))
 
 
 def set_headamp_index(scene: Scene, idx: int, gain_db: float | None = None,

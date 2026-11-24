@@ -43,7 +43,9 @@ A hand-edited token the console does not write at that block (`UIN`, `UIN0-7`, `
 names no source: its slots read `?` in `inputs`, and `move-inputs` refuses them.
 Nor does a slot whose block the line does not reach, in a file whose routing line is
 missing or short of its five blocks: it reads `?`, feeds no head amp, and no source name
-finds it in `set-input`.
+finds it in `set-input`. A `UIN` slot whose index `/config/userrout/in` does not hold, the
+line missing or short of it, reads `?` and feeds no head amp too; one the user patch holds
+as `0` reads `OFF`.
 
 The fifth block, `AUX`, remaps only as many aux slots as its token names: `AN1-2` puts
 Local 1–2 on slots 33–34, and slots 35–38 stay Aux In 3–6. `AUX1-4` is the console's spelling
@@ -58,8 +60,8 @@ models the desk both as it stands and as it will stand after the write, so a kep
 bank read is PLAY, and `inputs` notes a switch token that is neither `REC` nor `PLAY`, which
 reads the IN bank; `inputs --json` carries the token as `switch`.
 
-Once you have a source *number*, the head-amp index is `number − 1` for sources 1–128.
-Card, Aux, FX-return, bus and OFF sources have no head amp.
+Once you have a source *number*, the head-amp index is `number − 1` for sources 1–128, the
+local and AES50 inputs. No other source has a head amp.
 
 ## Outputs: `OUT` and `UOUT` are not the same signal
 

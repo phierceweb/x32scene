@@ -98,6 +98,7 @@ One concern per module. The ones a script reaches for first:
 | `preset_library` | a folder of `.chn` against a scene: `check_library(sc, dir) -> list[PresetCheck]`; `extract_library(sc) -> (presets, unnamed, shared)` for one preset per named channel, skipping every channel on a shared file name |
 | `fx` | effect types, sources and parameters by name |
 | `snippets` | build a `.snp` from a delta, with the header masks derived from the body; `read_header(text).covers(path)` says whether the desk's recall of a snippet applies a path (None for one no snippet carries) |
+| `snippet_filter` | `header_from_names(name, filters, strips)` spells a snippet header from category and strip names, the inverse of `SnippetHeader.describe()`; `filtered_snippet(scene, header)` is every line of a scene that filter covers, head amps by the channel mask |
 | `diff` | `diff(a, b) -> list[Change]` |
 | `show`, `show_check` | `read_show(text) -> Show`, `build_show(...)` for a `.shw` and its companions; `check_show(show, stem, read) -> list[Finding]` fails a file with no `show` line (`Show.has_show_line`), checks the cues and each `companion(stem, entry)` file, with `read(name)` raising FileNotFoundError for an absent one |
 | `audit` | a scene library: `load_library(dir) -> (scenes, errors)`, `check_invariants(lib)`, and each change down the chronology in `routing_drift(lib)` and `record_patch_drift(lib)` |

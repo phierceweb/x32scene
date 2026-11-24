@@ -172,6 +172,7 @@ x32scene move-inputs scene.scn 1:1 2:2 --to B -o out.scn   # channels onto stage
 x32scene set-bus-link scene.scn 13 on -o out.scn           # link a bus pair as the desk does
 x32scene transplant src.scn dst.scn -o out.scn --bus 1 --path /headamp/000 --ch 3 --scope eq
 x32scene snippet a.scn b.scn -o delta.snp | a.scn -o mix.snp --bus 9 | a.scn -o eq.snp --edit "set-eq 5 2 --gain 3"
+x32scene snippet a.scn -o guest.snp --filter "Send 9-12" --strips ch,auxin,fxrtn   # what a desk slot with that filter recalls
 x32scene band-setup template.scn plan.json -o out.scn [--snippet out.snp]
 x32scene show-build -o DIR --name Night --scene a.scn --snippet x.snp --cue "1 Opener scene=0"
 x32scene preflight scene.scn --config rig.json [--stage stage.json] | --regenerate rig.json

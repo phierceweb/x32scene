@@ -3,6 +3,39 @@
 All notable changes to this project are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versioning: [SemVer](https://semver.org/).
 
+## [0.12.0] — 2026-11-23
+
+### Added
+- `snippet SCENE -o OUT.snp --filter NAME [--strips SPEC]`: the lines of one scene a desk
+  snippet slot saved through a filter recalls, as they are, under a header whose masks
+  are the filter. `--filter` takes a category as `header` prints it, or `strip` for the
+  per-strip categories; `--strips` takes the strips (`ch1-14,ch17`, `auxin`, `bus9-10`,
+  `main/st`). A head amp is carried only when a channel in `--strips` reads it.
+  Library: `services.snippet_filter` (`header_from_names`, `filtered_snippet`).
+
+### Changed
+- A user-in slot `/config/userrout/in` does not hold, the line missing or short of the
+  slot's index, names no source: `inputs` and `report` read `?`, and `preflight` fails a
+  `source` expected of it, `OFF` included. A slot the user patch holds as `0` reads `OFF`.
+  Library: `resolve_in_slot` returns `?` for it.
+- `apply-preset` and a plan `preset` refuse a head-amp line they would write that is not
+  two fields, a gain from -12.0 to +60.0 written like `+19.0`, then `ON` or `OFF`;
+  nothing is written. Library: `transforms.headamp_fields_ok`.
+
+### Fixed
+- `preflight --regenerate` writes the `source` of a channel on the USB player (slots 39
+  and 40) under a `/config/routing/IN` line, or `PLAY` under `PLAY`, that is missing or
+  short of its five blocks, as `inputs` names it.
+- A `/ch/NN/config` line whose last field is no slot number is named in the error from
+  `inputs`, `report`, `preflight`, `presets-diff`, `apply-preset` and `move-inputs`.
+  Library: `routing.config_slot`.
+
+### Docs
+- Only a local or AES50 input has a head amp: `format.md`, `routing.md`, `band-plan.md`
+  and the plan's `gain_db` refusal say so in place of a list of the sources without one.
+  `preflight-config.md`: a `gain` or `phantom` expected of a channel with no head amp is
+  a `FAIL`.
+
 ## [0.11.0] — 2026-11-14
 
 ### Changed
@@ -586,6 +619,7 @@ First release.
 - `docs/capabilities.md`, `format.md`, `console-behavior.md` (including how a file reaches
   the desk and what the desk snaps or rejects), `routing.md`, `stage-sidecar.md`.
 
+[0.12.0]: https://github.com/phierceweb/x32scene/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/phierceweb/x32scene/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/phierceweb/x32scene/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/phierceweb/x32scene/releases/tag/v0.9.0

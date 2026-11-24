@@ -1,5 +1,5 @@
-"""The snippet subcommand: a delta between two scenes, edits applied to one, or one mix as
-it is."""
+"""The snippet subcommand: a delta between two scenes, edits applied to one, or one mix or
+one filter's slice as it is."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from ._cli_inplace import IN_PLACE, apply_edit
 from ._cli_strips import NOT_IN_SNIPPET, STRIP_COMMANDS
 from .model import Scene
 from .services import buslink as _buslink
+from .services import snippet_filter as _filter
 from .services import snippets as _snippets
 from .services import transplant as _transplant
 
@@ -60,18 +61,43 @@ def _carried_edit(sc: Scene, text: str, parsed) -> str:
     return row
 
 
+def _run_filtered(args, name: str) -> int:
+    """One scene's lines under a filter typed by name, the header being the filter."""
+    if not args.filter:
+        raise InvalidInputError("--strips names the strips of a --filter: add the categories, "
+                                'such as --filter "Send 9-12"')
+    if len(args.scenes) != 1 or args.edit or args.bus or args.only:
+        raise InvalidInputError("--filter takes one scene, and not --edit, --bus or --only")
+    header = _filter.header_from_names(name, args.filter, args.strips)
+    gated = header.eventtyp & _filter.STRIP_CATEGORIES
+    if gated and not (header.channels or header.auxbuses or header.maingrps):
+        first = header.describe()["filters"][0]
+        raise InvalidInputError(f"{first} is recalled per strip: name the strips with "
+                                "--strips, such as --strips ch1-8,bus9-10")
+    refuse_overwrite(args.out, args.scenes[0], force=args.force)
+    snip = _filter.filtered_snippet(load_checked(args.scenes[0]), header)
+    if len(snip.scene.lines) == 1:
+        raise InvalidInputError(f"the filter selects no line of {args.scenes[0]}")
+    snip.scene.save(args.out)
+    _views.cmd_snippet(snip, args.out)
+    return 0
+
+
 def run_snippet(args) -> int:
     """Write the snippet; a refusal raises, nothing written."""
+    name = args.name or os.path.splitext(os.path.basename(args.out))[0]
+    if args.filter or args.strips:
+        return _run_filtered(args, name)
     absolute = len(args.scenes) == 1 and not args.edit and (args.bus or args.only)
     if len(args.scenes) != (1 if args.edit or absolute else 2):
         raise InvalidInputError("snippet takes two scenes (a delta), one scene with --edit, "
-                                "or one scene with --bus/--only (those lines as they are)")
+                                "or one scene with --bus/--only/--filter (those lines as "
+                                "they are)")
     # an --edit can name a preset to load: an input the arguments do not reveal, so
     # every edit is parsed before the guard runs
     edits = [parse_edit(text, args.scenes[0]) for text in args.edit]
     presets = [e.preset for e in edits if getattr(e, "preset", None)]
     refuse_overwrite(args.out, *args.scenes, *presets, force=args.force)
-    name = args.name or os.path.splitext(os.path.basename(args.out))[0]
     base = load_checked(args.scenes[0])
     if absolute:
         base = Scene([base.lines[0]], True)   # every selected line, not just what moved

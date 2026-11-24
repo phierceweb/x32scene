@@ -11,8 +11,8 @@ from dataclasses import dataclass
 
 from ..model import Line, Scene
 from ..tables import decode_source, routing_block_names
-from .routing import (in_line_fault, input_bank, resolve_in_slot_number, uin_in_index,
-                      unwritten_in_block)
+from .routing import (config_slot, in_line_fault, input_bank, resolve_in_slot_number,
+                      uin_in_index, unwritten_in_block)
 
 _PORT_BASE = {"A": 32, "B": 80}
 
@@ -43,7 +43,7 @@ def _plan_move(scene: Scene, ch: int, aes_input: int, port: str) -> tuple[int, i
     cfg = scene.get(f"/ch/{ch:02d}/config")
     if not cfg or not cfg.args:
         raise KeyError(f"no channel {ch}")
-    slot = int(cfg.args[-1])
+    slot = config_slot(cfg)
     if slot == 0:
         raise ValueError(f"ch{ch:02d} has no input source (OFF) — nothing to move")
     if 33 <= slot <= 40:

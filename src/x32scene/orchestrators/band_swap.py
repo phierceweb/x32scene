@@ -52,8 +52,8 @@ def apply_plan(scene: Scene, plan: dict) -> dict:
         if "gain_db" in spec or "phantom" in spec:
             idx = channel_headamp_index(scene, ch)
             if idx is None:
-                raise KeyError(f"channel {ch} has no head amp: its source is a card, aux, FX, "
-                               "bus or OFF, or one `inputs` reads as ?")
+                raise KeyError(f"channel {ch} has no head amp: its source is not a local or "
+                               "AES50 input, or one `inputs` reads as ?")
             T.set_headamp_index(scene, idx, spec.get("gain_db"), spec.get("phantom"))
         # linked=False: a plan names its channels explicitly, so a mirror would be a path
         # the plan never asked for

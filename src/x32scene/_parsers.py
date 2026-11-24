@@ -129,10 +129,11 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
                    help="directory of .scn files (or set X32SCENE_CORPUS)")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("snippet", help="a .snp the console recalls in place: the delta "
-                                       "between two scenes, or edits applied to one")
+                                       "between two scenes, edits applied to one, or the "
+                                       "lines of one a filter selects")
     s.add_argument("scenes", nargs="+", metavar="SCENE",
-                   help="A B for a delta; one scene with --edit, or with --bus/--only to take "
-                        "those lines as they are")
+                   help="A B for a delta; one scene with --edit, or with --bus/--only/--filter "
+                        "to take those lines as they are")
     _out(s, metavar="OUT.snp")
     s.add_argument("--edit", action="append", default=[], metavar='"set-eq 5 2 --gain 3"',
                    help="an edit command without its scene and -o, applied in memory "
@@ -145,6 +146,15 @@ def _build_parser(description: str | None) -> argparse.ArgumentParser:
                         "both sides of a pair (repeatable)")
     s.add_argument("--only", action="append", default=[], metavar="GLOB",
                    help="keep only paths matching, e.g. '/ch/01/*' (repeatable)")
+    s.add_argument("--filter", action="append", default=[], metavar="NAME",
+                   help="one scene's lines a desk snippet slot saved with this filter recalls: "
+                        "a category as `header` prints it (\"Send 9-12\", Config, \"Fader, "
+                        "Pan\"), or strip for every per-strip category (repeatable; not with "
+                        "--edit, --bus or --only)")
+    s.add_argument("--strips", action="append", default=[], metavar="SPEC",
+                   help="the strips --filter applies to: ch1-14,ch17, auxin, fxrtn, bus9-10, "
+                        "mtx, dca, main/st, main/m; a bare family is all of it (repeatable, "
+                        "comma-separated)")
     _add_fx_routing(sub, _out)
     s = sub.add_parser("transplant", help="carry lines from SRC into DST and touch nothing "
                                           "else: a monitor bus, path patterns, channel sections")

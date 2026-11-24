@@ -82,7 +82,10 @@ one object, at any depth, is refused before anything is checked: exit 1, naming 
 | `source` | the physical input the channel resolves to, in words — the same string `x32scene inputs` prints |
 | `in_main` | `true` = audibly in the Main L/R blend: ON, LR assigned, and fader above −∞. `false` = silenced any of those three ways |
 | `phantom` | `true`/`false`, read from `/headamp/NNN` |
-| `gain` | the analog head-amp gain in dB. `WARN` beyond `gain_tolerance_db`, never `FAIL` |
+| `gain` | the analog head-amp gain in dB. A gain off by more than `gain_tolerance_db` is a `WARN`, never a `FAIL` |
+
+A `gain` or `phantom` expected of a channel with no head amp, or whose `/headamp` line the
+scene lacks, is a `FAIL`: only a local or AES50 input has one.
 
 `source` and `gain` both resolve through the routing banks to the physical input, so a
 channel re-pointed at another jack fails on `source` — which is the point. See
